@@ -1,6 +1,6 @@
-# LoRa Basics™ Station using balena.io with sx1301, sx1302 and sx1303 LoRa concentrators
+# LoRa Basics™ Station for Docker
 
-This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward protocol using Docker or Balena.io. It runs on a Raspberry Pi 3/4, Compute Module 3/4 or balenaFin with sx1301, sx1302 or sx1303 LoRa concentrators (e.g. RAK831, RAK833, RAK2245, RAK2247, RAK2287, RAK5146, Seeed WM1302 and IMST iC880a among others).
+This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward protocol using Docker or Balena.io. It runs on a Raspberry Pi 3/4, Compute Module 3/4 or balenaFin with SX1301, SX1302 or SX1303 LoRa concentrators (e.g. RAK831, RAK833, RAK2245, RAK2247, RAK2287, RAK5146, Seeed WM1302 and IMST iC880a among others).
 
 
 ## Introduction
@@ -40,7 +40,6 @@ Supported LoRa concentrators:
 * SX1302
   * [RAK 2287 Concentrator](https://store.rakwireless.com/products/rak2287-lpwan-gateway-concentrator-module)
   * [Seeed WM1302](https://www.seeedstudio.com/WM1302-LoRaWAN-Gateway-Module-SPI-EU868-p-4889.html)
-
 * SX1303
   * [RAK 5146 Concentrator](https://store.rakwireless.com/collections/wislink-lpwan/products/wislink-lpwan-concentrator-rak5146)
 
