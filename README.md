@@ -11,7 +11,10 @@ The Basics™ Station protocol enables the LoRa gateways with a reliable and sec
 
 This project is available in Docker Hub (https://hub.docker.com/r/xoseperez/basicstation) and GitHub (https://github.com/xoseperez/basicstation).
 
+This project is an evolution of the BasicStation implementation for Docker @mpous and I have been working on. You can still find it here: https://github.com/mpous/basicstation.
+
 This project has been tested with The Things Stack Community Edition (TTSCE or TTNv3).
+
 
 ## Requirements
 
