@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.0 (2022-01-21)
+## 2.0.0 (2022-01-21)
 
  * Cloning original basicstation repo instead of forking it
  * Unify running configuration & scripts
