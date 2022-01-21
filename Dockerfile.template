@@ -8,10 +8,6 @@ WORKDIR /usr/src/app
 COPY builder/* .
 RUN ARCH=${ARCH} ./build.sh
 
-# Compile our source code
-RUN make platform=rpi variant=std arch=%%BALENA_ARCH%%
-RUN make platform=corecell variant=std arch=%%BALENA_ARCH%%
-
 # Runner image
 FROM balenalib/%%BALENA_ARCH%%-debian:buster-run as runner
 
