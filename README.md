@@ -216,8 +216,7 @@ Variable Name | Value | Description | Default
 **`TC_URI`** | `STRING` | Basics Station TC URI to get connected. | Automatically created based on TTN_REGION for TTN
 **`TC_KEY`** | `STRING` | Unique TTN Gateway Key used for TTS Community Edition | Paste API key from TTN console
 
-When using The Things Stack Community Edition the `TC_URI` and `TC_TRUST` values are automatically populated to use ```wss://eu1.cloud.thethings.network:8887```. If your region is not EU you can set it using ```TTN_REGION```. At the moment there is only one server avalable is ```eu1```.
-
+When using The Things Stack Community Edition the `TC_URI` and `TC_TRUST` values are automatically populated to use ```wss://eu1.cloud.thethings.network:8887```. At the moment only these regions are available: `eu1`, `nam1` and `au1`.
 
 ## Troubleshoothing
 
