@@ -7,7 +7,7 @@ FROM balenalib/${ARCH}-debian:buster-build as builder
 ARG ARCH
 
 # Switch to working directory for our app
-WORKDIR /usr/src/app
+WORKDIR /app
 
 # Checkout and compile remote code
 COPY builder/* .
@@ -36,11 +36,11 @@ LABEL org.label-schema.license="BSD License 2.0"
 RUN install_packages jq vim
 
 # Switch to working directory for our app
-WORKDIR /usr/src/app
+WORKDIR /app
 
 # Copy fles from builder and repo
-COPY --from=builder /usr/src/app/basicstation/build-rpi-std ./sx1301
-COPY --from=builder /usr/src/app/basicstation/build-corecell-std ./sx1302
+COPY --from=builder /app/basicstation/build-rpi-std ./sx1301
+COPY --from=builder /app/basicstation/build-corecell-std ./sx1302
 COPY runner/* ./
 
 # Launch our binary on container startup.
