@@ -56,6 +56,7 @@ GW_RESET_GPIO=${GW_RESET_GPIO:-${GPIO_MAP[$GW_RESET_PIN]}}
 
 # Some board might have an enable GPIO
 GW_POWER_EN_GPIO=${GW_POWER_EN_GPIO:-0}
+GW_POWER_EN_LOGIC=${GW_POWER_EN_LOGIC:-1}
 
 # Get the Gateway EUI
 GATEWAY_EUI=$(cat /sys/class/net/eth0/address | sed -r 's/[:]+//g' | sed -e 's#\(.\{6\}\)\(.*\)#\1fffe\2#g')
@@ -101,6 +102,7 @@ fi
 # Export variables used by other scripts
 export GW_RESET_GPIO=$GW_RESET_GPIO
 export GW_POWER_EN_GPIO=$GW_POWER_EN_GPIO
+export GW_POWER_EN_LOGIC=$GW_POWER_EN_LOGIC
 
 # Link the corresponding configuration file and run station
 ln station.${CONCENTRATOR}.conf station.conf

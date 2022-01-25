@@ -211,6 +211,7 @@ Variable Name | Value | Description | Default
 **`GW_GPS`** | `STRING` | Enables GPS | true or false
 **`GW_RESET_GPIO`** | `INT` | GPIO number that resets (Broadcom pin number, if not defined, it's calculated based on the GW_RESET_PIN) | 17
 **`GW_POWER_EN_GPIO`** | `INT` | GPIO number that enables power (by pulling HIGH) to the concentrator (Broadcom pin number). 0 means no required. | 0
+**`GW_POWER_EN_LOGIC`** | `INT` | If `GW_POWER_EN_GPIO` is not 0, the corresponding GPIO will be set to this value | 1
 **`TTN_REGION`** | `STRING` | Region of the TTN server to use | ```eu1```
 **`TC_TRUST`** | `STRING` | Certificate for the server | Automatically retrieved from LetsEncryt for TTN
 **`TC_URI`** | `STRING` | Basics Station TC URI to get connected. | Automatically created based on TTN_REGION for TTN
