@@ -3,20 +3,52 @@ version: '3.7'
 services:
 
   basicstation:
+
     image: xoseperez/basicstation:latest
     container_name: basicstation
     restart: unless-stopped
     privileged: true
-    network_mode: host      # required to read main interface MAC instead of virtual one
+    network_mode: host      # required to read main interface MAC instead of virtual one, 
+                            # you don't need this if you set the GATEWAY_EUI manually
+
     #volumes:
     #  - ./config:/app/config
+
     environment:
-      MODEL: "SX1301"
-      GW_GPS: "false"
-      GW_RESET_GPIO: 17
-      GW_ENABLE_GPIO: 0
-      TTN_REGION: "eu1"
-      #TC_URI:              # uses TTN server by default, based on the TTN_STACK_VERSION and TTN_REGION variables
-      #TC_TRUST:            # uses TTN certificates by default
-      TC_KEY: "..."
+
+      # To select your concentrator you have 3 options:
+      # Option 1: set the model of the concentrator you are using (by RAK, SeeedStudio o IMST)
+      # Option 2: set the Semtech's chip on it
+      MODEL: "RAK5146"
+      #MODEL: "SX1303"
+
+      # These are the defaults:
+      #GW_GPS: "true"
+      #GW_RESET_GPIO: 17
+      #GW_POWER_EN_GPIO: 0
+      #GW_POWER_EN_LOGIC:1
+
+      # If you have the concentrator connected to a different port
+      # than the default one ("/dev/spidev0.0") you can define it this way
+      # LORAGW_SPI: "/dev/spidev0.1"
+
+      # The service will define the Gateway EUI based on a network interface: eth0, wlan0 or usb0.
+      # If neither of these exist or you want it to use a different interface you can define the NIC this way:
+      #GATEWAY_EUI_NIC: "enx00e04c68160f"
+
+      # You can also set a custom Gateway EUI (8 bytes in hex format)
+      #GATEWAY_EUI: "1122334455667788"
+
+      # The default LNS server is the European TTN server. 
+      # If you still want to use TTN but a different region you can set it this way:
+      #TTN_REGION: "au1"
+
+      # Or you can set a completely different LNS server.
+      #TC_URI: "wss://lns.example.com:8887"
+
+      # If you set a server other than TTN, you will have to provide the certificate for that server.
+      #TC_TRUST: "-----BEGIN CERTIFICATE----- MIIDSjCCAjKgAwIBAgIQRK+wgNajJ7qJMDmGLvhAazANBgkqhkiG9w0BAQUFADA......"
+
+      # Finally, you need to create a KEY for the gateway and provide it here:
+      TC_KEY: "NNSXS.SLOC764GN3....."
 
