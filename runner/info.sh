@@ -37,7 +37,26 @@ GW_POWER_EN_GPIO=${GW_POWER_EN_GPIO:-0}
 GW_POWER_EN_LOGIC=${GW_POWER_EN_LOGIC:-1}
 
 # Get the Gateway EUI
-GATEWAY_EUI=$(cat /sys/class/net/eth0/address | sed -r 's/[:]+//g' | sed -e 's#\(.\{6\}\)\(.*\)#\1fffe\2#g')
+if [[ -z $GATEWAY_EUI ]]; then
+    GATEWAY_EUI_NIC=${GATEWAY_EUI_NIC:-"eth0"}
+    if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+        GATEWAY_EUI_NIC="eth0"
+    fi
+    if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+        GATEWAY_EUI_NIC="wlan0"
+    fi
+    if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+        GATEWAY_EUI_NIC="usb0"
+    fi
+    if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+        # Last chance: get the most used NIC based on received bytes
+        GATEWAY_EUI_NIC=$(cat /proc/net/dev | tail -n+3 | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g')
+    fi
+    if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+        echo -e "\033[91mERROR: No network interface found. Cannot set gateway EUI.\033[0m"
+    fi
+    GATEWAY_EUI=$(ip link show $GATEWAY_EUI_NIC | awk '/ether/ {print $2}' | awk -F\: '{print $1$2$3"FFFE"$4$5$6}')
+fi
 GATEWAY_EUI=${GATEWAY_EUI^^}
 
 # Defaults to TTN server v3, EU1 region, use a custom TC_URI to change this
@@ -60,7 +79,12 @@ echo "Enable GPIO:   $GW_POWER_EN_GPIO"
 if [[ $GW_POWER_EN_GPIO -ne 0 ]]; then
 echo "Enable Logic:  $GW_POWER_EN_LOGIC"
 fi
+echo "Main NIC:      $GATEWAY_EUI_NIC"
 echo "Gateway EUI:   $GATEWAY_EUI"
 echo "Server:        $TC_URI"
+if [[ -f /app/config/station.conf ]]; then
+echo "Custom station.conf file found!"
+fi
+
 echo "------------------------------------------------------------------"
 
