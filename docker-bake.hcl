@@ -7,7 +7,7 @@ group "default" {
 }
 
 target "armv7hf" {
-    tags = ["${REGISTRY}:armv7hf"]
+    tags = ["${REGISTRY}:armv7hf-latest"]
     args = {
         "ARCH" = "armv7hf",
         "TAG" = "${TAG}",
@@ -17,7 +17,7 @@ target "armv7hf" {
 }
 
 target "aarch64" {
-    tags = ["${REGISTRY}:aarch64"]
+    tags = ["${REGISTRY}:aarch64-latest"]
     args = {
         "ARCH" = "aarch64",
         "TAG" = "${TAG}",
