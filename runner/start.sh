@@ -63,12 +63,10 @@ if [[ ! -f ./station.conf ]]; then
     sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"$GATEWAY_EUI\",#" station.conf
 fi
 
-# Export GPIOs for reset script
-export RESET_GPIO=$GW_RESET_GPIO 
-export POWER_EN_GPIO=$GW_POWER_EN_GPIO 
-export POWER_EN_LOGIC=$GW_POWER_EN_LOGIC
+# Reset the concentrator
+RESET_GPIO=$GW_RESET_GPIO POWER_EN_GPIO=$GW_POWER_EN_GPIO POWER_EN_LOGIC=$GW_POWER_EN_LOGIC /app/reset.sh
 
 # Execute packet forwarder
-STATION_RADIOINIT=/app/reset.sh /app/${CONCENTRATOR}/bin/station -f
+/app/${CONCENTRATOR}/bin/station -f
 
 popd

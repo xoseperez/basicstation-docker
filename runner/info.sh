@@ -73,16 +73,17 @@ TC_TRUST=$(echo $TC_TRUST | sed 's/\s//g' | sed 's/-----BEGINCERTIFICATE-----/--
 echo "------------------------------------------------------------------"
 echo "Model:         $MODEL"
 echo "Interface:     SPI"
-echo "Radio Device:  $LORAGW_SPI"
 echo "Reset GPIO:    $GW_RESET_GPIO"
 echo "Enable GPIO:   $GW_POWER_EN_GPIO"
 if [[ $GW_POWER_EN_GPIO -ne 0 ]]; then
 echo "Enable Logic:  $GW_POWER_EN_LOGIC"
 fi
+echo "Server:        $TC_URI"
+if [[ ! -f /app/config/station.conf ]]; then
+echo "Radio Device:  $LORAGW_SPI"
 echo "Main NIC:      $GATEWAY_EUI_NIC"
 echo "Gateway EUI:   $GATEWAY_EUI"
-echo "Server:        $TC_URI"
-if [[ -f /app/config/station.conf ]]; then
+else
 echo "Custom station.conf file found!"
 fi
 
