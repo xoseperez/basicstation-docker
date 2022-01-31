@@ -1,10 +1,16 @@
 # Changelog
 
+## Unreleased
+
+* Improvements in the build process
+* Changed the way the concentrator is reset to allow multiple radios on the same device
+* Balena compatibility fixes
+
 ## 2.1.0 (2022-01-26)
 
  * Option to define the GATEWAY_EUI of the device manually
  * Advanced configuration mode
- * support for multiple radios on the same device (either with a single service or multiple services)
+ * support for multiple radios on the same device (either with ~~a single service or~~ multiple services)
  * Support for RAK833-USB/SPI module
  
 ## 2.0.0 (2022-01-21)
