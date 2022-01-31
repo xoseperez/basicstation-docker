@@ -10,7 +10,8 @@ ARG ARCH
 WORKDIR /app
 
 # Checkout and compile remote code
-COPY builder/* .
+COPY builder/* ./
+RUN chmod +x *.sh
 RUN ARCH=${ARCH} ./build.sh
 
 # Runner image
@@ -42,6 +43,7 @@ WORKDIR /app
 COPY --from=builder /app/basicstation/build-rpi-std ./sx1301
 COPY --from=builder /app/basicstation/build-corecell-std ./sx1302
 COPY runner/* ./
+RUN chmod +x *.sh
 
 # Launch our binary on container startup.
 CMD ["bash", "start.sh"]

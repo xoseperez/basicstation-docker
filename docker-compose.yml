@@ -1,10 +1,18 @@
-version: '3.7'
+version: '2.0'
 
 services:
 
   basicstation:
-
+    
+    # Use pre-defined image
     image: xoseperez/basicstation:latest
+    
+    # Or comment out image and build it yourself
+    #build:
+    #  context: .
+    #  args:
+    #    ARCH: armv7hf
+
     container_name: basicstation
     restart: unless-stopped
     privileged: true
