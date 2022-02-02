@@ -1,0 +1,1052 @@
+diff --git a/deps/lgw1302/V2.1.0-corecell.patch b/deps/lgw1302/V2.1.0-corecell.patch
+index f212880..1b49f20 100644
+--- a/deps/lgw1302/V2.1.0-corecell.patch
++++ b/deps/lgw1302/V2.1.0-corecell.patch
+@@ -1,5 +1,5 @@
+ diff --git a/libloragw/Makefile b/libloragw/Makefile
+-index 881442f..425bb48 100644
++index 881442f..2fa935b 100644
+ --- a/libloragw/Makefile
+ +++ b/libloragw/Makefile
+ @@ -12,6 +12,7 @@ CC := $(CROSS_COMPILE)gcc
+@@ -10,6 +10,14 @@ index 881442f..425bb48 100644
+  
+  OBJDIR = obj
+  INCLUDES = $(wildcard inc/*.h) $(wildcard ../libtools/inc/*.h)
++@@ -123,7 +124,6 @@ libloragw.a: $(OBJDIR)/loragw_spi.o \
++ 			 $(OBJDIR)/loragw_debug.o \
++ 			 $(OBJDIR)/loragw_hal.o \
++ 			 $(OBJDIR)/loragw_lbt.o \
++-			 $(OBJDIR)/loragw_stts751.o \
++ 			 $(OBJDIR)/loragw_gps.o \
++ 			 $(OBJDIR)/loragw_sx1302_timestamp.o \
++ 			 $(OBJDIR)/loragw_sx1302_rx.o \
+ diff --git a/libloragw/inc/loragw_hal.h b/libloragw/inc/loragw_hal.h
+ index 6e153a3..45981b5 100644
+ --- a/libloragw/inc/loragw_hal.h
+@@ -75,6 +83,77 @@ index 0000000..a282b8f
+ +#endif
+ +
+ +#endif
++diff --git a/libloragw/inc/loragw_stts751.h b/libloragw/inc/loragw_stts751.h
++deleted file mode 100644
++index d7a2dcf..0000000
++--- a/libloragw/inc/loragw_stts751.h
+++++ /dev/null
++@@ -1,65 +0,0 @@
++-/*
++- / _____)             _              | |
++-( (____  _____ ____ _| |_ _____  ____| |__
++- \____ \| ___ |    (_   _) ___ |/ ___)  _ \
++- _____) ) ____| | | || |_| ____( (___| | | |
++-(______/|_____)_|_|_| \__)_____)\____)_| |_|
++-  (C)2019 Semtech
++-
++-Description:
++-    Basic driver for ST ts751 temperature sensor
++-
++-License: Revised BSD License, see LICENSE.TXT file include in the project
++-*/
++-
++-
++-#ifndef _LORAGW_STTS751_H
++-#define _LORAGW_STTS751_H
++-
++-/* -------------------------------------------------------------------------- */
++-/* --- DEPENDANCIES --------------------------------------------------------- */
++-
++-#include <stdint.h>     /* C99 types */
++-#include <stdbool.h>    /* bool type */
++-
++-#include "config.h"     /* library configuration options (dynamically generated) */
++-
++-/* -------------------------------------------------------------------------- */
++-/* --- INTERNAL SHARED TYPES ------------------------------------------------ */
++-
++-/* -------------------------------------------------------------------------- */
++-/* --- INTERNAL SHARED FUNCTIONS -------------------------------------------- */
++-
++-/* -------------------------------------------------------------------------- */
++-/* --- PUBLIC CONSTANTS ----------------------------------------------------- */
++-
++-/*
++-  0x39: STTS751-0DP3F
++-  0x3B: STTS751-1DP3F
++-  0x38: STTS751-0DP3F on full duplex CN490 ref design
++-  */
++-static const uint8_t I2C_PORT_TEMP_SENSOR[] = {0x39, 0x3B, 0x38};
++-
++-/* -------------------------------------------------------------------------- */
++-/* --- PUBLIC FUNCTIONS ----------------------------------------------------- */
++-
++-/**
++-@brief Configure the temperature sensor (ST TS751)
++-@param i2c_fd file descriptor to access the sensor through I2C
++-@param i2c_addr the I2C device address of the sensor
++-@return LGW_I2C_ERROR if fails, LGW_I2C_SUCCESS otherwise
++-*/
++-int stts751_configure(int i2c_fd, uint8_t i2c_addr);
++-
++-/**
++-@brief Get the temperature from the sensor
++-@param i2c_fd file descriptor to access the sensor through I2C
++-@param i2c_addr the I2C device address of the sensor
++-@param temperature pointer to store the temerature read from sensor
++-@return LGW_I2C_ERROR if fails, LGW_I2C_SUCCESS otherwise
++-*/
++-int stts751_get_temperature(int i2c_fd, uint8_t i2c_addr, float * temperature);
++-
++-#endif
++-
++-/* --- EOF ------------------------------------------------------------------ */
+ diff --git a/libloragw/src/loragw_ad5338r.c b/libloragw/src/loragw_ad5338r.c
+ index ea08513..6d1118c 100644
+ --- a/libloragw/src/loragw_ad5338r.c
+@@ -275,10 +354,18 @@ index 9a81a08..2314e32 100644
+  }
+ +#endif
+ diff --git a/libloragw/src/loragw_hal.c b/libloragw/src/loragw_hal.c
+-index ffc8ec0..60e8387 100644
++index ffc8ec0..e66a337 100644
+ --- a/libloragw/src/loragw_hal.c
+ +++ b/libloragw/src/loragw_hal.c
+-@@ -69,6 +69,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
++@@ -44,7 +44,6 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
++ #include "loragw_sx1261.h"
++ #include "loragw_sx1302.h"
++ #include "loragw_sx1302_timestamp.h"
++-#include "loragw_stts751.h"
++ #include "loragw_ad5338r.h"
++ #include "loragw_debug.h"
++ 
++@@ -69,6 +68,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
+      #define CHECK_NULL(a)                 if(a==NULL){return LGW_HAL_ERROR;}
+  #endif
+  
+@@ -287,7 +374,18 @@ index ffc8ec0..60e8387 100644
+  #define TRACE()             fprintf(stderr, "@ %s %d\n", __FUNCTION__, __LINE__);
+  
+  #define CONTEXT_STARTED         lgw_context.is_started
+-@@ -277,7 +279,7 @@ static int remove_pkt(struct lgw_pkt_rx_s * p, uint8_t * nb_pkt, uint8_t pkt_ind
++@@ -202,10 +203,6 @@ static lgw_context_t lgw_context = {
++ /* File handle to write debug logs */
++ FILE * log_file = NULL;
++ 
++-/* I2C temperature sensor handles */
++-static int     ts_fd = -1;
++-static uint8_t ts_addr = 0xFF;
++-
++ /* I2C AD5338 handles */
++ static int     ad_fd = -1;
++ 
++@@ -277,7 +274,7 @@ static int remove_pkt(struct lgw_pkt_rx_s * p, uint8_t * nb_pkt, uint8_t pkt_ind
+      CHECK_NULL(p);
+      CHECK_NULL(nb_pkt);
+      if (pkt_index > ((*nb_pkt) - 1)) {
+@@ -296,7 +394,7 @@ index ffc8ec0..60e8387 100644
+          return -1;
+      }
+  
+-@@ -390,11 +392,13 @@ static int merge_packets(struct lgw_pkt_rx_s * p, uint8_t * nb_pkt) {
++@@ -390,11 +387,13 @@ static int merge_packets(struct lgw_pkt_rx_s * p, uint8_t * nb_pkt) {
+                      }
+                  }
+                  /* pkt_dup_idx contains the index to be deleted */
+@@ -311,7 +409,7 @@ index ffc8ec0..60e8387 100644
+                  }
+                  dup_restart = true;
+                  break;
+-@@ -453,13 +457,13 @@ int lgw_board_setconf(struct lgw_conf_board_s * conf) {
++@@ -453,13 +452,13 @@ int lgw_board_setconf(struct lgw_conf_board_s * conf) {
+  
+      /* check if the concentrator is running */
+      if (CONTEXT_STARTED == true) {
+@@ -327,7 +425,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -487,7 +491,7 @@ int lgw_rxrf_setconf(uint8_t rf_chain, struct lgw_conf_rxrf_s * conf) {
++@@ -487,7 +486,7 @@ int lgw_rxrf_setconf(uint8_t rf_chain, struct lgw_conf_rxrf_s * conf) {
+  
+      /* check if the concentrator is running */
+      if (CONTEXT_STARTED == true) {
+@@ -336,7 +434,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -499,19 +503,19 @@ int lgw_rxrf_setconf(uint8_t rf_chain, struct lgw_conf_rxrf_s * conf) {
++@@ -499,19 +498,19 @@ int lgw_rxrf_setconf(uint8_t rf_chain, struct lgw_conf_rxrf_s * conf) {
+  
+      /* check input range (segfault prevention) */
+      if (rf_chain >= LGW_RF_CHAIN_NB) {
+@@ -359,7 +457,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -549,13 +553,13 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
++@@ -549,13 +548,13 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
+  
+      /* check if the concentrator is running */
+      if (CONTEXT_STARTED == true) {
+@@ -375,7 +473,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -569,10 +573,10 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
++@@ -569,10 +568,10 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
+  
+      /* check 'general' parameters */
+      if (sx1302_get_ifmod_config(if_chain) == IF_UNDEFINED) {
+@@ -388,7 +486,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+      /* check if IF frequency is optimal based on channel and radio bandwidths */
+-@@ -590,10 +594,10 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
++@@ -590,10 +589,10 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
+      }
+      bw_hz = lgw_bw_getval(conf->bandwidth); /* channel bandwidth */
+      if ((conf->freq_hz + ((bw_hz==-1)?LGW_REF_BW:bw_hz)/2) > ((int32_t)rf_rx_bandwidth/2)) {
+@@ -401,7 +499,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -610,11 +614,11 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
++@@ -610,11 +609,11 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
+              }
+              /* check BW & DR */
+              if (!IS_LORA_BW(conf->bandwidth)) {
+@@ -415,7 +513,7 @@ index ffc8ec0..60e8387 100644
+                  return LGW_HAL_ERROR;
+              }
+              /* set internal configuration  */
+-@@ -645,11 +649,11 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
++@@ -645,11 +644,11 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
+              }
+              /* check BW & DR */
+              if (conf->bandwidth != BW_125KHZ) {
+@@ -429,7 +527,7 @@ index ffc8ec0..60e8387 100644
+                  return LGW_HAL_ERROR;
+              }
+              /* set internal configuration  */
+-@@ -672,11 +676,11 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
++@@ -672,11 +671,11 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
+              }
+              /* check BW & DR */
+              if(!IS_FSK_BW(conf->bandwidth)) {
+@@ -443,7 +541,7 @@ index ffc8ec0..60e8387 100644
+                  return LGW_HAL_ERROR;
+              }
+              /* set internal configuration  */
+-@@ -700,7 +704,7 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
++@@ -700,7 +699,7 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
+              break;
+  
+          default:
+@@ -452,7 +550,7 @@ index ffc8ec0..60e8387 100644
+              return LGW_HAL_ERROR;
+      }
+  
+-@@ -726,7 +730,7 @@ int lgw_txgain_setconf(uint8_t rf_chain, struct lgw_tx_gain_lut_s * conf) {
++@@ -726,7 +725,7 @@ int lgw_txgain_setconf(uint8_t rf_chain, struct lgw_tx_gain_lut_s * conf) {
+  
+      /* Check LUT size */
+      if ((conf->size < 1) || (conf->size > TX_GAIN_LUT_SIZE_MAX)) {
+@@ -461,7 +559,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -735,23 +739,23 @@ int lgw_txgain_setconf(uint8_t rf_chain, struct lgw_tx_gain_lut_s * conf) {
++@@ -735,23 +734,23 @@ int lgw_txgain_setconf(uint8_t rf_chain, struct lgw_tx_gain_lut_s * conf) {
+      for (i = 0; i < CONTEXT_TX_GAIN_LUT[rf_chain].size; i++) {
+          /* Check gain range */
+          if (conf->lut[i].dig_gain > 3) {
+@@ -490,7 +588,7 @@ index ffc8ec0..60e8387 100644
+              return LGW_HAL_ERROR;
+          }
+  
+-@@ -802,11 +806,11 @@ int lgw_sx1261_setconf(struct lgw_conf_sx1261_s * conf) {
++@@ -802,11 +801,11 @@ int lgw_sx1261_setconf(struct lgw_conf_sx1261_s * conf) {
+      CONTEXT_SX1261.lbt_conf.nb_channel = conf->lbt_conf.nb_channel;
+      for (i = 0; i < CONTEXT_SX1261.lbt_conf.nb_channel; i++) {
+          if (conf->lbt_conf.channels[i].bandwidth != BW_125KHZ && conf->lbt_conf.channels[i].bandwidth != BW_250KHZ) {
+@@ -504,7 +602,7 @@ index ffc8ec0..60e8387 100644
+              return LGW_HAL_ERROR;
+          }
+          CONTEXT_SX1261.lbt_conf.channels[i] = conf->lbt_conf.channels[i];
+-@@ -857,21 +861,21 @@ int lgw_start(void) {
++@@ -857,21 +856,21 @@ int lgw_start(void) {
+  
+      err = lgw_connect(CONTEXT_COM_TYPE, CONTEXT_COM_PATH);
+      if (err == LGW_REG_ERROR) {
+@@ -529,7 +627,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -881,7 +885,7 @@ int lgw_start(void) {
++@@ -881,7 +880,7 @@ int lgw_start(void) {
+              /* Reset the radio */
+              err = sx1302_radio_reset(i, CONTEXT_RF_CHAIN[i].type);
+              if (err != LGW_REG_SUCCESS) {
+@@ -538,7 +636,7 @@ index ffc8ec0..60e8387 100644
+                  return LGW_HAL_ERROR;
+              }
+  
+-@@ -895,18 +899,18 @@ int lgw_start(void) {
++@@ -895,18 +894,18 @@ int lgw_start(void) {
+                      err = sx125x_setup(i, CONTEXT_BOARD.clksrc, true, CONTEXT_RF_CHAIN[i].type, CONTEXT_RF_CHAIN[i].freq_hz);
+                      break;
+                  default:
+@@ -560,7 +658,7 @@ index ffc8ec0..60e8387 100644
+                  return LGW_HAL_ERROR;
+              }
+          }
+-@@ -915,54 +919,54 @@ int lgw_start(void) {
++@@ -915,54 +914,54 @@ int lgw_start(void) {
+      /* Select the radio which provides the clock to the sx1302 */
+      err = sx1302_radio_clock_select(CONTEXT_BOARD.clksrc);
+      if (err != LGW_REG_SUCCESS) {
+@@ -623,7 +721,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -970,12 +974,12 @@ int lgw_start(void) {
++@@ -970,12 +969,12 @@ int lgw_start(void) {
+      if (CONTEXT_IF_CHAIN[8].enable == true) {
+          err = sx1302_lora_service_correlator_configure(&(CONTEXT_LORA_SERVICE));
+          if (err != LGW_REG_SUCCESS) {
+@@ -638,7 +736,7 @@ index ffc8ec0..60e8387 100644
+              return LGW_HAL_ERROR;
+          }
+      }
+-@@ -984,7 +988,7 @@ int lgw_start(void) {
++@@ -984,7 +983,7 @@ int lgw_start(void) {
+      if (CONTEXT_IF_CHAIN[9].enable == true) {
+          err = sx1302_fsk_configure(&(CONTEXT_FSK));
+          if (err != LGW_REG_SUCCESS) {
+@@ -647,7 +745,7 @@ index ffc8ec0..60e8387 100644
+              return LGW_HAL_ERROR;
+          }
+      }
+-@@ -992,14 +996,14 @@ int lgw_start(void) {
++@@ -992,14 +991,14 @@ int lgw_start(void) {
+      /* configure syncword */
+      err = sx1302_lora_syncword(CONTEXT_LWAN_PUBLIC, CONTEXT_LORA_SERVICE.datarate);
+      if (err != LGW_REG_SUCCESS) {
+@@ -664,7 +762,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -1009,7 +1013,7 @@ int lgw_start(void) {
++@@ -1009,7 +1008,7 @@ int lgw_start(void) {
+              DEBUG_MSG("Loading AGC fw for sx1250\n");
+              err = sx1302_agc_load_firmware(agc_firmware_sx1250);
+              if (err != LGW_REG_SUCCESS) {
+@@ -673,7 +771,7 @@ index ffc8ec0..60e8387 100644
+                  return LGW_HAL_ERROR;
+              }
+              fw_version_agc = FW_VERSION_AGC_SX1250;
+-@@ -1019,18 +1023,18 @@ int lgw_start(void) {
++@@ -1019,18 +1018,18 @@ int lgw_start(void) {
+              DEBUG_MSG("Loading AGC fw for sx125x\n");
+              err = sx1302_agc_load_firmware(agc_firmware_sx125x);
+              if (err != LGW_REG_SUCCESS) {
+@@ -695,7 +793,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -1038,26 +1042,26 @@ int lgw_start(void) {
++@@ -1038,26 +1037,26 @@ int lgw_start(void) {
+      DEBUG_MSG("Loading ARB fw\n");
+      err = sx1302_arb_load_firmware(arb_firmware);
+      if (err != LGW_REG_SUCCESS) {
+@@ -726,7 +824,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -1075,7 +1079,7 @@ int lgw_start(void) {
++@@ -1075,7 +1074,7 @@ int lgw_start(void) {
+      /* Open the file for writting */
+      log_file = fopen(CONTEXT_DEBUG.log_file_name, "w+"); /* create log file, overwrite if file already exist */
+      if (log_file == NULL) {
+@@ -735,7 +833,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      } else {
+          printf("INFO: %s file opened for debug log\n", CONTEXT_DEBUG.log_file_name);
+-@@ -1084,7 +1088,7 @@ int lgw_start(void) {
++@@ -1084,7 +1083,7 @@ int lgw_start(void) {
+          unlink("loragw_hal.log");
+          i = symlink(CONTEXT_DEBUG.log_file_name, "loragw_hal.log");
+          if (i < 0) {
+@@ -744,34 +842,35 @@ index ffc8ec0..60e8387 100644
+          }
+      }
+  #endif
+-@@ -1098,22 +1102,22 @@ int lgw_start(void) {
+-             ts_addr = I2C_PORT_TEMP_SENSOR[i];
+-             err = i2c_linuxdev_open(I2C_DEVICE, ts_addr, &ts_fd);
+-             if (err != LGW_I2C_SUCCESS) {
++@@ -1093,41 +1092,17 @@ int lgw_start(void) {
++     dbg_init_random();
++ 
++     if (CONTEXT_COM_TYPE == LGW_COM_SPI) {
++-        /* Find the temperature sensor on the known supported ports */
++-        for (i = 0; i < (int)(sizeof I2C_PORT_TEMP_SENSOR); i++) {
++-            ts_addr = I2C_PORT_TEMP_SENSOR[i];
++-            err = i2c_linuxdev_open(I2C_DEVICE, ts_addr, &ts_fd);
++-            if (err != LGW_I2C_SUCCESS) {
+ -                printf("ERROR: failed to open I2C for temperature sensor on port 0x%02X\n", ts_addr);
+-+                ERROR_PRINTF("failed to open I2C for temperature sensor on port 0x%02X\n", ts_addr);
+-                 return LGW_HAL_ERROR;
+-             }
+- 
+-             err = stts751_configure(ts_fd, ts_addr);
+-             if (err != LGW_I2C_SUCCESS) {
++-                return LGW_HAL_ERROR;
++-            }
++-
++-            err = stts751_configure(ts_fd, ts_addr);
++-            if (err != LGW_I2C_SUCCESS) {
+ -                printf("INFO: no temperature sensor found on port 0x%02X\n", ts_addr);
+-+                INFO_PRINTF("no temperature sensor found on port 0x%02X\n", ts_addr);
+-                 i2c_linuxdev_close(ts_fd);
+-                 ts_fd = -1;
+-             } else {
++-                i2c_linuxdev_close(ts_fd);
++-                ts_fd = -1;
++-            } else {
+ -                printf("INFO: found temperature sensor on port 0x%02X\n", ts_addr);
+-+                INFO_PRINTF("found temperature sensor on port 0x%02X\n", ts_addr);
+-                 break;
+-             }
+-         }
+-         if (i == sizeof I2C_PORT_TEMP_SENSOR) {
++-                break;
++-            }
++-        }
++-        if (i == sizeof I2C_PORT_TEMP_SENSOR) {
+ -            printf("ERROR: no temperature sensor found.\n");
+-+            ERROR_PRINTF("no temperature sensor found.\n");
+-             return LGW_HAL_ERROR;
+-         }
+- 
+-@@ -1121,13 +1125,13 @@ int lgw_start(void) {
++-            return LGW_HAL_ERROR;
++-        }
++-
++         /* Configure ADC AD338R for full duplex (CN490 reference design) */
+          if (CONTEXT_BOARD.full_duplex == true) {
+              err = i2c_linuxdev_open(I2C_DEVICE, I2C_PORT_DAC_AD5338R, &ad_fd);
+              if (err != LGW_I2C_SUCCESS) {
+@@ -787,7 +886,7 @@ index ffc8ec0..60e8387 100644
+                  i2c_linuxdev_close(ad_fd);
+                  ad_fd = -1;
+                  return LGW_HAL_ERROR;
+-@@ -1137,10 +1141,10 @@ int lgw_start(void) {
++@@ -1137,10 +1112,10 @@ int lgw_start(void) {
+              uint8_t volt_val[AD5338R_CMD_SIZE] = { 0x39, (uint8_t)VOLTAGE2HEX_H(0), (uint8_t)VOLTAGE2HEX_L(0) };
+              err = ad5338r_write(ad_fd, I2C_PORT_DAC_AD5338R, volt_val);
+              if (err != LGW_I2C_SUCCESS) {
+@@ -800,7 +899,7 @@ index ffc8ec0..60e8387 100644
+          }
+      }
+  
+-@@ -1148,25 +1152,25 @@ int lgw_start(void) {
++@@ -1148,25 +1123,25 @@ int lgw_start(void) {
+      if (CONTEXT_SX1261.enable == true) {
+          err = sx1261_connect(CONTEXT_COM_TYPE, (CONTEXT_COM_TYPE == LGW_COM_SPI) ? CONTEXT_SX1261.spi_path : NULL);
+          if (err != LGW_REG_SUCCESS) {
+@@ -830,7 +929,7 @@ index ffc8ec0..60e8387 100644
+              return LGW_HAL_ERROR;
+          }
+      }
+-@@ -1174,7 +1178,7 @@ int lgw_start(void) {
++@@ -1174,7 +1149,7 @@ int lgw_start(void) {
+      /* Set CONFIG_DONE GPIO to 1 (turn on the corresponding LED) */
+      err = sx1302_set_gpio(0x01);
+      if (err != LGW_REG_SUCCESS) {
+@@ -839,7 +938,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -1203,7 +1207,7 @@ int lgw_stop(void) {
++@@ -1203,7 +1178,7 @@ int lgw_stop(void) {
+          DEBUG_PRINTF("INFO: aborting TX on chain %u\n", i);
+          x = lgw_abort_tx(i);
+          if (x != LGW_HAL_SUCCESS) {
+@@ -848,7 +947,7 @@ index ffc8ec0..60e8387 100644
+              err = LGW_HAL_ERROR;
+          }
+      }
+-@@ -1217,7 +1221,7 @@ int lgw_stop(void) {
++@@ -1217,23 +1192,16 @@ int lgw_stop(void) {
+      DEBUG_MSG("INFO: Disconnecting\n");
+      x = lgw_disconnect();
+      if (x != LGW_HAL_SUCCESS) {
+@@ -857,16 +956,15 @@ index ffc8ec0..60e8387 100644
+          err = LGW_HAL_ERROR;
+      }
+  
+-@@ -1225,7 +1229,7 @@ int lgw_stop(void) {
+-         DEBUG_MSG("INFO: Closing I2C for temperature sensor\n");
+-         x = i2c_linuxdev_close(ts_fd);
+-         if (x != 0) {
++     if (CONTEXT_COM_TYPE == LGW_COM_SPI) {
++-        DEBUG_MSG("INFO: Closing I2C for temperature sensor\n");
++-        x = i2c_linuxdev_close(ts_fd);
++-        if (x != 0) {
+ -            printf("ERROR: failed to close I2C temperature sensor device (err=%i)\n", x);
+-+            ERROR_PRINTF("failed to close I2C temperature sensor device (err=%i)\n", x);
+-             err = LGW_HAL_ERROR;
+-         }
+- 
+-@@ -1233,7 +1237,7 @@ int lgw_stop(void) {
++-            err = LGW_HAL_ERROR;
++-        }
++-
++         if (CONTEXT_BOARD.full_duplex == true) {
+              DEBUG_MSG("INFO: Closing I2C for AD5338R\n");
+              x = i2c_linuxdev_close(ad_fd);
+              if (x != 0) {
+@@ -875,7 +973,13 @@ index ffc8ec0..60e8387 100644
+                  err = LGW_HAL_ERROR;
+              }
+          }
+-@@ -1257,7 +1261,7 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
++@@ -1253,11 +1221,12 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
++     uint8_t nb_pkt_fetched = 0;
++     uint8_t nb_pkt_found = 0;
++     uint8_t nb_pkt_left = 0;
++-    float current_temperature = 0.0, rssi_temperature_offset = 0.0;
+++    float current_temperature = 30.0;
+++    float rssi_temperature_offset = 0.0;
+      /* performances variables */
+      struct timeval tm;
+  
+@@ -884,7 +988,7 @@ index ffc8ec0..60e8387 100644
+  
+      /* Record function start time */
+      _meas_time_start(&tm);
+-@@ -1265,7 +1269,7 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
++@@ -1265,7 +1234,7 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
+      /* Get packets from SX1302, if any */
+      res = sx1302_fetch(&nb_pkt_fetched);
+      if (res != LGW_REG_SUCCESS) {
+@@ -893,7 +997,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -1283,13 +1287,14 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
++@@ -1283,13 +1252,14 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
+      }
+      if (nb_pkt_fetched > max_pkt) {
+          nb_pkt_left = nb_pkt_fetched - max_pkt;
+@@ -910,7 +1014,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -1298,10 +1303,10 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
++@@ -1298,10 +1268,10 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
+          /* Get packet and move to next one */
+          res = sx1302_parse(&lgw_context, &pkt_data[nb_pkt_found]);
+          if (res == LGW_REG_WARNING) {
+@@ -923,7 +1027,7 @@ index ffc8ec0..60e8387 100644
+              return LGW_HAL_ERROR;
+          }
+  
+-@@ -1321,7 +1326,7 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
++@@ -1321,7 +1291,7 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
+      if ((nb_pkt_found > 0) && (CONTEXT_FINE_TIMESTAMP.enable == true)) {
+          res = merge_packets(pkt_data, &nb_pkt_found);
+          if (res != 0) {
+@@ -932,7 +1036,7 @@ index ffc8ec0..60e8387 100644
+          }
+  
+          DEBUG_PRINTF("INFO: nb pkt found:%u (after de-duplicating)\n", nb_pkt_found);
+-@@ -1349,7 +1354,7 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
++@@ -1349,7 +1319,7 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
+  
+      /* check if the concentrator is running */
+      if (CONTEXT_STARTED == false) {
+@@ -941,7 +1045,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -1357,57 +1362,57 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
++@@ -1357,57 +1327,57 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
+  
+      /* check input range (segfault prevention) */
+      if (pkt_data->rf_chain >= LGW_RF_CHAIN_NB) {
+@@ -1011,7 +1115,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -1416,17 +1421,17 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
++@@ -1416,17 +1386,17 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
+          uint8_t volt_val[AD5338R_CMD_SIZE] = {0x39, VOLTAGE2HEX_H(2.51), VOLTAGE2HEX_L(2.51)}; /* set to 2.51V */
+          err = ad5338r_write(ad_fd, I2C_PORT_DAC_AD5338R, volt_val);
+          if (err != LGW_I2C_SUCCESS) {
+@@ -1032,7 +1136,7 @@ index ffc8ec0..60e8387 100644
+              return LGW_HAL_ERROR;
+          }
+      }
+-@@ -1434,12 +1439,12 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
++@@ -1434,12 +1404,12 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
+      /* Send the TX request to the concentrator */
+      err = sx1302_send(CONTEXT_RF_CHAIN[pkt_data->rf_chain].type, &CONTEXT_TX_GAIN_LUT[pkt_data->rf_chain], CONTEXT_LWAN_PUBLIC, &CONTEXT_FSK, pkt_data);
+      if (err != LGW_REG_SUCCESS) {
+@@ -1047,7 +1151,7 @@ index ffc8ec0..60e8387 100644
+              }
+          }
+  
+-@@ -1452,26 +1457,26 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
++@@ -1452,26 +1422,26 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
+      if (CONTEXT_SX1261.lbt_conf.enable == true) {
+          err = lgw_lbt_tx_status(pkt_data->rf_chain, &lbt_tx_allowed);
+          if (err != 0) {
+@@ -1080,7 +1184,7 @@ index ffc8ec0..60e8387 100644
+              return LGW_HAL_ERROR;
+          }
+      }
+-@@ -1493,7 +1498,7 @@ int lgw_status(uint8_t rf_chain, uint8_t select, uint8_t *code) {
++@@ -1493,7 +1463,7 @@ int lgw_status(uint8_t rf_chain, uint8_t select, uint8_t *code) {
+      /* check input variables */
+      CHECK_NULL(code);
+      if (rf_chain >= LGW_RF_CHAIN_NB) {
+@@ -1089,7 +1193,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -1511,7 +1516,7 @@ int lgw_status(uint8_t rf_chain, uint8_t select, uint8_t *code) {
++@@ -1511,7 +1481,7 @@ int lgw_status(uint8_t rf_chain, uint8_t select, uint8_t *code) {
+              *code = sx1302_rx_status(rf_chain);
+          }
+      } else {
+@@ -1098,7 +1202,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -1530,7 +1535,7 @@ int lgw_abort_tx(uint8_t rf_chain) {
++@@ -1530,7 +1500,7 @@ int lgw_abort_tx(uint8_t rf_chain) {
+  
+      /* check input variables */
+      if (rf_chain >= LGW_RF_CHAIN_NB) {
+@@ -1107,7 +1211,7 @@ index ffc8ec0..60e8387 100644
+          return LGW_HAL_ERROR;
+      }
+  
+-@@ -1591,7 +1596,7 @@ int lgw_get_eui(uint64_t* eui) {
++@@ -1591,23 +1561,24 @@ int lgw_get_eui(uint64_t* eui) {
+  int lgw_get_temperature(float* temperature) {
+      int err = LGW_HAL_ERROR;
+  
+@@ -1116,7 +1220,13 @@ index ffc8ec0..60e8387 100644
+  
+      CHECK_NULL(temperature);
+  
+-@@ -1603,11 +1608,11 @@ int lgw_get_temperature(float* temperature) {
++     switch (CONTEXT_COM_TYPE) {
++         case LGW_COM_SPI:
++-            err = stts751_get_temperature(ts_fd, ts_addr, temperature);
+++            *temperature = 25.0;
+++            err = LGW_I2C_SUCCESS;
++             break;
++         case LGW_COM_USB:
+              err = lgw_com_get_temperature(temperature);
+              break;
+          default:
+@@ -1130,7 +1240,7 @@ index ffc8ec0..60e8387 100644
+  
+      return err;
+  }
+-@@ -1627,7 +1632,7 @@ uint32_t lgw_time_on_air(const struct lgw_pkt_tx_s *packet) {
++@@ -1627,7 +1598,7 @@ uint32_t lgw_time_on_air(const struct lgw_pkt_tx_s *packet) {
+      DEBUG_PRINTF(" --- %s\n", "IN");
+  
+      if (packet == NULL) {
+@@ -1139,7 +1249,7 @@ index ffc8ec0..60e8387 100644
+          return 0;
+      }
+  
+-@@ -1649,7 +1654,7 @@ uint32_t lgw_time_on_air(const struct lgw_pkt_tx_s *packet) {
++@@ -1649,7 +1620,7 @@ uint32_t lgw_time_on_air(const struct lgw_pkt_tx_s *packet) {
+          toa_ms = (uint32_t)t_fsk + 1; /* add margin for rounding */
+      } else {
+          toa_ms = 0;
+@@ -1148,7 +1258,7 @@ index ffc8ec0..60e8387 100644
+      }
+  
+      DEBUG_PRINTF(" --- %s\n", "OUT");
+-@@ -1663,19 +1668,19 @@ int lgw_spectral_scan_start(uint32_t freq_hz, uint16_t nb_scan) {
++@@ -1663,19 +1634,19 @@ int lgw_spectral_scan_start(uint32_t freq_hz, uint16_t nb_scan) {
+      int err;
+  
+      if (CONTEXT_SX1261.enable != true) {
+@@ -1473,8 +1583,197 @@ index 94231b7..a90f8a2 100644
+          return LGW_SPI_SUCCESS;
+      }
+  }
++diff --git a/libloragw/src/loragw_stts751.c b/libloragw/src/loragw_stts751.c
++deleted file mode 100644
++index 7766961..0000000
++--- a/libloragw/src/loragw_stts751.c
+++++ /dev/null
++@@ -1,183 +0,0 @@
++-/*
++- / _____)             _              | |
++-( (____  _____ ____ _| |_ _____  ____| |__
++- \____ \| ___ |    (_   _) ___ |/ ___)  _ \
++- _____) ) ____| | | || |_| ____( (___| | | |
++-(______/|_____)_|_|_| \__)_____)\____)_| |_|
++-  (C)2019 Semtech
++-
++-Description:
++-    Basic driver for ST ts751 temperature sensor
++-
++-License: Revised BSD License, see LICENSE.TXT file include in the project
++-*/
++-
++-
++-/* -------------------------------------------------------------------------- */
++-/* --- DEPENDANCIES --------------------------------------------------------- */
++-
++-#include <stdint.h>     /* C99 types */
++-#include <stdbool.h>    /* bool type */
++-#include <stdio.h>      /* printf fprintf */
++-
++-#include "loragw_i2c.h"
++-#include "loragw_stts751.h"
++-
++-/* -------------------------------------------------------------------------- */
++-/* --- PRIVATE MACROS ------------------------------------------------------- */
++-
++-#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
++-#if DEBUG_I2C == 1
++-    #define DEBUG_MSG(str)              fprintf(stdout, str)
++-    #define DEBUG_PRINTF(fmt, args...)  fprintf(stdout,"%s:%d: "fmt, __FUNCTION__, __LINE__, args)
++-    #define CHECK_NULL(a)               if(a==NULL){fprintf(stderr,"%s:%d: ERROR: NULL POINTER AS ARGUMENT\n", __FUNCTION__, __LINE__);return LGW_REG_ERROR;}
++-#else
++-    #define DEBUG_MSG(str)
++-    #define DEBUG_PRINTF(fmt, args...)
++-    #define CHECK_NULL(a)               if(a==NULL){return LGW_REG_ERROR;}
++-#endif
++-
++-/* -------------------------------------------------------------------------- */
++-/* --- PRIVATE CONSTANTS ---------------------------------------------------- */
++-
++-#define STTS751_REG_TEMP_H      0x00
++-#define STTS751_REG_STATUS      0x01
++-#define STTS751_STATUS_TRIPT    BIT(0)
++-#define STTS751_STATUS_TRIPL    BIT(5)
++-#define STTS751_STATUS_TRIPH    BIT(6)
++-#define STTS751_REG_TEMP_L      0x02
++-#define STTS751_REG_CONF        0x03
++-#define STTS751_CONF_RES_MASK   0x0C
++-#define STTS751_CONF_RES_SHIFT  2
++-#define STTS751_CONF_EVENT_DIS  BIT(7)
++-#define STTS751_CONF_STOP       BIT(6)
++-#define STTS751_REG_RATE        0x04
++-#define STTS751_REG_HLIM_H      0x05
++-#define STTS751_REG_HLIM_L      0x06
++-#define STTS751_REG_LLIM_H      0x07
++-#define STTS751_REG_LLIM_L      0x08
++-#define STTS751_REG_TLIM        0x20
++-#define STTS751_REG_HYST        0x21
++-#define STTS751_REG_SMBUS_TO    0x22
++-
++-#define STTS751_REG_PROD_ID     0xFD
++-#define STTS751_REG_MAN_ID      0xFE
++-#define STTS751_REG_REV_ID      0xFF
++-
++-#define STTS751_0_PROD_ID       0x00
++-#define STTS751_1_PROD_ID       0x01
++-#define ST_MAN_ID               0x53
++-
++-/* -------------------------------------------------------------------------- */
++-/* --- PRIVATE VARIABLES ---------------------------------------------------- */
++-
++-/* -------------------------------------------------------------------------- */
++-/* --- PRIVATE FUNCTIONS ---------------------------------------------------- */
++-
++-/* -------------------------------------------------------------------------- */
++-/* --- PUBLIC FUNCTIONS DEFINITION ------------------------------------------ */
++-
++-int stts751_configure(int i2c_fd, uint8_t i2c_addr) {
++-    int err;
++-    uint8_t val;
++-
++-    /* Check Input Params */
++-    if (i2c_fd <= 0) {
++-        printf("ERROR: invalid I2C file descriptor\n");
++-        return LGW_I2C_ERROR;
++-    }
++-
++-    DEBUG_PRINTF("INFO: configuring STTS751 temperature sensor on 0x%02X...\n", i2c_addr);
++-
++-    /* Get product ID  and test which sensor is mounted */
++-    err = i2c_linuxdev_read(i2c_fd, i2c_addr, STTS751_REG_PROD_ID, &val);
++-    if (err != 0) {
++-        DEBUG_PRINTF("ERROR: failed to read I2C device 0x%02X (err=%i)\n", i2c_addr, err);
++-        return LGW_I2C_ERROR;
++-    }
++-    switch (val) {
++-        case STTS751_0_PROD_ID:
++-            DEBUG_MSG("INFO: Product ID: STTS751-0\n");
++-            break;
++-        case STTS751_1_PROD_ID:
++-            DEBUG_MSG("INFO: Product ID: STTS751-1\n");
++-            break;
++-        default:
++-            printf("ERROR: Product ID: UNKNOWN\n");
++-            return LGW_I2C_ERROR;
++-    }
++-
++-    /* Get Manufacturer ID */
++-    err = i2c_linuxdev_read(i2c_fd, i2c_addr, STTS751_REG_MAN_ID, &val);
++-    if (err != 0) {
++-        DEBUG_PRINTF("ERROR: failed to read I2C device 0x%02X (err=%i)\n", i2c_addr, err);
++-        return LGW_I2C_ERROR;
++-    }
++-    if (val != ST_MAN_ID) {
++-        printf("ERROR: Manufacturer ID: UNKNOWN\n");
++-        return LGW_I2C_ERROR;
++-    } else {
++-        DEBUG_PRINTF("INFO: Manufacturer ID: 0x%02X\n", val);
++-    }
++-
++-    /* Get revision number */
++-    err = i2c_linuxdev_read(i2c_fd, i2c_addr, STTS751_REG_REV_ID, &val);
++-    if (err != 0) {
++-        DEBUG_PRINTF("ERROR: failed to read I2C device 0x%02X (err=%i)\n", i2c_addr, err);
++-        return LGW_I2C_ERROR;
++-    }
++-    DEBUG_PRINTF("INFO: Revision number: 0x%02X\n", val);
++-
++-    /* Set conversion resolution to 12 bits */
++-    err = i2c_linuxdev_write(i2c_fd, i2c_addr, STTS751_REG_CONF, 0x8C); /* TODO: do not hardcode the whole byte */
++-    if (err != 0) {
++-        DEBUG_PRINTF("ERROR: failed to write I2C device 0x%02X (err=%i)\n", i2c_addr, err);
++-        return LGW_I2C_ERROR;
++-    }
++-
++-    /* Set conversion rate to 1 / second */
++-    err = i2c_linuxdev_write(i2c_fd, i2c_addr, STTS751_REG_RATE, 0x04);
++-    if (err != 0) {
++-        DEBUG_PRINTF("ERROR: failed to write I2C device 0x%02X (err=%i)\n", i2c_addr, err);
++-        return LGW_I2C_ERROR;
++-    }
++-
++-    return LGW_I2C_SUCCESS;
++-}
++-
++-/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
++-
++-int stts751_get_temperature(int i2c_fd, uint8_t i2c_addr, float * temperature) {
++-    int err;
++-    uint8_t high_byte, low_byte;
++-    int8_t h;
++-
++-    /* Check Input Params */
++-    if (i2c_fd <= 0) {
++-        printf("ERROR: invalid I2C file descriptor\n");
++-        return LGW_I2C_ERROR;
++-    }
++-
++-    /* Read Temperature LSB */
++-    err = i2c_linuxdev_read(i2c_fd, i2c_addr, STTS751_REG_TEMP_L, &low_byte);
++-    if (err != 0) {
++-        printf("ERROR: failed to read I2C device 0x%02X (err=%i)\n", i2c_addr, err);
++-        return LGW_I2C_ERROR;
++-    }
++-
++-    /* Read Temperature MSB */
++-    err = i2c_linuxdev_read(i2c_fd, i2c_addr, STTS751_REG_TEMP_H, &high_byte);
++-    if (err != 0) {
++-        printf("ERROR: failed to read I2C device 0x%02X (err=%i)\n", i2c_addr, err);
++-        return LGW_I2C_ERROR;
++-    }
++-
++-    h = (int8_t)high_byte;
++-    *temperature = ((h << 8) | low_byte) / 256.0;
++-
++-    DEBUG_PRINTF("Temperature: %f C (h:0x%02X l:0x%02X)\n", *temperature, high_byte, low_byte);
++-
++-    return LGW_I2C_SUCCESS;
++-}
++-
++-/* --- EOF ------------------------------------------------------------------ */
+ diff --git a/libloragw/src/loragw_sx1302.c b/libloragw/src/loragw_sx1302.c
+-index aa330cd..ab58109 100644
++index aa330cd..9768b19 100644
+ --- a/libloragw/src/loragw_sx1302.c
+ +++ b/libloragw/src/loragw_sx1302.c
+ @@ -49,6 +49,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
+@@ -2121,15 +2420,6 @@ index aa330cd..ab58109 100644
+          p->status = STAT_UNDEFINED;
+          p->modulation = MOD_UNDEFINED;
+          p->rssic = -128.0;
+-@@ -2215,7 +2217,7 @@ int sx1302_tx_set_start_delay(uint8_t rf_chain, lgw_radio_type_t radio_type, uin
+- 
+-     /* tx start delay only necessary for beaconing (LoRa) */
+-     if (modulation != MOD_LORA) {
+--        *delay = 0;
+-+        *delay = tx_start_delay;
+-         return LGW_REG_SUCCESS;
+-     }
+- 
+ @@ -2229,7 +2231,7 @@ int sx1302_tx_set_start_delay(uint8_t rf_chain, lgw_radio_type_t radio_type, uin
+              } else if (bandwidth == BW_500KHZ) {
+                  radio_bw_delay = 21;
+@@ -2367,7 +2657,7 @@ index 5f15129..df90d67 100644
+              }
+          } else { /* FSK modem */
+ diff --git a/libloragw/src/loragw_sx1302_timestamp.c b/libloragw/src/loragw_sx1302_timestamp.c
+-index effeaa0..40c3144 100644
++index effeaa0..665bdf6 100644
+ --- a/libloragw/src/loragw_sx1302_timestamp.c
+ +++ b/libloragw/src/loragw_sx1302_timestamp.c
+ @@ -46,6 +46,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
+@@ -2427,36 +2717,7 @@ index effeaa0..40c3144 100644
+          return 0;
+      }
+  
+-@@ -300,21 +302,18 @@ void timestamp_counter_delete(timestamp_counter_t * self) {
+- /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+- 
+- void timestamp_counter_update(timestamp_counter_t * self, uint32_t pps, uint32_t inst) {
+--    //struct timestamp_info_s* tinfo = (pps == true) ? &self->pps : &self->inst;
+--
+--    /* Check if counter has wrapped, and update wrap status if necessary */
+--    if (pps < self->pps.counter_us_27bits_ref) {
+--        self->pps.counter_us_27bits_wrap += 1;
+--        self->pps.counter_us_27bits_wrap %= 32;
+--    }
+-     if (inst < self->inst.counter_us_27bits_ref) {
+-         self->inst.counter_us_27bits_wrap += 1;
+-         self->inst.counter_us_27bits_wrap %= 32;
+-     }
+--
+--    /* Update counter reference */
+--    self->pps.counter_us_27bits_ref = pps;
+-     self->inst.counter_us_27bits_ref = inst;
+-+
+-+    if (self->pps.counter_us_27bits_ref != pps) {
+-+        uint32_t inst32 = self->inst.counter_us_27bits_ref | (self->inst.counter_us_27bits_wrap<<27);
+-+        inst32 += (int32_t)((pps - inst)<<5) >> 5;  // 27bit signed diff  (extend sign over top 5 bits)
+-+        self->pps.counter_us_27bits_ref = inst32 & ((1<<27)-1);
+-+        self->pps.counter_us_27bits_wrap = inst32 >> 27;
+-+    }
+- }
+- 
+- /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+-@@ -332,7 +331,7 @@ int timestamp_counter_get(timestamp_counter_t * self, uint32_t * inst, uint32_t
++@@ -332,7 +334,7 @@ int timestamp_counter_get(timestamp_counter_t * self, uint32_t * inst, uint32_t
+      */
+      x = lgw_reg_rb(SX1302_REG_TIMESTAMP_TIMESTAMP_PPS_MSB2_TIMESTAMP_PPS, &buff[0], 8);
+      if (x != LGW_REG_SUCCESS) {
+@@ -2465,7 +2726,7 @@ index effeaa0..40c3144 100644
+          return -1;
+      }
+  
+-@@ -342,13 +341,13 @@ int timestamp_counter_get(timestamp_counter_t * self, uint32_t * inst, uint32_t
++@@ -342,13 +344,13 @@ int timestamp_counter_get(timestamp_counter_t * self, uint32_t * inst, uint32_t
+       */
+      x = lgw_reg_rb(SX1302_REG_TIMESTAMP_TIMESTAMP_PPS_MSB2_TIMESTAMP_PPS, &buff_wa[0], 8);
+      if (x != LGW_REG_SUCCESS) {
+@@ -2481,7 +2742,7 @@ index effeaa0..40c3144 100644
+              return -1;
+          }
+          memcpy(buff, buff_wa, 8); /* use the new read value */
+-@@ -429,11 +428,11 @@ int timestamp_counter_mode(bool ftime_enable) {
++@@ -429,11 +431,11 @@ int timestamp_counter_mode(bool ftime_enable) {
+      int x = LGW_REG_SUCCESS;
+  
+      if (ftime_enable == false) {
+@@ -2495,7 +2756,7 @@ index effeaa0..40c3144 100644
+  
+          /* Latch end-of-preamble timestamp */
+          x |= lgw_reg_w(SX1302_REG_RX_TOP_RX_BUFFER_LEGACY_TIMESTAMP, 0x00);
+-@@ -453,15 +452,15 @@ int32_t timestamp_counter_correction(lgw_context_t * context, uint8_t bandwidth,
++@@ -453,15 +455,15 @@ int32_t timestamp_counter_correction(lgw_context_t * context, uint8_t bandwidth,
+      /* Check input parameters */
+      CHECK_NULL(context);
+      if (IS_LORA_DR(datarate) == false) {
+@@ -2514,7 +2775,7 @@ index effeaa0..40c3144 100644
+          return 0;
+      }
+  
+-@@ -496,7 +495,7 @@ int precise_timestamp_calculate(uint8_t ts_metrics_nb, const int8_t * ts_metrics
++@@ -496,7 +498,7 @@ int precise_timestamp_calculate(uint8_t ts_metrics_nb, const int8_t * ts_metrics
+  
+      /* Check if we can calculate a ftime */
+      if (timestamp_pps_history.size < MAX_TIMESTAMP_PPS_HISTORY) {
+@@ -2523,7 +2784,7 @@ index effeaa0..40c3144 100644
+          return -1;
+      }
+  
+-@@ -551,7 +550,7 @@ int precise_timestamp_calculate(uint8_t ts_metrics_nb, const int8_t * ts_metrics
++@@ -551,7 +553,7 @@ int precise_timestamp_calculate(uint8_t ts_metrics_nb, const int8_t * ts_metrics
+      /* Find the last timestamp_pps before packet to use as reference for ftime */
+      x = lgw_reg_rb(SX1302_REG_TIMESTAMP_TIMESTAMP_PPS_MSB2_TIMESTAMP_PPS , &buff[0], 4);
+      if (x != LGW_REG_SUCCESS) {
+@@ -2532,7 +2793,7 @@ index effeaa0..40c3144 100644
+          return 0;
+      }
+      timestamp_pps_reg  = (uint32_t)((buff[0] << 24) & 0xFF000000);
+-@@ -574,7 +573,7 @@ int precise_timestamp_calculate(uint8_t ts_metrics_nb, const int8_t * ts_metrics
++@@ -574,7 +576,7 @@ int precise_timestamp_calculate(uint8_t ts_metrics_nb, const int8_t * ts_metrics
+              }
+          }
+          if (timestamp_pps_idx == timestamp_pps_history.size) {
+@@ -2541,7 +2802,7 @@ index effeaa0..40c3144 100644
+              return -1;
+          }
+  
+-@@ -596,7 +595,7 @@ int precise_timestamp_calculate(uint8_t ts_metrics_nb, const int8_t * ts_metrics
++@@ -596,7 +598,7 @@ int precise_timestamp_calculate(uint8_t ts_metrics_nb, const int8_t * ts_metrics
+  
+      /* Sanity Check on xtal_correct */
+      if ((xtal_correct > 1.2) || (xtal_correct < 0.8)) {
+@@ -2550,7 +2811,7 @@ index effeaa0..40c3144 100644
+          return -1;
+      }
+  
+-@@ -622,7 +621,7 @@ int precise_timestamp_calculate(uint8_t ts_metrics_nb, const int8_t * ts_metrics
++@@ -622,7 +624,7 @@ int precise_timestamp_calculate(uint8_t ts_metrics_nb, const int8_t * ts_metrics
+  
+      *result_ftime = (uint32_t)pkt_ftime;
+      if (*result_ftime > 1E9) {
+diff --git a/setup.gmk b/setup.gmk
+index d7c4363..0d02246 100644
+--- a/setup.gmk
++++ b/setup.gmk
+@@ -35,18 +35,23 @@ NQ = $(if ${V},>/dev/null,)
+ 
+ platform ?= linux
+ variant  ?= std
++arch     ?= default
+ 
+ -include ${TD}/setup-${platform}.gmk
+ 
+ LOCAL_ARCH := $(shell gcc -dumpmachine)
+ 
+-ARCH.linux   = x86_64-linux-gnu
+-ARCH.linuxV2 = x86_64-linux-gnu
+-ARCH.linuxpico = x86_64-linux-gnu
+-ARCH.corecell  = arm-linux-gnueabihf
+-ARCH.rpi     = arm-linux-gnueabihf
+-ARCH.kerlink = arm-klk-linux-gnueabi
+-ARCH=${ARCH.${platform}}
++ARCH.linux.default   = x86_64-linux-gnu
++ARCH.linuxV2.default = x86_64-linux-gnu
++ARCH.linuxpico.default = x86_64-linux-gnu
++ARCH.corecell.default  = arm-linux-gnueabihf
++ARCH.corecell.armv7hf  = arm-linux-gnueabihf
++ARCH.corecell.aarch64  = aarch64-linux-gnu
++ARCH.rpi.default  = arm-linux-gnueabihf
++ARCH.rpi.armv7hf  = arm-linux-gnueabihf
++ARCH.rpi.aarch64  = aarch64-linux-gnu
++ARCH.kerlink.default = arm-klk-linux-gnueabi
++ARCH=${ARCH.${platform}.${arch}}
+ 
+ export TDfull := $(shell cd ${TD} && pwd)
+ TOOLCHAIN=${HOME}/toolchain-${platform}
