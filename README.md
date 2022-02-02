@@ -24,6 +24,7 @@ This project has been tested with The Things Stack Community Edition (TTSCE or T
 * Raspberry Pi 3/4, Comupte Module 3/4 or [balenaFin](https://www.balena.io/fin/)
 * SD card in case of the RPi 3/4
 
+An image for amd64 / x86_64 arch is also available but not fully tested.
 
 #### LoRa Concentrators (SPI)
 
@@ -121,7 +122,20 @@ In case you can not pull the already built image from Docker Hub or if you want 
 docker buildx bake --load aarch64
 ```
 
-Once built (it will take some minutes) you can bring it up by using `xoseperez/basicstation:aarch64` as the image name in your `docker-compose.yml` file. If you are not in an ARMv8 64 bits machine (like a Raspberry Pi 4) you can change the `aarch64` with `armv7hf` (ARMv7).
+Once built (it will take some minutes) you can bring it up by using `xoseperez/basicstation:aarch64` as the image name in your `docker-compose.yml` file. If you are not in an ARMv8 64 bits machine (like a Raspberry Pi 4) you can change the `aarch64` with `armv7hf` (ARMv7) or `amd64` (AMD64).
+
+The default built is the `std` variant. In case you want to build the `stdn` variant that supports multiple radios you can do it like this:
+
+```
+VARIANT=stdn docker buildx bake --load aarch64
+```
+
+The included build script in the root folder can be user to build all architectures and (optionally) push the to a repository. The default repository is `https://hub.docker.com/r/xoseperez/basicstation` which you don't have permissions to push to (obviously), but you can easily push the images to your own repo by doing:
+
+```
+REGISTRY="registry.example.com/basicstation" ./build.sh --push
+```
+
 
 
 ### Via [Balena Deploy](https://www.balena.io/docs/learn/deploy/deploy-with-balena-button/)
@@ -174,7 +188,7 @@ Variable Name | Value | Description | Default
 
 > When using The Things Stack Community Edition the `TC_URI` and `TC_TRUST` values are automatically populated to use ```wss://eu1.cloud.thethings.network:8887```. At the moment only these regions are available: `eu1`, `nam1` and `au1`.
 
-> If you have more than one concentrator on the same device, you can set the BasicStation service to use both at the same time. Check `Advanced configuration` section below to know more. You can also bring up two instances of BasicStation on the same device to control two different concentrators. In this case you will want to assign different `LORAGW_SPI`, `GATEWAY_EUI` and `TC_KEY` values to each instance.
+> If you have more than one concentrator on the same device, you can set the BasicStation service to use both at the same time. Check `Advanced configuration` section below to know more. You can also bring up two instances of BasicStation on the same device to control two different concentrators. In this case you will want to assign different `DEVICE`, `GATEWAY_EUI` and `TC_KEY` values to each instance.
 
 ### Define your MODEL
 
@@ -192,7 +206,12 @@ docker run -it --network host --rm xoseperez/basicstation:latest ./get_eui.sh
 
 ```
 
-You can do so before bringing up the service, so you first get the EUI, registert the gateway and get the KEY to populate it on the `docker-compose.yml` file.
+You can do so before bringing up the service, so you first get the EUI, registert the gateway and get the KEY to populate it on the `docker-compose.yml` file. If you are specifying a different NIC to create the EUI from (see the GATEWAY_EUI_NIC variable above), you can do it like this:
+
+```
+docker run -it --network host --rm xoseperez/basicstation:latest bash -c "GATEWAY_EUI_NIC=wlan0 ./get_eui.sh"
+
+```
 
 If using balenaCloud the ```EUI``` will be visible as a TAG on the device dashboard. Be careful when you copy the tag, as other characters will be copied.
 
@@ -212,7 +231,7 @@ In case that you want to point to another LNS different from The Things Network 
 
 ### Advanced configuration
 
-In some special cases you might want to specify the radio configuration in detail (frequencies, power, ...). ~~This will also be the case when you want to use more than one concentrator on the same gateway, using the same BasicStation service~~. You can do that by mounting the `config` folder on your host machine and providing custom files, like a specific `station.conf` file.
+In some special cases you might want to specify the radio configuration in detail (frequencies, power, ...). This will also be the case when you want to use more than one concentrator on the same gateway, using the same BasicStation service. You can do that by mounting the `config` folder on your host machine and providing custom files, like a specific `station.conf` file.
 
 You can start by modifying the `docker-compose.yml` file to mount that folder locally:
 
@@ -237,12 +256,12 @@ services:
 Then bring up the service and it will populate several config files in this folder. Now you can shut the service down and proceed to edit these files to match your needs. Now, when you bring the service up again it will find the pre-created files and it will use them instead of creating new ones. The files you might want to change are:
 
 * `station.conf`: Main configuration file. It does not include frequencies and power since these are retrieved form the LNS. Check https://doc.sm.tc/station/conf.html.
-* `slave-N.conf`: ~~Specific configuration file for each radio. These are not generated by default so you will have to create them manually.~~ Not yet suported in this build.
+* `slave-N.conf`: Specific configuration file for each radio. The must exist, even if all settings are inherited from the `station.conf` file (the slave file will only contain an empty object: `{}`).
 * `tc.uri`: File containing the URL of the LNS.
 * `tc.trust`: File containing the certificate of the LNS server.
 * `tc.key`: File containing the key of the gateway to connect to the LNS server.
 
-**NOTE**: files in the config folder take precedence over variables, so if you mount a `config` folder with a `station.conf` file, the `LORAGW_SPI` or `GATEWAY_EUI` variables will not be used. If you want to change any of them, you will have to modify the file manually or delete it so it will be recreated form the variables again.
+**NOTE**: files in the config folder take precedence over variables, so if you mount a `config` folder with a `station.conf` file, the `DEVICE` or `GATEWAY_EUI` variables will not be used. If you want to change any of them, you will have to modify the file manually or delete it so it will be recreated form the variables again.
 
 
 ### Configure your The Things Stack gateway
