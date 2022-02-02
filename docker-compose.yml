@@ -38,11 +38,17 @@ services:
 
       # If you have the concentrator connected to a different port
       # than the default one ("/dev/spidev0.0") you can define it this way
-      # LORAGW_SPI: "/dev/spidev0.1"
+      #DEVICE: "/dev/spidev0.1"
+      #DEVICE: "/dev/ttyUSB0"
+
+      # The interface to use is uually taken from the device,
+      # but if the service is not guessing it right you can set it manually
+      #INTERFACE: "SPI"
+      #INTERFACE: "USB"
       
       # Problems with an SPI concentrator are sometimes related to the bus speed,
       # you can set a different one this way
-      # LORAGW_SPI_SPEED: 8000000
+      #SPI_SPEED: 8000000
 
       # The service will define the Gateway EUI based on a network interface: eth0, wlan0 or usb0.
       # If neither of these exist or you want it to use a different interface you can define the NIC this way:

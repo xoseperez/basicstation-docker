@@ -155,9 +155,9 @@ Variable Name | Value | Description | Default
 ------------ | ------------- | ------------- | -------------
 **`MODEL`** | `STRING` | ```SX1301```, ```SX1302``` or ```SX1303``` | ```SX1301```
 **`GW_GPS`** | `STRING` | Enables GPS | true or false
-**`LORAGW_SPI`** | `STRING` | Where the concentrator is connected to | `/dev/spidev0.0`
-**`LORAGW_SPI_SPEED`** | `INT` | Speed of the SPI interface | 2000000 (2MHz) for SX1301 concentrators, 8000000 (8Mhz) for the rest
-**`GW_RESET_PIN`** | `INT` | PIN number that resets de concentrator (Header pin number) **deprecated** | 11
+**`DEVICE`** | `STRING` | Where the concentrator is connected to | `/dev/spidev0.0`
+**`INTERFACE`** | `SPI` or `USB` | Concentrator interface | Taken from DEVICE
+**`SPI_SPEED`** | `INT` | Speed of the SPI interface | 2000000 (2MHz) for SX1301 concentrators, 8000000 (8Mhz) for the rest
 **`GW_RESET_GPIO`** | `INT` | GPIO number that resets (Broadcom pin number, if not defined it's calculated based on the GW_RESET_PIN) | 17
 **`GW_POWER_EN_GPIO`** | `INT` | GPIO number that enables power (by pulling HIGH) to the concentrator (Broadcom pin number). 0 means no required. | 0
 **`GW_POWER_EN_LOGIC`** | `INT` | If `GW_POWER_EN_GPIO` is not 0, the corresponding GPIO will be set to this value | 1
@@ -167,6 +167,8 @@ Variable Name | Value | Description | Default
 **`TC_URI`** | `STRING` | LoRaWAN Network Server to connect to | Automatically created based on TTN_REGION for TTN
 **`TC_TRUST`** | `STRING` | Certificate for the server | Automatically retrieved from LetsEncryt for TTN
 **`TC_KEY`** | `STRING` | Unique TTN Gateway Key used for TTS Community Edition | Paste API key from TTN console
+**`LORAGW_SPI`** | `STRING` | Where the concentrator is connected to **depecated, use DEVICE instead** | `/dev/spidev0.0`
+**`GW_RESET_PIN`** | `INT` | PIN number that resets de concentrator (Header pin number) **deprecated, use GW_RESET_GPIO instead** | 11
 
 > At least `MODEL` and `TC_KEY` must be defined.
 

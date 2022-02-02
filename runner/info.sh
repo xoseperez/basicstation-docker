@@ -1,5 +1,27 @@
 #!/usr/bin/env bash
 
+function push_variables {
+    if [ "$BALENA_DEVICE_UUID" != "" ]
+    then
+
+        ID=$(curl -sX GET "https://api.balena-cloud.com/v5/device?\$filter=uuid%20eq%20'$BALENA_DEVICE_UUID'" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $BALENA_API_KEY" | \
+            jq ".d | .[0] | .id")
+
+        TAG=$(curl -sX POST \
+            "https://api.balena-cloud.com/v5/device_tag" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $BALENA_API_KEY" \
+            --data "{ \"device\": \"$ID\", \"tag_key\": \"EUI\", \"value\": \"$GATEWAY_EUI\" }" > /dev/null)
+
+    fi
+}
+
+function idle {
+   [ "$BALENA_DEVICE_UUID" != "" ] && balena-idle || exit 1
+}
+
 # Retrieve the concentrator from the MODEL
 # MODEL can be:
 # * A developing gateway (mostly by RAKwireless), example: RAK7248
@@ -21,20 +43,30 @@ if [[ "${CONCENTRATOR}" == "" ]]; then
 	idle
 fi
 
-# Check if SPI port exists
-LORAGW_SPI=${LORAGW_SPI:-"/dev/spidev0.0"}
-if [[ ! -e $LORAGW_SPI ]]; then
-    echo -e "\033[91mERROR: $LORAGW_SPI does not exist. Is SPI enabled?\033[0m"
+# Check port and interface
+DEVICE=${DEVICE:-$LORAGW_SPI} # backwards compatibility
+DEVICE=${DEVICE:-"/dev/spidev0.0"}
+if [[ $DEVICE == *"spi"* ]]; then
+    INTERFACE=${INTERFACE:-"SPI"}
+else
+    INTERFACE=${INTERFACE:-"USB"}
+fi
+if [[ ! -e $DEVICE ]]; then
+    echo -e "\033[91mERROR: $DEVICE does not exist.\033[0m"
+	idle
+fi
+
+# USB interface is not available for SX1301 concentrators
+if [[ "${CONCENTRATOR}" == "SX1301" ]] && [[ "$INTERFACE" == "USB" ]]; then
+    echo -e "\033[91mERROR: USB interface is not available for SX1301 concentrators.\033[0m"
 	idle
 fi
 
 # Set default SPI speed for SX1301 concentrators to 2MHz
 if [[ "${CONCENTRATOR}" == "SX1301" ]]; then
-    LORAGW_SPI_SPEED=${LORAGW_SPI_SPEED:-2000000}
-else
-    LORAGW_SPI_SPEED=${LORAGW_SPI_SPEED:-8000000}
+    SPI_SPEED=${SPI_SPEED:-2000000}
 fi
-export LORAGW_SPI_SPEED
+export LORAGW_SPI_SPEED=${SPI_SPEED:-8000000}
 
 # Map hardware pins to GPIO on Raspberry Pi
 declare -a GPIO_MAP=( -1 -1 -1 2 -1 3 -1 4 14 -1 15 17 18 27 -1 22 23 -1 24 10 -1 9 25 11 8 -1 7 0 1 5 -1 6 12 13 -1 19 16 26 20 -1 21 )
@@ -82,8 +114,6 @@ TC_TRUST=$(echo $TC_TRUST | sed 's/\s//g' | sed 's/-----BEGINCERTIFICATE-----/--
 echo "------------------------------------------------------------------"
 echo "Model:         $MODEL"
 echo "Concentrator:  $CONCENTRATOR"
-echo "Interface:     SPI"
-echo "SPI Speed:     $LORAGW_SPI_SPEED"
 echo "Reset GPIO:    $GW_RESET_GPIO"
 echo "Enable GPIO:   $GW_POWER_EN_GPIO"
 if [[ $GW_POWER_EN_GPIO -ne 0 ]]; then
@@ -91,7 +121,11 @@ echo "Enable Logic:  $GW_POWER_EN_LOGIC"
 fi
 echo "Server:        $TC_URI"
 if [[ ! -f /app/config/station.conf ]]; then
-echo "Radio Device:  $LORAGW_SPI"
+echo "Radio Device:  $DEVICE"
+echo "Interface:     $INTERFACE"
+if [[ "$INTERFACE" == "SPI" ]]; then
+    echo "SPI Speed:     $LORAGW_SPI_SPEED"
+fi
 echo "Main NIC:      $GATEWAY_EUI_NIC"
 echo "Gateway EUI:   $GATEWAY_EUI"
 else
@@ -99,4 +133,7 @@ echo "Custom station.conf file found!"
 fi
 
 echo "------------------------------------------------------------------"
+
+# Push variables to Balena
+push_variables
 

@@ -1,32 +1,7 @@
 #!/usr/bin/env bash
 
-function push_variables {
-    if [ "$BALENA_DEVICE_UUID" != "" ]
-    then
-
-        ID=$(curl -sX GET "https://api.balena-cloud.com/v5/device?\$filter=uuid%20eq%20'$BALENA_DEVICE_UUID'" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $BALENA_API_KEY" | \
-            jq ".d | .[0] | .id")
-
-        TAG=$(curl -sX POST \
-            "https://api.balena-cloud.com/v5/device_tag" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $BALENA_API_KEY" \
-            --data "{ \"device\": \"$ID\", \"tag_key\": \"EUI\", \"value\": \"$GATEWAY_EUI\" }" > /dev/null)
-
-    fi
-}
-
-function idle {
-   [ "$BALENA_DEVICE_UUID" != "" ] && balena-idle || exit 1
-}
-
 # Get the variables
 source ./info.sh
-
-# Push variables to Balena
-push_variables
 
 # Move into configuration folder
 mkdir -p config
@@ -68,7 +43,7 @@ CONCENTRATOR=${CONCENTRATOR,,}
 # Link the corresponding configuration file
 if [[ ! -f ./station.conf ]]; then
     cp /app/station.${CONCENTRATOR}.conf station.conf
-    sed -i "s#\"device\":\s*.*,#\"device\": \"$LORAGW_SPI\",#" station.conf
+    sed -i "s#\"device\":\s*.*,#\"device\": \"${INTERFACE,,}:${DEVICE}\",#" station.conf
     sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"$GATEWAY_EUI\",#" station.conf
 fi
 
