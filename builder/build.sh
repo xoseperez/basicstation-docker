@@ -3,7 +3,9 @@
 set -e
 cd $(dirname $0)
 
-REMOTE_TAG=${REMOTE_TAG:-42d4b9c} # This is release v2.0.5
+ARCH=${ARCH:-armv7hf}
+REMOTE_TAG=${REMOTE_TAG:-"v2.0.5"}
+VARIANT=${VARIANT:-std}
 
 # Clone 
 if [[ ! -d basicstation ]]; then
@@ -14,9 +16,6 @@ fi
 cd basicstation
 git checkout ${REMOTE_TAG}
 
-# Copy new files
-mv ../V2.1.0-corecell.patch deps/lgw1302/
-
 # Apply patches
 if [ -f ../${REMOTE_TAG}.patch ]; then
     echo "Applying ${REMOTE_TAG}.patch ..."
@@ -24,5 +23,5 @@ if [ -f ../${REMOTE_TAG}.patch ]; then
 fi
 
 # Build
-make platform=rpi variant=std arch=${ARCH}
-make platform=corecell variant=std arch=${ARCH}
+make platform=rpi variant=${VARIANT} arch=${ARCH}
+make platform=corecell variant=${VARIANT} arch=${ARCH}
