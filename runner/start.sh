@@ -56,6 +56,14 @@ if [[ ! -f ./tc.key ]]; then
     fi
 fi
 
+# SX1303 uses the same base code as SX1302
+if [[ "${CONCENTRATOR}" == "SX1303" ]]; then
+    CONCENTRATOR="SX1302"
+fi
+
+# Files are in lowercase
+CONCENTRATOR=${CONCENTRATOR,,}
+
 # Link the corresponding configuration file
 if [[ ! -f ./station.conf ]]; then
     cp /app/station.${CONCENTRATOR}.conf station.conf
