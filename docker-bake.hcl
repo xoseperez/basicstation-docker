@@ -6,7 +6,7 @@ variable "REMOTE_TAG" { default = "v2.0.6" }
 variable "VARIANT" { default = "std" }
 
 group "default" {
-    targets = ["armv7hf", "aarch64"]
+    targets = ["armv7hf", "aarch64", "amd64"]
 }
 
 target "armv7hf" {
@@ -34,3 +34,17 @@ target "aarch64" {
     }
     platforms = ["linux/arm64"]
 }
+
+target "amd64" {
+    tags = ["${REGISTRY}:amd64-latest"]
+    args = {
+        "ARCH" = "amd64",
+        "REMOTE_TAG" = "${REMOTE_TAG}",
+        "VARIANT" = "${VARIANT}",
+        "TAG" = "${TAG}",
+        "VERSION" = "${VERSION}",
+        "BUILD_DATE" = "${BUILD_DATE}"
+    }
+    platforms = ["linux/amd64"]
+}
+

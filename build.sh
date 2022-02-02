@@ -59,6 +59,10 @@ manifests:
     platform:
       architecture: arm
       os: linux  
+  - image: $REGISTRY:amd64-latest
+    platform:
+      architecture: amd64
+      os: linux  
 EOL
 
     $MANIFEST_TOOL push from-spec $MANIFEST
