@@ -8,8 +8,10 @@ MANIFEST_TOOL=manifest-tool
 export TAG=$(git rev-parse --short HEAD)
 export VERSION=$(git describe --abbrev=0 --tags)
 export MAJOR=$(git describe --abbrev=0 --tags | cut -d '.' -f1)
-export REGISTRY=${REGISTRY:-"xoseperez/basicstation"}
 export BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+export REGISTRY=${REGISTRY:-"xoseperez/basicstation"}
+export REMOTE_TAG=${REMOTE_TAG:-"v2.0.5"}
+export VARIANT=${VARIANT:-"std"}
 
 # Check we have buildx extension for docker
 docker buildx version &> /dev/null
