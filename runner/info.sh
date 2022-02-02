@@ -27,7 +27,6 @@ if [[ ! -e $LORAGW_SPI ]]; then
     echo -e "\033[91mERROR: $LORAGW_SPI does not exist. Is SPI enabled?\033[0m"
 	idle
 fi
-export LORAGW_SPI
 
 # Set default SPI speed for SX1301 concentrators to 2MHz
 if [[ "${CONCENTRATOR}" == "SX1301" ]]; then
