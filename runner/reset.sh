@@ -21,17 +21,19 @@ if [[ $POWER_EN_GPIO -ne 0 ]]; then
 fi
 
 # Reset gateway
-if [[ $RESET_GPIO -ne 0 ]]; then
-    echo "Concentrator reset through GPIO$RESET_GPIO"
-    if [[ -d /sys/class/gpio/gpio$RESET_GPIO ]]; then
-        echo $RESET_GPIO > /sys/class/gpio/unexport; WAIT_GPIO
+for GPIO in ${RESET_GPIO//,/ }; do
+    if [[ $GPIO -ne 0 ]]; then
+        echo "Concentrator reset through GPIO$GPIO"
+        if [[ -d /sys/class/gpio/gpio$GPIO ]]; then
+            echo $GPIO > /sys/class/gpio/unexport; WAIT_GPIO
+        fi
+        echo $GPIO > /sys/class/gpio/export; WAIT_GPIO
+        echo out > /sys/class/gpio/gpio$GPIO/direction; WAIT_GPIO
+        echo 0 > /sys/class/gpio/gpio$GPIO/value; WAIT_GPIO
+        echo 1 > /sys/class/gpio/gpio$GPIO/value; WAIT_GPIO
+        echo 0 > /sys/class/gpio/gpio$GPIO/value; WAIT_GPIO
+        echo $GPIO > /sys/class/gpio/unexport; WAIT_GPIO
     fi
-    echo $RESET_GPIO > /sys/class/gpio/export; WAIT_GPIO
-    echo out > /sys/class/gpio/gpio$RESET_GPIO/direction; WAIT_GPIO
-    echo 0 > /sys/class/gpio/gpio$RESET_GPIO/value; WAIT_GPIO
-    echo 1 > /sys/class/gpio/gpio$RESET_GPIO/value; WAIT_GPIO
-    echo 0 > /sys/class/gpio/gpio$RESET_GPIO/value; WAIT_GPIO
-    echo $RESET_GPIO > /sys/class/gpio/unexport; WAIT_GPIO
-fi
+done
 
 exit 0
