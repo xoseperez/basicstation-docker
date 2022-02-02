@@ -5,8 +5,7 @@
 # * A developing gateway (mostly by RAKwireless), example: RAK7248
 # * A concentrator module (by RAKWireless, IMST, SeeedStudio,...), example: RAK5416
 # * A concentrator chip (Semtech's naming), example: SX1303
-if [ -z ${MODEL} ] ;
-then
+if [[ -z ${MODEL} ]]; then
     echo -e "\033[91mERROR: MODEL variable not set.\nSet the model of the gateway you are using (SX1301, SX1302 or SX1303).\033[0m"
 	idle
 fi
@@ -17,19 +16,26 @@ declare -A MODEL_MAP=(
     [SX1301]=SX1301 [SX1302]=SX1302 [SX1303]=SX1303
 )
 CONCENTRATOR=${MODEL_MAP[$MODEL]}
-if [ "${CONCENTRATOR}" == "" ] ;
-then
+if [[ "${CONCENTRATOR}" == "" ]]; then
     echo -e "\033[91mERROR: Unknown MODEL value ($MODEL). Valid values are: ${!MODEL_MAP[@]}\033[0m"
 	idle
 fi
 
 # Check if SPI port exists
 LORAGW_SPI=${LORAGW_SPI:-"/dev/spidev0.0"}
-if [ ! -e $LORAGW_SPI ]
-then
+if [[ ! -e $LORAGW_SPI ]]; then
     echo -e "\033[91mERROR: $LORAGW_SPI does not exist. Is SPI enabled?\033[0m"
 	idle
 fi
+export LORAGW_SPI
+
+# Set default SPI speed for SX1301 concentrators to 2MHz
+if [[ "${CONCENTRATOR}" == "SX1301" ]]; then
+    LORAGW_SPI_SPEED=${LORAGW_SPI_SPEED:-2000000}
+else
+    LORAGW_SPI_SPEED=${LORAGW_SPI_SPEED:-8000000}
+fi
+export LORAGW_SPI_SPEED
 
 # Map hardware pins to GPIO on Raspberry Pi
 declare -a GPIO_MAP=( -1 -1 -1 2 -1 3 -1 4 14 -1 15 17 18 27 -1 22 23 -1 24 10 -1 9 25 11 8 -1 7 0 1 5 -1 6 12 13 -1 19 16 26 20 -1 21 )
@@ -76,8 +82,9 @@ TC_TRUST=$(echo $TC_TRUST | sed 's/\s//g' | sed 's/-----BEGINCERTIFICATE-----/--
 # Debug
 echo "------------------------------------------------------------------"
 echo "Model:         $MODEL"
-echo "Concentrator:  ${CONCENTRATOR}"
+echo "Concentrator:  $CONCENTRATOR"
 echo "Interface:     SPI"
+echo "SPI Speed:     $LORAGW_SPI_SPEED"
 echo "Reset GPIO:    $GW_RESET_GPIO"
 echo "Enable GPIO:   $GW_POWER_EN_GPIO"
 if [[ $GW_POWER_EN_GPIO -ne 0 ]]; then

@@ -155,7 +155,8 @@ Variable Name | Value | Description | Default
 ------------ | ------------- | ------------- | -------------
 **`MODEL`** | `STRING` | ```SX1301```, ```SX1302``` or ```SX1303``` | ```SX1301```
 **`GW_GPS`** | `STRING` | Enables GPS | true or false
-**`LORAGW_SPI`** | `STRING` | Where the concentrator is connected to. Don't set it if you don't know what this means | `/dev/spidev0.0`
+**`LORAGW_SPI`** | `STRING` | Where the concentrator is connected to | `/dev/spidev0.0`
+**`LORAGW_SPI_SPEED`** | `INT` | Speed of the SPI interface | 2000000 (2MHz) for SX1301 concentrators, 8000000 (8Mhz) for the rest
 **`GW_RESET_PIN`** | `INT` | PIN number that resets de concentrator (Header pin number) **deprecated** | 11
 **`GW_RESET_GPIO`** | `INT` | GPIO number that resets (Broadcom pin number, if not defined it's calculated based on the GW_RESET_PIN) | 17
 **`GW_POWER_EN_GPIO`** | `INT` | GPIO number that enables power (by pulling HIGH) to the concentrator (Broadcom pin number). 0 means no required. | 0
