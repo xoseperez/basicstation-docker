@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* Based on BasicStation 2.0.6, lora_gateway 5.0.1 (SX1301) and sx1302_hal 2.1.0 (SX1302 & SX1303)
+* Support for SX1302/SX1303 USB concentrators
+* Fixed support for multiple radios using the same service
+* Option to specify the SPI bus speed, default values depending on concentrator
+* Preliminary amd64 support
+
 ## 2.1.1 (2022-02-02)
 
 * Improvements in the build process

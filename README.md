@@ -168,7 +168,6 @@ These variables you can set them under the `environment` tag in the `docker-comp
 Variable Name | Value | Description | Default
 ------------ | ------------- | ------------- | -------------
 **`MODEL`** | `STRING` | ```SX1301```, ```SX1302``` or ```SX1303``` | ```SX1301```
-**`GW_GPS`** | `STRING` | Enables GPS | true or false
 **`DEVICE`** | `STRING` | Where the concentrator is connected to | `/dev/spidev0.0`
 **`INTERFACE`** | `SPI` or `USB` | Concentrator interface | Taken from DEVICE
 **`SPI_SPEED`** | `INT` | Speed of the SPI interface | 2000000 (2MHz) for SX1301 concentrators, 8000000 (8Mhz) for the rest

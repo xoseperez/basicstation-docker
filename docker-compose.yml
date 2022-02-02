@@ -31,7 +31,6 @@ services:
       #MODEL: "SX1303"
 
       # These are the defaults:
-      #GW_GPS: "true"
       #GW_RESET_GPIO: 17
       #GW_POWER_EN_GPIO: 0
       #GW_POWER_EN_LOGIC:1

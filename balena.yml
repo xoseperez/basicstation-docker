@@ -9,22 +9,22 @@ post-provisioning: >-
   
   Fork this fleet and deploy the project on a balenaCloud application. Once the project released on a device, you'll need to get the EUI of the device and create a gateway on The Things Stack (V3).
   
-  For detailed instructions on how to use configure your LoRaWAN gteway check out the [readme here](https://github.com/balenalabs/basicstation).
+  For detailed instructions on how to use configure your LoRaWAN gteway check out the [readme here](https://github.com/xoseperez/basicstation).
 assets:
   repository:
     type: blob.asset
     data:
-      url: 'https://github.com/balenalabs/basicstation'
+      url: 'https://github.com/xoseperez/basicstation'
   logo:
     type: blob.asset
     data:
       url: >-
-        https://raw.githubusercontent.com/balenalabs/basicstation/master/logo.png
+        https://raw.githubusercontent.com/xoseperez/basicstation/master/logo.png
 data:
   applicationEnvironmentVariables:
-    - MODEL: SX1301
-    - GW_GPS: false
+    - MODEL: RAK5146
     - GW_RESET_GPIO: 17
+    - GW_POWER_EN_GPIO: 0
     - TTN_REGION: eu1
     - TC_KEY: 0
   defaultDeviceType: raspberrypi3
@@ -32,4 +32,7 @@ data:
     - raspberrypi3
     - raspberrypi3-64
     - raspberrypi4-64
+    - raspberrypi400-64
+    - raspberrypicm4-ioboard
     - fincm3
+    - generic
