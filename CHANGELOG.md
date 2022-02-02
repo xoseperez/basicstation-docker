@@ -1,10 +1,14 @@
 # Changelog
 
-## Unreleased
+## 2.1.1 (2022-02-02)
 
 * Improvements in the build process
 * Changed the way the concentrator is reset to allow multiple radios on the same device
 * Balena compatibility fixes
+* Support to build different variants (default to "std")
+* Enable PPS on corecell concentrators
+* Accept RAK WisGate Developer gateways models as MODEL
+* Show concentrator type on debug log
 
 ## 2.1.0 (2022-01-26)
 
