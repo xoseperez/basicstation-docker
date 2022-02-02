@@ -29,7 +29,8 @@ source ./info.sh
 push_variables
 
 # Move into configuration folder
-pushd config
+mkdir -p config
+pushd config >> /dev/null
 
 # Server URI
 if [[ ! -f ./tc.uri ]]; then
@@ -77,4 +78,4 @@ RESET_GPIO=$GW_RESET_GPIO POWER_EN_GPIO=$GW_POWER_EN_GPIO POWER_EN_LOGIC=$GW_POW
 # Execute packet forwarder
 /app/${CONCENTRATOR}/bin/station -f
 
-popd
+popd >> /dev/null
