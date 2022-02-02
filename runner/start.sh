@@ -47,6 +47,11 @@ if [[ ! -f ./station.conf ]]; then
     sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"$GATEWAY_EUI\",#" station.conf
 fi
 
+# If stdn variant (or any *n variant) we need at least one slave concentrator
+if [[ ! -f ./slave-0.conf ]]; then
+    echo "{}" > slave-0.conf
+fi
+
 # Reset the concentrator
 RESET_GPIO=$GW_RESET_GPIO POWER_EN_GPIO=$GW_POWER_EN_GPIO POWER_EN_LOGIC=$GW_POWER_EN_LOGIC /app/reset.sh
 
