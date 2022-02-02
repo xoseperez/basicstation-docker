@@ -16,11 +16,6 @@ fi
 cd basicstation
 git checkout ${REMOTE_TAG}
 
-# Copy new files
-if [ -d ../${REMOTE_TAG} ]; then
-    cp -r ../${REMOTE_TAG}/* .
-fi
-
 # Apply patches
 if [ -f ../${REMOTE_TAG}.patch ]; then
     echo "Applying ${REMOTE_TAG}.patch ..."

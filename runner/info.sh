@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 
-# Retrieve the concentrator
+# Retrieve the concentrator from the MODEL
+# MODEL can be:
+# * A developing gateway (mostly by RAKwireless), example: RAK7248
+# * A concentrator module (by RAKWireless, IMST, SeeedStudio,...), example: RAK5416
+# * A concentrator chip (Semtech's naming), example: SX1303
 if [ -z ${MODEL} ] ;
 then
     echo -e "\033[91mERROR: MODEL variable not set.\nSet the model of the gateway you are using (SX1301, SX1302 or SX1303).\033[0m"
@@ -8,14 +12,14 @@ then
 fi
 MODEL=${MODEL^^}
 declare -A MODEL_MAP=(
-    [SX1301]=sx1301 [RAK831]=sx1301 [RAK833]=sx1301 [RAK2245]=sx1301 [RAK2247]=sx1301 [IC880A]=sx1301
-    [SX1302]=sx1302 [RAK2287]=sx1302 [WM1302]=sx1302
-    [SX1303]=sx1302 [RAK5146]=sx1302 
+    [RAK7243]=SX1301 [RAK7243C]=SX1301 [RAK7244]=SX1301 [RAK7244C]=SX1301 [RAK7248]=SX1302 [RAK7248C]=SX1302 
+    [RAK831]=SX1301 [RAK833]=SX1301 [RAK2245]=SX1301 [RAK2247]=SX1301 [IC880A]=SX1301 [RAK2287]=SX1302 [WM1302]=SX1302 [RAK5146]=SX1303 
+    [SX1301]=SX1301 [SX1302]=SX1302 [SX1303]=SX1303
 )
 CONCENTRATOR=${MODEL_MAP[$MODEL]}
 if [ "${CONCENTRATOR}" == "" ] ;
 then
-    echo -e "\033[91mERROR: Unknown MODEL value ($MODEL).\033[0m"
+    echo -e "\033[91mERROR: Unknown MODEL value ($MODEL). Valid values are: ${!MODEL_MAP[@]}\033[0m"
 	idle
 fi
 
@@ -72,6 +76,7 @@ TC_TRUST=$(echo $TC_TRUST | sed 's/\s//g' | sed 's/-----BEGINCERTIFICATE-----/--
 # Debug
 echo "------------------------------------------------------------------"
 echo "Model:         $MODEL"
+echo "Concentrator:  ${CONCENTRATOR}"
 echo "Interface:     SPI"
 echo "Reset GPIO:    $GW_RESET_GPIO"
 echo "Enable GPIO:   $GW_POWER_EN_GPIO"
