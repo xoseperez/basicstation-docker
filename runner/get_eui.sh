@@ -1,6 +1,25 @@
 #!/usr/bin/env bash 
 
 # Get the Gateway EUI
-GATEWAY_EUI=$(cat /sys/class/net/eth0/address | sed -r 's/[:]+//g' | sed -e 's#\(.\{6\}\)\(.*\)#\1fffe\2#g')
+if [[ -z $GATEWAY_EUI ]]; then
+    GATEWAY_EUI_NIC=${GATEWAY_EUI_NIC:-"eth0"}
+    if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+        GATEWAY_EUI_NIC="eth0"
+    fi
+    if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+        GATEWAY_EUI_NIC="wlan0"
+    fi
+    if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+        GATEWAY_EUI_NIC="usb0"
+    fi
+    if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+        # Last chance: get the most used NIC based on received bytes
+        GATEWAY_EUI_NIC=$(cat /proc/net/dev | tail -n+3 | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g')
+    fi
+    if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+        echo -e "\033[91mERROR: No network interface found. Cannot set gateway EUI.\033[0m"
+    fi
+    GATEWAY_EUI=$(ip link show $GATEWAY_EUI_NIC | awk '/ether/ {print $2}' | awk -F\: '{print $1$2$3"FFFE"$4$5$6}')
+fi
 GATEWAY_EUI=${GATEWAY_EUI^^}
 echo $GATEWAY_EUI
