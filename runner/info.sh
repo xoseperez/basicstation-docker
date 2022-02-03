@@ -104,12 +104,6 @@ GATEWAY_EUI=${GATEWAY_EUI^^}
 TTN_REGION=${TTN_REGION:-"eu1"}
 TC_URI=${TC_URI:-"wss://${TTN_REGION}.cloud.thethings.network:8887"} 
 
-# Get certificate
-TC_TRUST=${TC_TRUST:-$(curl --silent "https://letsencrypt.org/certs/{trustid-x3-root.pem.txt,isrgrootx1.pem}")}
-
-# Sanitize TC_TRUST
-TC_TRUST=$(echo $TC_TRUST | sed 's/\s//g' | sed 's/-----BEGINCERTIFICATE-----/-----BEGIN CERTIFICATE-----\n/g' | sed 's/-----ENDCERTIFICATE-----/\n-----END CERTIFICATE-----\n/g' | sed 's/\n+/\n/g')
-
 # Debug
 echo "------------------------------------------------------------------"
 echo "Model:         $MODEL"

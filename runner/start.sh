@@ -19,10 +19,11 @@ fi
 # Server Certificate
 if [[ ! -f ./tc.trust ]]; then
     if [[ "$TC_TRUST" == "" ]]; then
-        echo -e "\033[91mERROR: Missing configuration, define TC_TRUST.\033[0m"
-	    idle
+        cp /app/cacert.pem tc.trust
+    else
+        TC_TRUST=$(echo $TC_TRUST | sed 's/\s//g' | sed 's/-----BEGINCERTIFICATE-----/-----BEGIN CERTIFICATE-----\n/g' | sed 's/-----ENDCERTIFICATE-----/\n-----END CERTIFICATE-----\n/g' | sed 's/\n+/\n/g')
+        echo "$TC_TRUST" > tc.trust
     fi
-    echo "$TC_TRUST" > tc.trust
 fi
 
 # Setup TC files from environment
