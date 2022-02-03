@@ -113,15 +113,17 @@ echo "Enable GPIO:   $GW_POWER_EN_GPIO"
 if [[ $GW_POWER_EN_GPIO -ne 0 ]]; then
 echo "Enable Logic:  $GW_POWER_EN_LOGIC"
 fi
-echo "Server:        $TC_URI"
+echo "LNS Server:    $TC_URI"
 if [[ ! -f /app/config/station.conf ]]; then
 echo "Radio Device:  $DEVICE"
 echo "Interface:     $INTERFACE"
 if [[ "$INTERFACE" == "SPI" ]]; then
-    echo "SPI Speed:     $LORAGW_SPI_SPEED"
+echo "SPI Speed:     $LORAGW_SPI_SPEED"
 fi
-echo "Main NIC:      $GATEWAY_EUI_NIC"
 echo "Gateway EUI:   $GATEWAY_EUI"
+if [[ ! -z $GATEWAY_EUI_NIC ]]; then
+echo "Main NIC:      $GATEWAY_EUI_NIC"
+fi
 else
 echo "Custom station.conf file found!"
 fi
