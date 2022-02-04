@@ -5,13 +5,20 @@ This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward pro
 
 ## Introduction
 
-Deploy a LoRaWAN gateway running the Basics™ Station Semtech Packet Forward protocol in a docker container. Also, you can use balena.io and RAK to reduce friction for the LoRa gateway fleet owners. 
+Deploy a LoRaWAN gateway running the Basics™ Station Semtech Packet Forward protocol in a docker container or as a balena.io application.  The Basics™ Station protocol enables the LoRa gateways with a reliable and secure communication between the gateways and the cloud and it is becoming the standard Packet Forward protocol used by most of the LoRaWAN operators.
 
-The Basics™ Station protocol enables the LoRa gateways with a reliable and secure communication between the gateways and the cloud and it is becoming the standard Packet Forward protocol used by most of the LoRaWAN operators.
+Main features:
+
+* Support for AMD64 (x86_64), ARMv8 and ARMv7 architectures.
+* Support for SX1301 SPI concentrators.
+* Support for SX1302 and SX1303 SPI and USB concentrators.
+* Support for multiple concentrators on the same device (using one basicstation service).
+* Compatible with The Things Stack (Comunity Edition / TTNv3) or Chirpstack LNS amongst others.
+* Almost one click deploy and at the same time highly configurable.
 
 Based on Semtech's [Basics™ Station](https://github.com/lorabasics/basicstation/) code.
 
-This project is available in Docker Hub (https://hub.docker.com/r/xoseperez/basicstation) and GitHub (https://github.com/xoseperez/basicstation).
+This project is available on Docker Hub (https://hub.docker.com/r/xoseperez/basicstation) and GitHub (https://github.com/xoseperez/basicstation).
 
 This project is an evolution of the BasicStation implementation for Docker @mpous and I have been working on. You can still find it here: https://github.com/mpous/basicstation.
 
@@ -332,8 +339,8 @@ Feel free to introduce issues on this repo and contribute with solutions.
 
 ## Attribution
 
-- This is an adaptation of the [Semtech Basics Station repository](https://github.com/lorabasics/basicstation). Documentation [here](https://doc.sm.tc/station).
-- This is in part working thanks of the work of Jose Marcelino from RAK Wireless, Xose Pérez from Allwize & RAK Wireless and Marc Pous from balena.io.
+- This is an adaptation of the [Semtech Basics Station repository](https://github.com/lorabasics/basicstation). Read the [documentation](https://doc.sm.tc/station).
+- This is in part working thanks of the work of Jose Marcelino from RAK Wireless, Xose Pérez from Allwize & RAK Wireless and Marc Pous from balena.io. Original work can be found here: https://github.com/mpous/basicstation.
 - This is in part based on excellent work done by Rahul Thakoor from the Balena.io Hardware Hackers team.
 
 
