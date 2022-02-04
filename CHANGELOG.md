@@ -5,7 +5,7 @@
 * Based on BasicStation 2.0.6, lora_gateway 5.0.1 (SX1301) and sx1302_hal 2.1.0 (SX1302 & SX1303)
 * Support for SX1302/SX1303 USB concentrators
 * Support for amd64 architecture (run your basicstation gateway from your PC)
-* Fixed support for multiple radios using the same service
+* Support for multiple radios enabled by default
 * Option to specify the SPI bus speed, default values depending on concentrator
 * Pre-cached certificates
 

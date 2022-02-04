@@ -11,7 +11,7 @@ export MAJOR=$(git describe --abbrev=0 --tags | cut -d '.' -f1)
 export BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 export REGISTRY=${REGISTRY:-"xoseperez/basicstation"}
 export REMOTE_TAG=${REMOTE_TAG:-"v2.0.6"}
-export VARIANT=${VARIANT:-"std"}
+export VARIANT=${VARIANT:-"stdn"}
 
 # Check we have buildx extension for docker
 docker buildx version &> /dev/null
