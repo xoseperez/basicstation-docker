@@ -9,6 +9,8 @@ Deploy a LoRaWAN gateway running the Basics™ Station Semtech Packet Forward pr
 
 The Basics™ Station protocol enables the LoRa gateways with a reliable and secure communication between the gateways and the cloud and it is becoming the standard Packet Forward protocol used by most of the LoRaWAN operators.
 
+Based on Semtech's [Basics™ Station](https://github.com/lorabasics/basicstation/) code.
+
 This project is available in Docker Hub (https://hub.docker.com/r/xoseperez/basicstation) and GitHub (https://github.com/xoseperez/basicstation).
 
 This project is an evolution of the BasicStation implementation for Docker @mpous and I have been working on. You can still find it here: https://github.com/mpous/basicstation.
@@ -282,6 +284,24 @@ Then bring up the service and it will populate several config files in this fold
 
 **NOTE**: files in the config folder take precedence over variables, so if you mount a `config` folder with a `station.conf` file, the `DEVICE` or `GATEWAY_EUI` variables will not be used. If you want to change any of them, you will have to modify the file manually or delete it so it will be recreated form the variables again.
 
+Example slave configuration for a device using 2 radios for antenna divertisy (sectorial antennas, for instance). Note that you can mix different type of radios (SX1202/SX1203 or USB/SPI) as long as you don't mix SX1301 with SX1302/3 radios (they use different basicstation binaries).
+
+```
+$ cat config/slave-0.conf 
+{
+    "SX1302_conf": {
+        "device": "usb:/dev/ttyACM0",
+        "pps": true
+    }
+}
+$ cat config/slave-1.conf 
+{
+    "SX1302_conf": {
+        "device": "spi:/dev/spidev0.0",
+        "pps": false
+    }
+}
+```
 
 ## Troubleshoothing
 
