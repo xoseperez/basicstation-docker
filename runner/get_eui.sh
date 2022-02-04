@@ -1,7 +1,12 @@
 #!/usr/bin/env bash 
+echo -n "Gateway EUI: "
 
-# Get the Gateway EUI
-if [[ -z $GATEWAY_EUI ]]; then
+if [[ -f /app/config/station.conf ]]; then
+
+    GATEWAY_EUI=$(cat /app/config/station.conf | jq '.station_conf.routerid' | sed 's/"//g')
+
+else
+
     GATEWAY_EUI_NIC=${GATEWAY_EUI_NIC:-"eth0"}
     if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
         GATEWAY_EUI_NIC="eth0"
@@ -20,6 +25,6 @@ if [[ -z $GATEWAY_EUI ]]; then
         echo -e "\033[91mERROR: No network interface found. Cannot set gateway EUI.\033[0m"
     fi
     GATEWAY_EUI=$(ip link show $GATEWAY_EUI_NIC | awk '/ether/ {print $2}' | awk -F\: '{print $1$2$3"FFFE"$4$5$6}')
+
 fi
-GATEWAY_EUI=${GATEWAY_EUI^^}
-echo $GATEWAY_EUI
+echo ${GATEWAY_EUI^^}
