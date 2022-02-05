@@ -74,7 +74,7 @@ If you are going to use this image with Balena, you will need:
 
 On both cases you will also need:
 
-* A The Things Stack V3 account [here](https://ttc.eu1.cloud.thethings.industries/console/)
+* A The Things Stack V3 account [here](https://console.cloud.thethings.network/)
 * [balenaEtcher](https://balena.io/etcher) to burn the OS image on the SD card of eMMC for SBC if you have not already done so
 
 Once all of this is ready, you are able to deploy this repository following instructions below.
@@ -154,9 +154,9 @@ REGISTRY="registry.example.com/basicstation" ./build.sh --push
 
 Running this project is as simple as deploying it to a balenaCloud application. You can do it in just one click by using the button below:
 
-[![](https://www.balena.io/deploy.png)](https://dashboard.balena-cloud.com/deploy?repoUrl=https://github.com/balenalabs/basicstation)
+[![balena deploy button](https://www.balena.io/deploy.svg)](https://dashboard.balena-cloud.com/deploy?repoUrl=https://github.com/xoseperez/basicstation)
 
-Follow instructions, click Add a Device and flash an SD card with that OS image dowloaded from balenaCloud. Enjoy the magic 🌟Over-The-Air🌟!
+Follow instructions, click **Add a Device** and flash an SD card with that OS image dowloaded from balenaCloud. Enjoy the magic 🌟Over-The-Air🌟!
 
 
 ### Via [Balena-CLI](https://www.balena.io/docs/reference/balena-cli/)
