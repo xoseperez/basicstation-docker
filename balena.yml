@@ -1,15 +1,10 @@
-name: The Things Stack Gateway
+name: BasicStation
 type: sw.application
 description: >-
-  Deploys the The Things Stack LoRaWAN gateway with Basics Station 
-  Packet Forward protocol on SX1301, SX1302 or SX1303 LoRa concentrators.
+  Deploys a LoRaWAN gateway with Basics Station Packet Forward protocol on SX1301, SX1302 or SX1303 LoRa concentrators.
 joinable: false
 post-provisioning: >-
-  ## Usage instructions
-  
-  Fork this fleet and deploy the project on a balenaCloud application. Once the project released on a device, you'll need to get the EUI of the device and create a gateway on The Things Stack (V3).
-  
-  For detailed instructions on how to use configure your LoRaWAN gteway check out the [readme here](https://github.com/xoseperez/basicstation).
+  For detailed instructions on how to use configure your LoRaWAN gateway check out the [readme here](https://github.com/xoseperez/basicstation).
 assets:
   repository:
     type: blob.asset
@@ -36,3 +31,4 @@ data:
     - raspberrypicm4-ioboard
     - fincm3
     - generic
+version: 2.2.0
