@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (2022-02-05)
+## 2.2.1 (2022-02-05)
 
 * Support for CUPS protocol
 
