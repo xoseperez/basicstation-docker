@@ -359,6 +359,8 @@ $ cat config/slave-1.conf
 }
 ```
 
+When running from an existing `config` folder the service log will show `Mode: STATIC` otherwise it will show `Mode: DYNAMIC`.
+
 ## Troubleshoothing
 
 * It's possible that on the TTN Console the gateway appears as Not connected if it's not receiving any LoRa message. Sometimes the websockets connection among the LoRa Gateway and the server can get broken. However a new LoRa package will re-open the websocket between the Gateway and TTN or TTI.
