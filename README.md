@@ -364,13 +364,13 @@ When running from an existing `config` folder the service log will show `Mode: S
 
 ### Running with less privileges
 
-You might have seen that on the examples above with are running docker in privileged mode and using host network. This is the simplest, more straight-forward way, but there are way to run it without these. Let's see how.
+You might have seen that on the examples above we are running docker in privileged mode and using host network. This is the simplest, more straight-forward way, but there are ways to run it without these. Let's see how.
 
-On one side, the host network is required to access the MAC of the host interface instead that of the virtual interface. This MAC is used to create the Gateway EUI. But if you set the Gateway EUI manually, using the `GATEWAY_EUI` variable, then this is not needed anymore.
+On one side, the host network is required to access the MAC of the host interface instead of that of the virtual interface. This MAC is used to create the Gateway EUI. The virtual MAC changes everytime the container is created, so we need to access the physical interface because that one does not change. But if you set the Gateway EUI manually, using the `GATEWAY_EUI` variable, then this is not needed anymore.
 
 On the other side privileged mode is required to access the port where the concentrator is listening to (either SPI or USB) and the GPIOs to reset the concentrator for SPI modules. You can get rid of these too by mounting the right device in the container and also the `/sys` root so the container can reset the concentrator.
 
-Therefore, an example of these workaround for an SPI concentrator would be:
+Therefore, an example of this workaround for an SPI concentrator would be:
 
 ```
 version: '2.0'
