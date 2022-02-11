@@ -40,14 +40,15 @@ As long as the host can run docker containers, the Basics™ Station service can
 
 #### LoRa Concentrators
 
-Supported LoRa concentrators:
+Tested LoRa concentrators:
 
 * SX1301 (only SPI)
-  * [IMST iC880a](https://shop.imst.de/wireless-modules/lora-products/8/ic880a-spi-lorawan-concentrator-868-mhz)
   * [RAK 831 Concentrator](https://store.rakwireless.com/products/rak831-gateway-module)
   * [RAK 833 Concentrator](https://store.rakwireless.com/products/rak833-gateway-module)
   * [RAK 2245 Pi Hat](https://store.rakwireless.com/products/rak2245-pi-hat)
   * [RAK 2247 Concentrator](https://store.rakwireless.com/products/rak2247-lpwan-gateway-concentrator-module)
+  * [IMST iC880a](https://shop.imst.de/wireless-modules/lora-products/8/ic880a-spi-lorawan-concentrator-868-mhz)
+  * [Dragino PG1301](https://www.dragino.com/products/lora/item/149-lora-gps-hat.html)
 * SX1302 (SPI or USB)
   * [RAK 2287 Concentrator](https://store.rakwireless.com/products/rak2287-lpwan-gateway-concentrator-module)
   * [Seeed WM1302](https://www.seeedstudio.com/WM1302-LoRaWAN-Gateway-Module-SPI-EU868-p-4889.html)
@@ -360,6 +361,38 @@ $ cat config/slave-1.conf
 ```
 
 When running from an existing `config` folder the service log will show `Mode: STATIC` otherwise it will show `Mode: DYNAMIC`.
+
+### Running with less privileges
+
+You might have seen that on the examples above with are running docker in privileged mode and using host network. This is the simplest, more straight-forward way, but there are way to run it without these. Let's see how.
+
+On one side, the host network is required to access the MAC of the host interface instead that of the virtual interface. This MAC is used to create the Gateway EUI. But if you set the Gateway EUI manually, using the `GATEWAY_EUI` variable, then this is not needed anymore.
+
+On the other side privileged mode is required to access the port where the concentrator is listening to (either SPI or USB) and the GPIOs to reset the concentrator for SPI modules. You can get rid of these too by mounting the right device in the container and also the `/sys` root so the container can reset the concentrator.
+
+Therefore, an example of these workaround for an SPI concentrator would be:
+
+```
+version: '2.0'
+
+services:
+
+  basicstation:
+    image: xoseperez/basicstation:latest
+    container_name: basicstation
+    restart: unless-stopped
+    devices:
+      - /dev/spidev0.0
+    volumes:
+      - /sys:/sys
+    environment:
+      MODEL: "RAK5146"
+      GATEWAY_EUI: "E45F01FFFE517BA8"
+      TC_KEY: "..."
+```
+
+For a USB concentrator you would mount the USB port instead of the SPI port and you won't need to mount the `/sys` volume, but remember to set `GW_RESET_GPIO` to 0 to avoid unwanted errors in the logs.
+
 
 ## Troubleshoothing
 
