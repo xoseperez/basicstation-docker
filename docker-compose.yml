@@ -40,7 +40,7 @@ services:
       #DEVICE: "/dev/spidev0.1"
       #DEVICE: "/dev/ttyUSB0"
 
-      # The interface to use is uually taken from the device,
+      # The interface to use is usually taken from the device,
       # but if the service is not guessing it right you can set it manually
       #INTERFACE: "SPI"
       #INTERFACE: "USB"
@@ -57,15 +57,26 @@ services:
       #GATEWAY_EUI: "1122334455667788"
 
       # The default LNS server is the European TTN server. 
-      # If you still want to use TTN but a different region you can set it this way:
+      # If you still want to use TTN but a different region you can set it this way,
+      # this will create the TC_URI and CUPS_URI URLs for the corresponding TTN server
       #TTN_REGION: "au1"
 
-      # Or you can set a completely different LNS server.
+      # Using LNS protocol: define a custom LNS server
       #TC_URI: "wss://lns.example.com:8887"
 
-      # If you set a server other than TTN, you will have to provide the certificate for that server.
+      # Using LNS protocol: if you use a server other than TTN, you will have to provide the certificate for that server.
       #TC_TRUST: "-----BEGIN CERTIFICATE----- MIIDSjCCAjKgAwIBAgIQRK+wgNajJ7qJMDmGLvhAazANBgkqhkiG9w0BAQUFADA......"
 
-      # Finally, you need to create a KEY for the gateway and provide it here:
+      # Using LNS protocol: finally, you need to create a KEY for the gateway and provide it here:
       TC_KEY: "NNSXS.SLOC764GN3....."
+
+      # Using CUPS protocol: define a custom CUPS server
+      #CUPS_URI: "https://lns.example.com:443"
+
+      # Using CUPS protocol: if you use a server other than TTN, you will have to provide the certificate for that server.
+      #CUPS_TRUST: "-----BEGIN CERTIFICATE----- MIIDSjCCAjKgAwIBAgIQRK+wgNajJ7qJMDmGLvhAazANBgkqhkiG9w0BAQUFADA......"
+
+      # Using CUPS protocol: finally, you need to create a KEY for the service to connect to the CUPS server.
+      #CUPS_KEY: "NNSXS.SLOC764GN3....."
+
 
