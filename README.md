@@ -11,7 +11,8 @@ Main features:
 
 * Support for AMD64 (x86_64), ARMv8 and ARMv7 architectures.
 * Support for SX1301 SPI concentrators.
-* Support for SX1302 and SX1303 SPI and USB concentrators.
+* Support for SX1302 and SX1303 SPI and USB (CoreCell) concentrators.
+* Support for SX1308 SPI and SX1308 USB (PicoCell) concentrators.
 * Support for multiple concentrators on the same device (using one basicstation service).
 * Compatible with The Things Stack (Comunity Edition / TTNv3) or Chirpstack LNS amongst others.
 * CUPS & LNS protocol configuration supported

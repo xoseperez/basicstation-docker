@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## 2.3.0 (2022-02-18)
 
 * Support for PicoCell concentrator designs (such as MikroTik R11e-LoRa8/9)
 * INTERFACE takes precedence over DEVICE
