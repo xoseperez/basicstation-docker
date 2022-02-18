@@ -25,3 +25,4 @@ fi
 # Build
 make platform=rpi variant=${VARIANT} arch=${ARCH}
 make platform=corecell variant=${VARIANT} arch=${ARCH}
+make platform=linuxpico variant=${VARIANT} arch=${ARCH}

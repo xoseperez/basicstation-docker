@@ -536,11 +536,35 @@ index f212880..824f61c 100644
       int err;
   
       if (CONTEXT_SX1261.enable != true) {
+diff --git a/deps/smtcpico/V0.2.2-linuxpico.patch b/deps/smtcpico/V0.2.2-linuxpico.patch
+index fd4ca5a..a4bd19c 100644
+--- a/deps/smtcpico/V0.2.2-linuxpico.patch
++++ b/deps/smtcpico/V0.2.2-linuxpico.patch
+@@ -313,6 +313,19 @@ index 0000000..aa04060
+ +
+ +#endif
+ +/* --- EOF ------------------------------------------------------------------ */
++diff --git a/libloragw/inc/loragw_mcu.h b/libloragw/inc/loragw_mcu.h
++index 938d886..42004dd 100644
++--- a/libloragw/inc/loragw_mcu.h
+++++ b/libloragw/inc/loragw_mcu.h
++@@ -30,7 +30,7 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
++ #define LGW_MCU_SUCCESS 0
++ #define LGW_MCU_ERROR   -1
++ 
++-#define STM32FWVERSION 0x010a0006 /* increment LSB for new version */
+++#define STM32FWVERSION 0x010a0004 /* increment LSB for new version */
++ 
++ #define MCU_DELAY_COM_INIT 1000
++ #define MCU_DELAY_RESET 200
+ diff --git a/libloragw/inc/loragw_stationlog.h b/libloragw/inc/loragw_stationlog.h
+ new file mode 100644
+ index 0000000..a282b8f
 diff --git a/setup.gmk b/setup.gmk
-index d7c4363..5bee515 100644
+index d7c4363..80d434b 100644
 --- a/setup.gmk
 +++ b/setup.gmk
-@@ -35,18 +35,25 @@ NQ = $(if ${V},>/dev/null,)
+@@ -35,18 +35,28 @@ NQ = $(if ${V},>/dev/null,)
  
  platform ?= linux
  variant  ?= std
@@ -560,6 +584,9 @@ index d7c4363..5bee515 100644
 +ARCH.linux.default   = x86_64-linux-gnu
 +ARCH.linuxV2.default = x86_64-linux-gnu
 +ARCH.linuxpico.default = x86_64-linux-gnu
++ARCH.linuxpico.armv7hf = arm-linux-gnueabihf
++ARCH.linuxpico.aarch64 = aarch64-linux-gnu
++ARCH.linuxpico.amd64 = x86_64-linux-gnu
 +ARCH.corecell.default  = arm-linux-gnueabihf
 +ARCH.corecell.armv7hf  = arm-linux-gnueabihf
 +ARCH.corecell.aarch64  = aarch64-linux-gnu

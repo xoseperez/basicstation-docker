@@ -43,23 +43,27 @@ As long as the host can run docker containers, the Basics™ Station service can
 Tested LoRa concentrators:
 
 * SX1301 (only SPI)
-  * [RAK 831 Concentrator](https://store.rakwireless.com/products/rak831-gateway-module)
-  * [RAK 833 Concentrator](https://store.rakwireless.com/products/rak833-gateway-module)
-  * [RAK 2245 Pi Hat](https://store.rakwireless.com/products/rak2245-pi-hat)
-  * [RAK 2247 Concentrator](https://store.rakwireless.com/products/rak2247-lpwan-gateway-concentrator-module)
+  * [RAK831 Concentrator](https://store.rakwireless.com/products/rak831-gateway-module)
+  * [RAK833 Concentrator](https://store.rakwireless.com/products/rak833-gateway-module)
+  * [RAK2245 Pi Hat](https://store.rakwireless.com/products/rak2245-pi-hat)
+  * [RAK2247 Concentrator](https://store.rakwireless.com/products/rak2247-lpwan-gateway-concentrator-module)
   * [IMST iC880a](https://shop.imst.de/wireless-modules/lora-products/8/ic880a-spi-lorawan-concentrator-868-mhz)
   * [Dragino PG1301](https://www.dragino.com/products/lora/item/149-lora-gps-hat.html)
 * SX1302 (SPI or USB)
-  * [RAK 2287 Concentrator](https://store.rakwireless.com/products/rak2287-lpwan-gateway-concentrator-module)
+  * [RAK2287 Concentrator](https://store.rakwireless.com/products/rak2287-lpwan-gateway-concentrator-module)
   * [Seeed WM1302](https://www.seeedstudio.com/WM1302-LoRaWAN-Gateway-Module-SPI-EU868-p-4889.html)
 * SX1303 (SPI or USB)
-  * [RAK 5146 Concentrator](https://store.rakwireless.com/collections/wislink-lpwan/products/wislink-lpwan-concentrator-rak5146)
+  * [RAK5146 Concentrator](https://store.rakwireless.com/collections/wislink-lpwan/products/wislink-lpwan-concentrator-rak5146)
+* SX1308 (SPI or USB)
+  * [RAK2246 Concentrator](https://store.rakwireless.com/collections/wisgate-developer/products/rak7246-lpwan-developer-gateway)
+  * [RAK2247-1308 Concentrator](https://store.rakwireless.com/products/rak2287-lpwan-gateway-concentrator-module)
+  * [MikroTik R11e-LoRa8 Concentrator](https://mikrotik.com/product/r11e_lr8)
+
+> **NOTE**: Other concentrators might also work. If you manage to make this work with a different setup, report back :)
 
 > **NOTE**: The basicstation project is not compatible with SX1301 USB LoRa concentrators. This means that you won't be able to use it with a RAK2247-USB.
 
 > **NOTE**: SPI concentrators in MiniPCIe form factor will require a special Hat or adapter to connect them to the SPI interface in the SBC. USB concentrators in MiniPCIe form factor will require a USB adapter to connect them to a USB2/3 socket on the PC or SBC. Other form factors might also require an adaptor for the target host.
-
-> **NOTE**: Other concentrators might also work. If you manage to make this work with a different setup, report back :)
 
 
 ### Software
@@ -180,9 +184,10 @@ These variables you can set them under the `environment` tag in the `docker-comp
 
 Variable Name | Value | Description | Default
 ------------ | ------------- | ------------- | -------------
-**`MODEL`** | `STRING` | Concentrator model (see `Define your MODEL` section below) | ```SX1301```
-**`DEVICE`** | `STRING` | Where the concentrator is connected to | `/dev/spidev0.0`
-**`INTERFACE`** | `SPI` or `USB` | Concentrator interface | Guessed from DEVICE
+**`MODEL`** | `STRING` | Concentrator model (see `Define your MODEL` section below) | `SX1301`
+**`INTERFACE`** | `SPI` or `USB` | Concentrator interface | `SPI`
+**`DESIGN`** | `V2`, `PICOCELL` or `CORECELL` | Concentrator design version | A fair guess will be done based on `MODEL` and `INTERFACE`
+**`DEVICE`** | `STRING` | Where the concentrator is connected to | `/dev/spidev0.0` for SPI, `/dev/ttyACM0` for USB
 **`SPI_SPEED`** | `INT` | Speed of the SPI interface | 2000000 (2MHz) for SX1301 concentrators, 8000000 (8Mhz) for the rest
 **`GW_RESET_GPIO`** | `INT` | GPIO number that resets (Broadcom pin number, if not defined it's calculated based on the GW_RESET_PIN) | 17
 **`GW_POWER_EN_GPIO`** | `INT` | GPIO number that enables power (by pulling HIGH) to the concentrator (Broadcom pin number). 0 means no required. | 0
@@ -206,15 +211,22 @@ Variable Name | Value | Description | Default
 > If you have more than one concentrator on the same device, you can set the BasicStation service to use both at the same time. Check `Advanced configuration` section below to know more. You can also bring up two instances of BasicStation on the same device to control two different concentrators. In this case you will want to assign different `DEVICE`, `GATEWAY_EUI` and `TC_KEY` values to each instance.
 
 
-### Define your MODEL
+### Define your MODEL & DESIGN
 
-The model is defined depending on the version of the LoRa concentrator chip: `SX1301`, `SX1302` or `SX1303`. You can also use the concentrator module name or even the gateway model (for RAKwireless gateways). Actual list of valid values:
+The model is defined depending on the version of the LoRa concentrator chip: `SX1301`, `SX1302`, `SX1303` or `SX1308`. You can also use the concentrator module name or even the gateway model (for RAKwireless gateways). Actual list of valid values:
 
-* Semtech chip model: SX1301, SX1302, SX1303
-* Concentrator modules: IC880A, RAK2245, RAK2247, RAK2287, RAK5146, RAK831, RAK833, WM1302
+* Semtech chip model: SX1301, SX1302, SX1303, SX1308
+* Concentrator modules: IC880A, R11E-LORA8, R11E-LORA9, RAK2245, RAK2247, RAK2287, RAK5146, RAK831, RAK833, WM1302
 * RAK WisGate Development gateways: RAK7243, RAK7243C, RAK7244, RAK7244C, RAK7248, RAK7248C, RAK7271, RAK7371
 
-If the module is not on the list check the manufacturer to see which one to use. It's important to change the `MODEL` variable (in you `docker-compose.yml` file or in balenaCloud) to the correct one. The default model is the `SX1301`.
+If the module is not on the list check the manufacturer to see which one to use. It's important to set the `MODEL` variable (in you `docker-compose.yml` file or in balenaCloud) to the correct one. The default model is the `SX1301`.
+
+Based on the `MODEL` and the `INTERFACE` (SPI or USB), the service will try to guess the concentrator design (see https://doc.sm.tc/station). 
+
+* V2 design is used with SX1301 and SX1308 concentrators with SPI interface.
+* PicoCell design defines SX1308-based concentrators with USB interface.
+* CoreCell design is in use with SX1302 and SX1303 concentrators, both SPI and USB interface.
+* 2G4 design is used for SX1820 concentrators in the 2.4GHz band (worldwide available). This service is not compatible with these concentrators.
 
 
 ### Get the EUI of the Gateway

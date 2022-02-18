@@ -49,8 +49,9 @@ RUN install_packages jq vim
 WORKDIR /app
 
 # Copy fles from builder and repo
-COPY --from=builder /app/basicstation/build-rpi-${VARIANT} ./sx1301
-COPY --from=builder /app/basicstation/build-corecell-${VARIANT} ./sx1302
+COPY --from=builder /app/basicstation/build-rpi-${VARIANT} ./design-v2
+COPY --from=builder /app/basicstation/build-corecell-${VARIANT} ./design-corecell
+COPY --from=builder /app/basicstation/build-linuxpico-${VARIANT} ./design-picocell
 COPY runner/* ./
 RUN chmod +x *.sh
 

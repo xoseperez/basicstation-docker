@@ -25,26 +25,34 @@ services:
     environment:
 
       # To select your concentrator you have 3 options:
-      # Option 1: set the model of the concentrator you are using (by RAK, SeeedStudio o IMST)
+      # Option 1: set the model of the concentrator you are using (by RAK, SeeedStudio, IMST or MikroTik)
       # Option 2: set the Semtech's chip on it
       MODEL: "RAK5146"
       #MODEL: "SX1303"
+
+      # The concentrator design is usually taken from the MODEL (see https://doc.sm.tc/station):
+      # * V2 design was used with SX1301 and SX1308 concentrators with SPI interface
+      # * PicoCell design defines SX1308-based concentrators with USB interface
+      # * CoreCell design is in use with SX1302 and SX1303 concentrators, both SPI and USB interface
+      # but in case you what to specify it you can using the DESIGN variable
+      #DESIGN: "V2"
+      #DESIGN: "PICOCELL"
+      #DESIGN: "CORECELL"
 
       # These are the defaults:
       #GW_RESET_GPIO: 17
       #GW_POWER_EN_GPIO: 0
       #GW_POWER_EN_LOGIC:1
 
+      # The interface the concentrator uses, defaults to "SPI"
+      #INTERFACE: "USB"
+      
       # If you have the concentrator connected to a different port
-      # than the default one ("/dev/spidev0.0") you can define it this way
+      # than the default one ("/dev/spidev0.0" for SPI or "/dev/ttyACM0" for USB)
+      # you can define it this way:
       #DEVICE: "/dev/spidev0.1"
       #DEVICE: "/dev/ttyUSB0"
 
-      # The interface to use is usually taken from the device,
-      # but if the service is not guessing it right you can set it manually
-      #INTERFACE: "SPI"
-      #INTERFACE: "USB"
-      
       # Problems with an SPI concentrator are sometimes related to the bus speed,
       # you can set a different one this way
       #SPI_SPEED: 8000000

@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+* Support for PicoCell concentrator designs (such as MikroTik R11e-LoRa8/9)
+* INTERFACE takes precedence over DEVICE
+
 ## 2.2.1 (2022-02-05)
 
 * Support for CUPS protocol

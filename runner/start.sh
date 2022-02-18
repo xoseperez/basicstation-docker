@@ -145,8 +145,9 @@ fi
 MODEL=${MODEL^^}
 declare -A MODEL_MAP=(
     [RAK7243]=SX1301 [RAK7243C]=SX1301 [RAK7244]=SX1301 [RAK7244C]=SX1301 [RAK7248]=SX1302 [RAK7248C]=SX1302 [RAK7271]=SX1302 [RAK7371]=SX1303 
-    [RAK831]=SX1301 [RAK833]=SX1301 [RAK2245]=SX1301 [RAK2247]=SX1301 [IC880A]=SX1301 [RAK2287]=SX1302 [WM1302]=SX1302 [RAK5146]=SX1303 
-    [SX1301]=SX1301 [SX1302]=SX1302 [SX1303]=SX1303
+    [RAK831]=SX1301 [RAK833]=SX1301 [RAK2245]=SX1301 [RAK2247]=SX1301 [RAK2287]=SX1302 [RAK5146]=SX1303
+    [IC880A]=SX1301 [WM1302]=SX1302 [R11E-LORA8]=SX1308 [R11E-LORA9]=SX1308
+    [SX1301]=SX1301 [SX1302]=SX1302 [SX1303]=SX1303 [SX1308]=SX1308
 )
 CONCENTRATOR=${MODEL_MAP[$MODEL]}
 if [[ "${CONCENTRATOR}" == "" ]]; then
@@ -158,24 +159,33 @@ fi
 # Device (port) configuration
 # -----------------------------------------------------------------------------
 
+# Default interface is SPI
+INTERFACE=${INTERFACE:-"SPI"}
+
 # Check port and interface
-if [[ "$MODE" == "STATIC" ]]; then
+if [[ "${MODE}" == "STATIC" ]]; then
     DEVICE=$(cat /app/config/station.conf | jq '.[] | .device' | head -1 | sed 's/"//g')
 else
     DEVICE=${DEVICE:-$LORAGW_SPI} # backwards compatibility
-    DEVICE=${DEVICE:-"/dev/spidev0.0"}
+    if [[ "${INTERFACE}" == "SPI" ]]; then
+        DEVICE=${DEVICE:-"/dev/spidev0.0"}
+    else
+        DEVICE=${DEVICE:-"/dev/ttyACM0"}
+    fi
     if [[ ! -e $DEVICE ]]; then
         echo -e "\033[91mERROR: $DEVICE does not exist.\033[0m"
         idle
     fi
 fi
 
-# Guess interface
-if [[ $DEVICE == *"spi"* ]]; then
-    INTERFACE=${INTERFACE:-"SPI"}
-else
-    INTERFACE=${INTERFACE:-"USB"}
+# Concentrator design
+if [[ "${CONCENTRATOR}" == "SX1308" ]] && [[ "${INTERFACE}" == "USB" ]]; then
+    DESIGN=${DESIGN:-"picocell"}
+elif [[ "${CONCENTRATOR}" == "SX1301" ]] || [[ "${CONCENTRATOR}" == "SX1308" ]]; then
+    DESIGN=${DESIGN:-"v2"}
 fi
+DESIGN=${DESIGN:-"corecell"}
+DESIGN=${DESIGN,,}
 
 # USB interface is not available for SX1301 concentrators
 if [[ "${CONCENTRATOR}" == "SX1301" ]] && [[ "$INTERFACE" == "USB" ]]; then
@@ -226,6 +236,7 @@ echo "Radio"
 echo "------------------------------------------------------------------"
 echo "Model:         $MODEL"
 echo "Concentrator:  $CONCENTRATOR"
+echo "Design:        ${DESIGN^^}"
 echo "Radio Device:  $DEVICE"
 echo "Interface:     $INTERFACE"
 if [[ "$INTERFACE" == "SPI" ]]; then
@@ -246,17 +257,9 @@ push_variables
 # Generate dynamic configuration files
 # -----------------------------------------------------------------------------
 
-# SX1303 uses the same base code as SX1302
-if [[ "${CONCENTRATOR}" == "SX1303" ]]; then
-    CONCENTRATOR="SX1302"
-fi
-
-# Files are in lowercase
-CONCENTRATOR=${CONCENTRATOR,,}
-
 # Link the corresponding configuration file
 if [[ ! -f ./station.conf ]]; then
-    cp /app/station.${CONCENTRATOR}.conf station.conf
+    cp /app/station.${DESIGN}.conf station.conf
     sed -i "s#\"device\":\s*.*,#\"device\": \"${INTERFACE,,}:${DEVICE}\",#" station.conf
     sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"$GATEWAY_EUI\",#" station.conf
 fi
@@ -274,4 +277,4 @@ fi
 RESET_GPIO=$GW_RESET_GPIO POWER_EN_GPIO=$GW_POWER_EN_GPIO POWER_EN_LOGIC=$GW_POWER_EN_LOGIC /app/reset.sh
 
 # Execute packet forwarder
-/app/${CONCENTRATOR}/bin/station -f
+/app/design-${DESIGN}/bin/station -f
