@@ -1,38 +1,24 @@
 #!/usr/bin/env bash
 
-WAIT_GPIO() {
-    sleep 0.01
-}
-
 RESET_GPIO=${RESET_GPIO:-17}
 POWER_EN_GPIO=${POWER_EN_GPIO:-0}
 POWER_EN_LOGIC=${POWER_EN_LOGIC:-1}
 
+GPIOSET="gpioset -m time -u 100000 gpiochip0"
+
 # Enable gateway
 if [[ $POWER_EN_GPIO -ne 0 ]]; then
     echo "Concentrator enabled through GPIO$POWER_EN_GPIO"
-    if [[ -d /sys/class/gpio/gpio$POWER_EN_GPIO ]]; then
-        echo $POWER_EN_GPIO > /sys/class/gpio/unexport; WAIT_GPIO
-    fi
-    echo $POWER_EN_GPIO > /sys/class/gpio/export; WAIT_GPIO
-    echo out > /sys/class/gpio/gpio$POWER_EN_GPIO/direction; WAIT_GPIO
-    echo $POWER_EN_LOGIC > /sys/class/gpio/gpio$POWER_EN_GPIO/value; WAIT_GPIO
-    echo $POWER_EN_GPIO > /sys/class/gpio/unexport; WAIT_GPIO
+    ${GPIOSET} ${POWER_EN_GPIO}=${POWER_EN_LOGIC}
 fi
 
 # Reset gateway
 for GPIO in ${RESET_GPIO//,/ }; do
     if [[ $GPIO -ne 0 ]]; then
         echo "Concentrator reset through GPIO$GPIO"
-        if [[ -d /sys/class/gpio/gpio$GPIO ]]; then
-            echo $GPIO > /sys/class/gpio/unexport; WAIT_GPIO
-        fi
-        echo $GPIO > /sys/class/gpio/export; WAIT_GPIO
-        echo out > /sys/class/gpio/gpio$GPIO/direction; WAIT_GPIO
-        echo 0 > /sys/class/gpio/gpio$GPIO/value; WAIT_GPIO
-        echo 1 > /sys/class/gpio/gpio$GPIO/value; WAIT_GPIO
-        echo 0 > /sys/class/gpio/gpio$GPIO/value; WAIT_GPIO
-        echo $GPIO > /sys/class/gpio/unexport; WAIT_GPIO
+        ${GPIOSET} ${GPIO}=0
+        ${GPIOSET} ${GPIO}=1
+        ${GPIOSET} ${GPIO}=0
     fi
 done
 

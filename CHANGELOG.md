@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* Using gpiod instead of /sys/class/gpio to reset concentrator
+
 ## 2.3.0 (2022-02-18)
 
 * Support for PicoCell concentrator designs (such as MikroTik R11e-LoRa8/9)
