@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 2.3.1 (2022-03-08)
 
 * Using gpiod instead of /sys/class/gpio to reset concentrator
+* Fix Balena build (BALENA_API_KEY available)
 
 ## 2.3.0 (2022-02-18)
 
