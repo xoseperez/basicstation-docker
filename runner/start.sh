@@ -274,7 +274,7 @@ fi
 # -----------------------------------------------------------------------------
 
 # Reset the concentrator
-RESET_GPIO=$GW_RESET_GPIO POWER_EN_GPIO=$GW_POWER_EN_GPIO POWER_EN_LOGIC=$GW_POWER_EN_LOGIC /app/reset.sh
+RESET_GPIO=${GW_RESET_GPIO:-0} POWER_EN_GPIO=${GW_POWER_EN_GPIO:-0} POWER_EN_LOGIC=${GW_POWER_EN_LOGIC:-1} /app/reset.sh
 
 # Execute packet forwarder
 /app/design-${DESIGN}/bin/station -f
