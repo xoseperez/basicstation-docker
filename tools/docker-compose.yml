@@ -1,0 +1,19 @@
+version: '3'
+
+services:
+
+  bslogger:
+    image: bslogger
+    build: 
+      context: ./
+    container_name: bslogger
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["python", "-u", "log2idb.py"]
+    environment:
+      - DB_HOST=locahost
+      - DB_USER=user
+      - DB_PASS=pass
+      - DB_NAME=metrics
+      - GATEWAY_ID=gw01
