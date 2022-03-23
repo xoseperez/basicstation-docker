@@ -11,7 +11,7 @@ DB_PORT = os.environ.get("DB_PORT", 8086)
 DB_USER = os.environ.get("DB_USER", "")
 DB_PASS = os.environ.get("DB_PASS", "")
 DB_NAME = os.environ.get("DB_NAME", "gateways")
-DB_METRIC = os.environ.get("DB_METRIC", "metrics")
+DB_MEASUREMENT = os.environ.get("DB_MEASUREMENT", "metrics")
 GATEWAY_ID = os.environ.get("GATEWAY_ID", "gateway")
 
 client = InfluxDBClient(host=DB_HOST, port=DB_PORT, username=DB_USER, password=DB_PASS)
@@ -23,7 +23,7 @@ for value in runner.run():
     timestamp = value.pop('timestamp', None)
     data = [
         {
-            "measurement": DB_METRIC,
+            "measurement": DB_MEASUREMENT,
             "tags": {
                 "gateway_id": GATEWAY_ID,
                 "type": type
