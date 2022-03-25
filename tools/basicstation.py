@@ -73,6 +73,6 @@ class parser():
 
 
 if __name__ == '__main__':
-    runner = parser("basicstation", False)
+    runner = parser("basicstation", True)
     for value in runner.run():
         print(value)

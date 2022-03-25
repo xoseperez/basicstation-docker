@@ -2,7 +2,6 @@
 
 import os
 import sys
-import datetime
 from basicstation import parser
 import paho.mqtt.client as mqtt
 
@@ -27,8 +26,8 @@ client.connect(MQTT_HOST, MQTT_PORT, 60)
 
 runner = parser(CONTAINER_NAME, True)
 for value in runner.run():
-    print(value)
-    
+    #print("Received: {}".format(value))
+   
     data = None
     if MQTT_DATA_FORMAT == "json":
         data = str(value)

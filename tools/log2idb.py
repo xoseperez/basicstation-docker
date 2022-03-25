@@ -18,7 +18,7 @@ client = InfluxDBClient(host=DB_HOST, port=DB_PORT, username=DB_USER, password=D
 client.switch_database(DB_NAME)
 runner = parser(CONTAINER_NAME, True)
 for value in runner.run():
-    print(value)
+    #print("Received: {}".format(value))
     type = value.pop('type', None)
     timestamp = value.pop('timestamp', None)
     data = [
