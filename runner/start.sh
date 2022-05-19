@@ -63,6 +63,9 @@ fi
 GATEWAY_EUI=${GATEWAY_EUI^^}
 echo -e "\033[93mGATEWAY_EUI: ${GATEWAY_EUI}\033[0m"
 
+# Push to Balena
+push_variables
+
 # -----------------------------------------------------------------------------
 # Mode (static/dynamic) & protocol (cups/lns)
 # -----------------------------------------------------------------------------
@@ -254,9 +257,6 @@ echo "Enable Logic:  $GW_POWER_EN_LOGIC"
 fi
 echo "------------------------------------------------------------------"
 echo -e "\033[0m"
-
-# Push variables to Balena
-push_variables
 
 # -----------------------------------------------------------------------------
 # Generate dynamic configuration files
