@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.2 (2022-05-19)
+
+* Log parsing tools
+* Calculate and report GATEWAY_EUI before TC_KEY missing error
+* Highlight summary
+
 ## 2.3.1 (2022-03-08)
 
 * Using gpiod instead of /sys/class/gpio to reset concentrator
