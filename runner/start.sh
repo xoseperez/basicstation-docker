@@ -221,7 +221,7 @@ GW_POWER_EN_LOGIC=${GW_POWER_EN_LOGIC:-1}
 # Debug
 # -----------------------------------------------------------------------------
 
-echo ""
+echo -e "\033[93m"
 echo "------------------------------------------------------------------"
 echo "Protocol"
 echo "------------------------------------------------------------------"
@@ -253,7 +253,7 @@ if [[ $GW_POWER_EN_GPIO -ne 0 ]]; then
 echo "Enable Logic:  $GW_POWER_EN_LOGIC"
 fi
 echo "------------------------------------------------------------------"
-echo ""
+echo -e "\033[0m"
 
 # Push variables to Balena
 push_variables
