@@ -33,6 +33,37 @@ mkdir -p config
 pushd config >> /dev/null
 
 # -----------------------------------------------------------------------------
+# Gateway EUI
+# -----------------------------------------------------------------------------
+
+if [[ -f ./station.conf ]]; then
+    GATEWAY_EUI=$(cat /app/config/station.conf | jq '.station_conf.routerid' | sed 's/"//g')
+else
+    if [[ -z $GATEWAY_EUI ]]; then
+        GATEWAY_EUI_NIC=${GATEWAY_EUI_NIC:-"eth0"}
+        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+            GATEWAY_EUI_NIC="eth0"
+        fi
+        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+            GATEWAY_EUI_NIC="wlan0"
+        fi
+        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+            GATEWAY_EUI_NIC="usb0"
+        fi
+        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+            # Last chance: get the most used NIC based on received bytes
+            GATEWAY_EUI_NIC=$(cat /proc/net/dev | tail -n+3 | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g')
+        fi
+        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
+            echo -e "\033[91mERROR: No network interface found. Cannot set gateway EUI.\033[0m"
+        fi
+        GATEWAY_EUI=$(ip link show $GATEWAY_EUI_NIC | awk '/ether/ {print $2}' | awk -F\: '{print $1$2$3"FFFE"$4$5$6}')
+    fi
+fi
+GATEWAY_EUI=${GATEWAY_EUI^^}
+echo -e "\033[93mGATEWAY_EUI: ${GATEWAY_EUI}\033[0m"
+
+# -----------------------------------------------------------------------------
 # Mode (static/dynamic) & protocol (cups/lns)
 # -----------------------------------------------------------------------------
 
@@ -58,6 +89,10 @@ else
         idle
     fi
 fi
+
+# -----------------------------------------------------------------------------
+# LNS/CUPS configuration
+# -----------------------------------------------------------------------------
 
 # Defaults to TTN server v3, `eu1` region, use a custom CUPS_URI or TC_URI to change this
 TTN_REGION=${TTN_REGION:-"eu1"}
@@ -99,36 +134,6 @@ if [[ "$PROTOCOL" == "LNS" ]]; then
 	    echo "Authorization: Bearer $TC_KEY" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > tc.key
     fi
 fi
-
-# -----------------------------------------------------------------------------
-# Gateway EUI
-# -----------------------------------------------------------------------------
-
-if [[ "$MODE" == "STATIC" ]]; then
-    GATEWAY_EUI=$(cat /app/config/station.conf | jq '.station_conf.routerid' | sed 's/"//g')
-else
-    if [[ -z $GATEWAY_EUI ]]; then
-        GATEWAY_EUI_NIC=${GATEWAY_EUI_NIC:-"eth0"}
-        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
-            GATEWAY_EUI_NIC="eth0"
-        fi
-        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
-            GATEWAY_EUI_NIC="wlan0"
-        fi
-        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
-            GATEWAY_EUI_NIC="usb0"
-        fi
-        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
-            # Last chance: get the most used NIC based on received bytes
-            GATEWAY_EUI_NIC=$(cat /proc/net/dev | tail -n+3 | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g')
-        fi
-        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
-            echo -e "\033[91mERROR: No network interface found. Cannot set gateway EUI.\033[0m"
-        fi
-        GATEWAY_EUI=$(ip link show $GATEWAY_EUI_NIC | awk '/ether/ {print $2}' | awk -F\: '{print $1$2$3"FFFE"$4$5$6}')
-    fi
-fi
-GATEWAY_EUI=${GATEWAY_EUI^^}
 
 # -----------------------------------------------------------------------------
 # Model / concentrator configuration
