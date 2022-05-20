@@ -39,14 +39,14 @@ services:
       #DESIGN: "PICOCELL"
       #DESIGN: "CORECELL"
 
+      # The interface the concentrator uses, defaults to "SPI"
+      #INTERFACE: "USB"
+      
       # These are the defaults:
       #GW_RESET_GPIO: 17
       #GW_POWER_EN_GPIO: 0
       #GW_POWER_EN_LOGIC:1
 
-      # The interface the concentrator uses, defaults to "SPI"
-      #INTERFACE: "USB"
-      
       # If you have the concentrator connected to a different port
       # than the default one ("/dev/spidev0.0" for SPI or "/dev/ttyACM0" for USB)
       # you can define it this way:

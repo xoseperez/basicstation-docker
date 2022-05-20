@@ -1,23 +1,21 @@
-name: BasicStation
+name: basicstation
 type: sw.application
-description: >-
-  Deploys a LoRaWAN gateway with Basics Station Packet Forward protocol on SX1301, SX1302 or SX1303 LoRa concentrators.
+description: Deploys a LoRaWAN gateway with LoRa Basics™ Station Packet Forward protocol on SX1301, SX1302, SX1303 or SX1308 LoRa concentrators.
 joinable: false
-post-provisioning: >-
-  For detailed instructions on how to use configure your LoRaWAN gateway check out the [readme here](https://github.com/xoseperez/basicstation).
+post-provisioning: For detailed instructions on how to use configure your LoRaWAN gateway check out the [readme here](https://github.com/xoseperez/basicstation).
 assets:
   repository:
     type: blob.asset
     data:
-      url: 'https://github.com/xoseperez/basicstation'
+      url: https://github.com/xoseperez/basicstation
   logo:
     type: blob.asset
     data:
-      url: >-
-        https://raw.githubusercontent.com/xoseperez/basicstation/master/logo.png
+      url: https://raw.githubusercontent.com/xoseperez/basicstation/master/logo.png
 data:
   applicationEnvironmentVariables:
     - MODEL: RAK5146
+    - INTERFACE: SPI
     - GW_RESET_GPIO: 17
     - GW_POWER_EN_GPIO: 0
     - TTN_REGION: eu1
@@ -31,4 +29,4 @@ data:
     - raspberrypicm4-ioboard
     - fincm3
     - generic
-version: 2.2.1
+version: 2.3.2
