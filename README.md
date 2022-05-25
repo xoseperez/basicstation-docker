@@ -434,6 +434,10 @@ services:
 
 Feel free to introduce issues on this repo and contribute with solutions.
 
+## Parsers
+
+Parsers that used to be available under the `tools` folder have been moved to their own repo: https://github.com/xoseperez/packet-forwarder-loggers
+
 ## Attribution
 
 - This is an adaptation of the [Semtech Basics Station repository](https://github.com/lorabasics/basicstation). Read the [documentation](https://doc.sm.tc/station).

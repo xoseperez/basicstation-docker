@@ -1,4 +1,0 @@
-docker==5.0.3
-influxdb==5.3.1
-paho-mqtt==1.6.1
-Flask==2.0.3
