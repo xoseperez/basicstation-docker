@@ -1,8 +1,31 @@
 diff --git a/deps/lgw1302/V2.1.0-corecell.patch b/deps/lgw1302/V2.1.0-corecell.patch
-index f212880..824f61c 100644
+index f212880..f48adb8 100644
 --- a/deps/lgw1302/V2.1.0-corecell.patch
 +++ b/deps/lgw1302/V2.1.0-corecell.patch
-@@ -275,7 +275,7 @@ index 9a81a08..2314e32 100644
+@@ -22,6 +22,22 @@ index 6e153a3..45981b5 100644
+  
+  /* radio-specific parameters */
+  #define LGW_XTAL_FREQU      32000000            /* frequency of the RF reference oscillator */
++diff --git a/libloragw/inc/loragw_mcu.h b/libloragw/inc/loragw_mcu.h
++index 0d0588f..c81d2e7 100644
++--- a/libloragw/inc/loragw_mcu.h
+++++ b/libloragw/inc/loragw_mcu.h
++@@ -190,6 +190,11 @@ int mcu_spi_store(uint8_t * in_out_buf, size_t buf_size);
++ */
++ int mcu_spi_flush(int fd);
++ 
+++/**
+++ *
+++*/
+++void mcu_save_version(char * version);
+++
++ #endif
++ 
++ /* --- EOF ------------------------------------------------------------------ */
+ diff --git a/libloragw/inc/loragw_spi.h b/libloragw/inc/loragw_spi.h
+ index 88e4530..1b83698 100644
+ --- a/libloragw/inc/loragw_spi.h
+@@ -275,7 +291,7 @@ index 9a81a08..2314e32 100644
   }
  +#endif
  diff --git a/libloragw/src/loragw_hal.c b/libloragw/src/loragw_hal.c
@@ -11,7 +34,7 @@ index f212880..824f61c 100644
  --- a/libloragw/src/loragw_hal.c
  +++ b/libloragw/src/loragw_hal.c
  @@ -69,6 +69,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
-@@ -287,7 +287,18 @@ index ffc8ec0..60e8387 100644
+@@ -287,7 +303,18 @@ index ffc8ec0..60e8387 100644
   #define TRACE()             fprintf(stderr, "@ %s %d\n", __FUNCTION__, __LINE__);
   
   #define CONTEXT_STARTED         lgw_context.is_started
@@ -31,7 +54,7 @@ index f212880..824f61c 100644
       CHECK_NULL(p);
       CHECK_NULL(nb_pkt);
       if (pkt_index > ((*nb_pkt) - 1)) {
-@@ -296,7 +307,7 @@ index ffc8ec0..60e8387 100644
+@@ -296,7 +323,7 @@ index ffc8ec0..60e8387 100644
           return -1;
       }
   
@@ -40,7 +63,7 @@ index f212880..824f61c 100644
                       }
                   }
                   /* pkt_dup_idx contains the index to be deleted */
-@@ -311,7 +322,7 @@ index ffc8ec0..60e8387 100644
+@@ -311,7 +338,7 @@ index ffc8ec0..60e8387 100644
                   }
                   dup_restart = true;
                   break;
@@ -49,7 +72,7 @@ index f212880..824f61c 100644
   
       /* check if the concentrator is running */
       if (CONTEXT_STARTED == true) {
-@@ -327,7 +338,7 @@ index ffc8ec0..60e8387 100644
+@@ -327,7 +354,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -58,7 +81,7 @@ index f212880..824f61c 100644
   
       /* check if the concentrator is running */
       if (CONTEXT_STARTED == true) {
-@@ -336,7 +347,7 @@ index ffc8ec0..60e8387 100644
+@@ -336,7 +363,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -67,7 +90,7 @@ index f212880..824f61c 100644
   
       /* check input range (segfault prevention) */
       if (rf_chain >= LGW_RF_CHAIN_NB) {
-@@ -359,7 +370,7 @@ index ffc8ec0..60e8387 100644
+@@ -359,7 +386,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -76,7 +99,7 @@ index f212880..824f61c 100644
   
       /* check if the concentrator is running */
       if (CONTEXT_STARTED == true) {
-@@ -375,7 +386,7 @@ index ffc8ec0..60e8387 100644
+@@ -375,7 +402,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -85,7 +108,7 @@ index f212880..824f61c 100644
   
       /* check 'general' parameters */
       if (sx1302_get_ifmod_config(if_chain) == IF_UNDEFINED) {
-@@ -388,7 +399,7 @@ index ffc8ec0..60e8387 100644
+@@ -388,7 +415,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
       /* check if IF frequency is optimal based on channel and radio bandwidths */
@@ -94,7 +117,7 @@ index f212880..824f61c 100644
       }
       bw_hz = lgw_bw_getval(conf->bandwidth); /* channel bandwidth */
       if ((conf->freq_hz + ((bw_hz==-1)?LGW_REF_BW:bw_hz)/2) > ((int32_t)rf_rx_bandwidth/2)) {
-@@ -401,7 +412,7 @@ index ffc8ec0..60e8387 100644
+@@ -401,7 +428,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -103,7 +126,7 @@ index f212880..824f61c 100644
               }
               /* check BW & DR */
               if (!IS_LORA_BW(conf->bandwidth)) {
-@@ -415,7 +426,7 @@ index ffc8ec0..60e8387 100644
+@@ -415,7 +442,7 @@ index ffc8ec0..60e8387 100644
                   return LGW_HAL_ERROR;
               }
               /* set internal configuration  */
@@ -112,7 +135,7 @@ index f212880..824f61c 100644
               }
               /* check BW & DR */
               if (conf->bandwidth != BW_125KHZ) {
-@@ -429,7 +440,7 @@ index ffc8ec0..60e8387 100644
+@@ -429,7 +456,7 @@ index ffc8ec0..60e8387 100644
                   return LGW_HAL_ERROR;
               }
               /* set internal configuration  */
@@ -121,7 +144,7 @@ index f212880..824f61c 100644
               }
               /* check BW & DR */
               if(!IS_FSK_BW(conf->bandwidth)) {
-@@ -443,7 +454,7 @@ index ffc8ec0..60e8387 100644
+@@ -443,7 +470,7 @@ index ffc8ec0..60e8387 100644
                   return LGW_HAL_ERROR;
               }
               /* set internal configuration  */
@@ -130,7 +153,7 @@ index f212880..824f61c 100644
               break;
   
           default:
-@@ -452,7 +463,7 @@ index ffc8ec0..60e8387 100644
+@@ -452,7 +479,7 @@ index ffc8ec0..60e8387 100644
               return LGW_HAL_ERROR;
       }
   
@@ -139,7 +162,7 @@ index f212880..824f61c 100644
   
       /* Check LUT size */
       if ((conf->size < 1) || (conf->size > TX_GAIN_LUT_SIZE_MAX)) {
-@@ -461,7 +472,7 @@ index ffc8ec0..60e8387 100644
+@@ -461,7 +488,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -148,7 +171,7 @@ index f212880..824f61c 100644
       for (i = 0; i < CONTEXT_TX_GAIN_LUT[rf_chain].size; i++) {
           /* Check gain range */
           if (conf->lut[i].dig_gain > 3) {
-@@ -490,7 +501,7 @@ index ffc8ec0..60e8387 100644
+@@ -490,7 +517,7 @@ index ffc8ec0..60e8387 100644
               return LGW_HAL_ERROR;
           }
   
@@ -157,7 +180,7 @@ index f212880..824f61c 100644
       CONTEXT_SX1261.lbt_conf.nb_channel = conf->lbt_conf.nb_channel;
       for (i = 0; i < CONTEXT_SX1261.lbt_conf.nb_channel; i++) {
           if (conf->lbt_conf.channels[i].bandwidth != BW_125KHZ && conf->lbt_conf.channels[i].bandwidth != BW_250KHZ) {
-@@ -504,7 +515,7 @@ index ffc8ec0..60e8387 100644
+@@ -504,7 +531,7 @@ index ffc8ec0..60e8387 100644
               return LGW_HAL_ERROR;
           }
           CONTEXT_SX1261.lbt_conf.channels[i] = conf->lbt_conf.channels[i];
@@ -166,7 +189,7 @@ index f212880..824f61c 100644
   
       err = lgw_connect(CONTEXT_COM_TYPE, CONTEXT_COM_PATH);
       if (err == LGW_REG_ERROR) {
-@@ -529,7 +540,7 @@ index ffc8ec0..60e8387 100644
+@@ -529,7 +556,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -175,7 +198,7 @@ index f212880..824f61c 100644
               /* Reset the radio */
               err = sx1302_radio_reset(i, CONTEXT_RF_CHAIN[i].type);
               if (err != LGW_REG_SUCCESS) {
-@@ -538,7 +549,7 @@ index ffc8ec0..60e8387 100644
+@@ -538,7 +565,7 @@ index ffc8ec0..60e8387 100644
                   return LGW_HAL_ERROR;
               }
   
@@ -184,7 +207,7 @@ index f212880..824f61c 100644
                       err = sx125x_setup(i, CONTEXT_BOARD.clksrc, true, CONTEXT_RF_CHAIN[i].type, CONTEXT_RF_CHAIN[i].freq_hz);
                       break;
                   default:
-@@ -560,7 +571,7 @@ index ffc8ec0..60e8387 100644
+@@ -560,7 +587,7 @@ index ffc8ec0..60e8387 100644
                   return LGW_HAL_ERROR;
               }
           }
@@ -193,7 +216,7 @@ index f212880..824f61c 100644
       /* Select the radio which provides the clock to the sx1302 */
       err = sx1302_radio_clock_select(CONTEXT_BOARD.clksrc);
       if (err != LGW_REG_SUCCESS) {
-@@ -623,7 +634,7 @@ index ffc8ec0..60e8387 100644
+@@ -623,7 +650,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -202,7 +225,7 @@ index f212880..824f61c 100644
       if (CONTEXT_IF_CHAIN[8].enable == true) {
           err = sx1302_lora_service_correlator_configure(&(CONTEXT_LORA_SERVICE));
           if (err != LGW_REG_SUCCESS) {
-@@ -638,7 +649,7 @@ index ffc8ec0..60e8387 100644
+@@ -638,7 +665,7 @@ index ffc8ec0..60e8387 100644
               return LGW_HAL_ERROR;
           }
       }
@@ -211,7 +234,7 @@ index f212880..824f61c 100644
       if (CONTEXT_IF_CHAIN[9].enable == true) {
           err = sx1302_fsk_configure(&(CONTEXT_FSK));
           if (err != LGW_REG_SUCCESS) {
-@@ -647,7 +658,7 @@ index ffc8ec0..60e8387 100644
+@@ -647,7 +674,7 @@ index ffc8ec0..60e8387 100644
               return LGW_HAL_ERROR;
           }
       }
@@ -220,7 +243,7 @@ index f212880..824f61c 100644
       /* configure syncword */
       err = sx1302_lora_syncword(CONTEXT_LWAN_PUBLIC, CONTEXT_LORA_SERVICE.datarate);
       if (err != LGW_REG_SUCCESS) {
-@@ -664,7 +675,7 @@ index ffc8ec0..60e8387 100644
+@@ -664,7 +691,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -229,7 +252,7 @@ index f212880..824f61c 100644
               DEBUG_MSG("Loading AGC fw for sx1250\n");
               err = sx1302_agc_load_firmware(agc_firmware_sx1250);
               if (err != LGW_REG_SUCCESS) {
-@@ -673,7 +684,7 @@ index ffc8ec0..60e8387 100644
+@@ -673,7 +700,7 @@ index ffc8ec0..60e8387 100644
                   return LGW_HAL_ERROR;
               }
               fw_version_agc = FW_VERSION_AGC_SX1250;
@@ -238,7 +261,7 @@ index f212880..824f61c 100644
               DEBUG_MSG("Loading AGC fw for sx125x\n");
               err = sx1302_agc_load_firmware(agc_firmware_sx125x);
               if (err != LGW_REG_SUCCESS) {
-@@ -695,7 +706,7 @@ index ffc8ec0..60e8387 100644
+@@ -695,7 +722,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -247,7 +270,7 @@ index f212880..824f61c 100644
       DEBUG_MSG("Loading ARB fw\n");
       err = sx1302_arb_load_firmware(arb_firmware);
       if (err != LGW_REG_SUCCESS) {
-@@ -726,7 +737,7 @@ index ffc8ec0..60e8387 100644
+@@ -726,7 +753,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -256,7 +279,7 @@ index f212880..824f61c 100644
       /* Open the file for writting */
       log_file = fopen(CONTEXT_DEBUG.log_file_name, "w+"); /* create log file, overwrite if file already exist */
       if (log_file == NULL) {
-@@ -735,7 +746,7 @@ index ffc8ec0..60e8387 100644
+@@ -735,7 +762,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       } else {
           printf("INFO: %s file opened for debug log\n", CONTEXT_DEBUG.log_file_name);
@@ -265,7 +288,7 @@ index f212880..824f61c 100644
           unlink("loragw_hal.log");
           i = symlink(CONTEXT_DEBUG.log_file_name, "loragw_hal.log");
           if (i < 0) {
-@@ -744,7 +755,15 @@ index ffc8ec0..60e8387 100644
+@@ -744,7 +771,15 @@ index ffc8ec0..60e8387 100644
           }
       }
   #endif
@@ -282,7 +305,7 @@ index f212880..824f61c 100644
               ts_addr = I2C_PORT_TEMP_SENSOR[i];
               err = i2c_linuxdev_open(I2C_DEVICE, ts_addr, &ts_fd);
               if (err != LGW_I2C_SUCCESS) {
-@@ -771,7 +790,9 @@ index ffc8ec0..60e8387 100644
+@@ -771,7 +806,9 @@ index ffc8ec0..60e8387 100644
               return LGW_HAL_ERROR;
           }
   
@@ -293,7 +316,7 @@ index f212880..824f61c 100644
           if (CONTEXT_BOARD.full_duplex == true) {
               err = i2c_linuxdev_open(I2C_DEVICE, I2C_PORT_DAC_AD5338R, &ad_fd);
               if (err != LGW_I2C_SUCCESS) {
-@@ -787,7 +808,7 @@ index ffc8ec0..60e8387 100644
+@@ -787,7 +824,7 @@ index ffc8ec0..60e8387 100644
                   i2c_linuxdev_close(ad_fd);
                   ad_fd = -1;
                   return LGW_HAL_ERROR;
@@ -302,7 +325,7 @@ index f212880..824f61c 100644
               uint8_t volt_val[AD5338R_CMD_SIZE] = { 0x39, (uint8_t)VOLTAGE2HEX_H(0), (uint8_t)VOLTAGE2HEX_L(0) };
               err = ad5338r_write(ad_fd, I2C_PORT_DAC_AD5338R, volt_val);
               if (err != LGW_I2C_SUCCESS) {
-@@ -800,7 +821,7 @@ index ffc8ec0..60e8387 100644
+@@ -800,7 +837,7 @@ index ffc8ec0..60e8387 100644
           }
       }
   
@@ -311,7 +334,7 @@ index f212880..824f61c 100644
       if (CONTEXT_SX1261.enable == true) {
           err = sx1261_connect(CONTEXT_COM_TYPE, (CONTEXT_COM_TYPE == LGW_COM_SPI) ? CONTEXT_SX1261.spi_path : NULL);
           if (err != LGW_REG_SUCCESS) {
-@@ -830,7 +851,7 @@ index ffc8ec0..60e8387 100644
+@@ -830,7 +867,7 @@ index ffc8ec0..60e8387 100644
               return LGW_HAL_ERROR;
           }
       }
@@ -320,7 +343,7 @@ index f212880..824f61c 100644
       /* Set CONFIG_DONE GPIO to 1 (turn on the corresponding LED) */
       err = sx1302_set_gpio(0x01);
       if (err != LGW_REG_SUCCESS) {
-@@ -839,7 +860,7 @@ index ffc8ec0..60e8387 100644
+@@ -839,7 +876,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -329,7 +352,7 @@ index f212880..824f61c 100644
           DEBUG_PRINTF("INFO: aborting TX on chain %u\n", i);
           x = lgw_abort_tx(i);
           if (x != LGW_HAL_SUCCESS) {
-@@ -848,7 +869,7 @@ index ffc8ec0..60e8387 100644
+@@ -848,7 +885,7 @@ index ffc8ec0..60e8387 100644
               err = LGW_HAL_ERROR;
           }
       }
@@ -338,7 +361,7 @@ index f212880..824f61c 100644
       DEBUG_MSG("INFO: Disconnecting\n");
       x = lgw_disconnect();
       if (x != LGW_HAL_SUCCESS) {
-@@ -857,7 +878,8 @@ index ffc8ec0..60e8387 100644
+@@ -857,7 +894,8 @@ index ffc8ec0..60e8387 100644
           err = LGW_HAL_ERROR;
       }
   
@@ -348,7 +371,7 @@ index f212880..824f61c 100644
           DEBUG_MSG("INFO: Closing I2C for temperature sensor\n");
           x = i2c_linuxdev_close(ts_fd);
           if (x != 0) {
-@@ -865,8 +887,9 @@ index ffc8ec0..60e8387 100644
+@@ -865,8 +903,9 @@ index ffc8ec0..60e8387 100644
  +            ERROR_PRINTF("failed to close I2C temperature sensor device (err=%i)\n", x);
               err = LGW_HAL_ERROR;
           }
@@ -360,7 +383,7 @@ index f212880..824f61c 100644
               DEBUG_MSG("INFO: Closing I2C for AD5338R\n");
               x = i2c_linuxdev_close(ad_fd);
               if (x != 0) {
-@@ -875,7 +898,7 @@ index ffc8ec0..60e8387 100644
+@@ -875,7 +914,7 @@ index ffc8ec0..60e8387 100644
                   err = LGW_HAL_ERROR;
               }
           }
@@ -369,7 +392,7 @@ index f212880..824f61c 100644
       /* performances variables */
       struct timeval tm;
   
-@@ -884,7 +907,7 @@ index ffc8ec0..60e8387 100644
+@@ -884,7 +923,7 @@ index ffc8ec0..60e8387 100644
   
       /* Record function start time */
       _meas_time_start(&tm);
@@ -378,7 +401,7 @@ index f212880..824f61c 100644
       /* Get packets from SX1302, if any */
       res = sx1302_fetch(&nb_pkt_fetched);
       if (res != LGW_REG_SUCCESS) {
-@@ -893,7 +916,7 @@ index ffc8ec0..60e8387 100644
+@@ -893,7 +932,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -387,7 +410,7 @@ index f212880..824f61c 100644
       }
       if (nb_pkt_fetched > max_pkt) {
           nb_pkt_left = nb_pkt_fetched - max_pkt;
-@@ -910,7 +933,7 @@ index ffc8ec0..60e8387 100644
+@@ -910,7 +949,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -396,7 +419,7 @@ index f212880..824f61c 100644
           /* Get packet and move to next one */
           res = sx1302_parse(&lgw_context, &pkt_data[nb_pkt_found]);
           if (res == LGW_REG_WARNING) {
-@@ -923,7 +946,7 @@ index ffc8ec0..60e8387 100644
+@@ -923,7 +962,7 @@ index ffc8ec0..60e8387 100644
               return LGW_HAL_ERROR;
           }
   
@@ -405,7 +428,7 @@ index f212880..824f61c 100644
       if ((nb_pkt_found > 0) && (CONTEXT_FINE_TIMESTAMP.enable == true)) {
           res = merge_packets(pkt_data, &nb_pkt_found);
           if (res != 0) {
-@@ -932,7 +955,7 @@ index ffc8ec0..60e8387 100644
+@@ -932,7 +971,7 @@ index ffc8ec0..60e8387 100644
           }
   
           DEBUG_PRINTF("INFO: nb pkt found:%u (after de-duplicating)\n", nb_pkt_found);
@@ -414,7 +437,7 @@ index f212880..824f61c 100644
   
       /* check if the concentrator is running */
       if (CONTEXT_STARTED == false) {
-@@ -941,7 +964,7 @@ index ffc8ec0..60e8387 100644
+@@ -941,7 +980,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -423,7 +446,7 @@ index f212880..824f61c 100644
   
       /* check input range (segfault prevention) */
       if (pkt_data->rf_chain >= LGW_RF_CHAIN_NB) {
-@@ -1011,7 +1034,7 @@ index ffc8ec0..60e8387 100644
+@@ -1011,7 +1050,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -432,7 +455,7 @@ index f212880..824f61c 100644
           uint8_t volt_val[AD5338R_CMD_SIZE] = {0x39, VOLTAGE2HEX_H(2.51), VOLTAGE2HEX_L(2.51)}; /* set to 2.51V */
           err = ad5338r_write(ad_fd, I2C_PORT_DAC_AD5338R, volt_val);
           if (err != LGW_I2C_SUCCESS) {
-@@ -1032,7 +1055,7 @@ index ffc8ec0..60e8387 100644
+@@ -1032,7 +1071,7 @@ index ffc8ec0..60e8387 100644
               return LGW_HAL_ERROR;
           }
       }
@@ -441,7 +464,7 @@ index f212880..824f61c 100644
       /* Send the TX request to the concentrator */
       err = sx1302_send(CONTEXT_RF_CHAIN[pkt_data->rf_chain].type, &CONTEXT_TX_GAIN_LUT[pkt_data->rf_chain], CONTEXT_LWAN_PUBLIC, &CONTEXT_FSK, pkt_data);
       if (err != LGW_REG_SUCCESS) {
-@@ -1047,7 +1070,7 @@ index ffc8ec0..60e8387 100644
+@@ -1047,7 +1086,7 @@ index ffc8ec0..60e8387 100644
               }
           }
   
@@ -450,7 +473,7 @@ index f212880..824f61c 100644
       if (CONTEXT_SX1261.lbt_conf.enable == true) {
           err = lgw_lbt_tx_status(pkt_data->rf_chain, &lbt_tx_allowed);
           if (err != 0) {
-@@ -1080,7 +1103,7 @@ index ffc8ec0..60e8387 100644
+@@ -1080,7 +1119,7 @@ index ffc8ec0..60e8387 100644
               return LGW_HAL_ERROR;
           }
       }
@@ -459,7 +482,7 @@ index f212880..824f61c 100644
       /* check input variables */
       CHECK_NULL(code);
       if (rf_chain >= LGW_RF_CHAIN_NB) {
-@@ -1089,7 +1112,7 @@ index ffc8ec0..60e8387 100644
+@@ -1089,7 +1128,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -468,7 +491,7 @@ index f212880..824f61c 100644
               *code = sx1302_rx_status(rf_chain);
           }
       } else {
-@@ -1098,7 +1121,7 @@ index ffc8ec0..60e8387 100644
+@@ -1098,7 +1137,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -477,7 +500,7 @@ index f212880..824f61c 100644
   
       /* check input variables */
       if (rf_chain >= LGW_RF_CHAIN_NB) {
-@@ -1107,7 +1130,7 @@ index ffc8ec0..60e8387 100644
+@@ -1107,7 +1146,7 @@ index ffc8ec0..60e8387 100644
           return LGW_HAL_ERROR;
       }
   
@@ -486,7 +509,7 @@ index f212880..824f61c 100644
   int lgw_get_temperature(float* temperature) {
       int err = LGW_HAL_ERROR;
   
-@@ -1116,7 +1139,11 @@ index ffc8ec0..60e8387 100644
+@@ -1116,7 +1155,11 @@ index ffc8ec0..60e8387 100644
   
       CHECK_NULL(temperature);
   
@@ -499,7 +522,7 @@ index f212880..824f61c 100644
               err = lgw_com_get_temperature(temperature);
               break;
           default:
-@@ -1124,13 +1151,17 @@ index ffc8ec0..60e8387 100644
+@@ -1124,13 +1167,17 @@ index ffc8ec0..60e8387 100644
  +            ERROR_PRINTF("wrong communication type (SHOULD NOT HAPPEN)\n");
               break;
       }
@@ -518,7 +541,7 @@ index f212880..824f61c 100644
       DEBUG_PRINTF(" --- %s\n", "IN");
   
       if (packet == NULL) {
-@@ -1139,7 +1170,7 @@ index ffc8ec0..60e8387 100644
+@@ -1139,7 +1186,7 @@ index ffc8ec0..60e8387 100644
           return 0;
       }
   
@@ -527,7 +550,7 @@ index f212880..824f61c 100644
           toa_ms = (uint32_t)t_fsk + 1; /* add margin for rounding */
       } else {
           toa_ms = 0;
-@@ -1148,7 +1179,7 @@ index ffc8ec0..60e8387 100644
+@@ -1148,7 +1195,7 @@ index ffc8ec0..60e8387 100644
       }
   
       DEBUG_PRINTF(" --- %s\n", "OUT");
@@ -536,6 +559,233 @@ index f212880..824f61c 100644
       int err;
   
       if (CONTEXT_SX1261.enable != true) {
+@@ -1206,7 +1253,7 @@ index e298c42..b585fe4 100644
+  /* --- PRIVATE FUNCTIONS DEFINITION ----------------------------------------- */
+  
+ diff --git a/libloragw/src/loragw_mcu.c b/libloragw/src/loragw_mcu.c
+-index 4644df8..1d05002 100644
++index 4644df8..82cbaac 100644
+ --- a/libloragw/src/loragw_mcu.c
+ +++ b/libloragw/src/loragw_mcu.c
+ @@ -44,6 +44,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
+@@ -1218,7 +1265,16 @@ index 4644df8..1d05002 100644
+  /* -------------------------------------------------------------------------- */
+  /* --- PRIVATE CONSTANTS ---------------------------------------------------- */
+  
+-@@ -235,8 +237,8 @@ int write_req(int fd, order_id_t cmd, const uint8_t * payload, uint16_t payload_
++@@ -73,6 +75,8 @@ static spi_req_bulk_t spi_bulk_buffer = {
++     .buffer = { 0 }
++ };
++ 
+++static char mcu_version[9];
+++
++ /* -------------------------------------------------------------------------- */
++ /* --- PRIVATE FUNCTIONS DEFINITION ----------------------------------------- */
++ 
++@@ -235,8 +239,8 @@ int write_req(int fd, order_id_t cmd, const uint8_t * payload, uint16_t payload_
+  
+  #if DEBUG_MCU == 1
+      gettimeofday(&write_tv, NULL);
+@@ -1228,7 +1284,7 @@ index 4644df8..1d05002 100644
+  
+  #if DEBUG_VERBOSE
+      int i;
+-@@ -285,8 +287,8 @@ int read_ack(int fd, uint8_t * hdr, uint8_t * buf, size_t buf_size) {
++@@ -285,8 +289,8 @@ int read_ack(int fd, uint8_t * hdr, uint8_t * buf, size_t buf_size) {
+      } else {
+  #if DEBUG_MCU == 1
+          gettimeofday(&read_tv, NULL);
+@@ -1238,7 +1294,7 @@ index 4644df8..1d05002 100644
+      }
+  
+      /* Compute time spent in this function */
+-@@ -331,8 +333,8 @@ int read_ack(int fd, uint8_t * hdr, uint8_t * buf, size_t buf_size) {
++@@ -331,8 +335,8 @@ int read_ack(int fd, uint8_t * hdr, uint8_t * buf, size_t buf_size) {
+              } else {
+  #if DEBUG_MCU == 1
+                  gettimeofday(&read_tv, NULL);
+@@ -1248,6 +1304,47 @@ index 4644df8..1d05002 100644
+                  nb_read += n;
+              }
+          } while (nb_read < (int)size); /* we want to read only the expected payload, not more */
++@@ -483,8 +487,13 @@ int decode_ack_spi_bulk(const uint8_t * hdr, const uint8_t * payload) {
++         return -1;
++     }
++ 
++-    if (cmd_get_type(hdr) != ORDER_ID__ACK_MULTIPLE_SPI) {
++-        printf("ERROR: wrong ACK type for ACK_MULTIPLE_SPI (expected:0x%02X, got 0x%02X)\n", ORDER_ID__ACK_MULTIPLE_SPI, cmd_get_type(hdr));
+++    order_id_t command = ORDER_ID__ACK_MULTIPLE_SPI;
+++
+++    // ORDER_ID__ACK_MULTIPLE_SPI in firmware versions prior to 1.0.0 was 0x46 instead of 0x45
+++    if (strcmp(mcu_version, mcu_version_string) < 0) command = command + 1;
+++
+++    if (cmd_get_type(hdr) != command) {
+++        printf("ERROR: wrong ACK type for ACK_MULTIPLE_SPI (expected:0x%02X, got 0x%02X)\n", command, cmd_get_type(hdr));
++         return -1;
++     }
++ 
++@@ -610,6 +619,10 @@ int mcu_get_status(int fd, s_status * status) {
++     return 0;
++ }
++ 
+++void mcu_save_version(char * version) {
+++    strcpy(mcu_version, version);
+++}
+++
++ /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
++ 
++ int mcu_gpio_write(int fd, uint8_t gpio_port, uint8_t gpio_id, uint8_t gpio_value) {
++@@ -649,7 +662,12 @@ int mcu_spi_write(int fd, uint8_t * in_out_buf, size_t buf_size) {
++     /* Check input parameters */
++     CHECK_NULL(in_out_buf);
++ 
++-    if (write_req(fd, ORDER_ID__REQ_MULTIPLE_SPI, in_out_buf, buf_size) != 0) {
+++    order_id_t command = ORDER_ID__REQ_MULTIPLE_SPI;
+++
+++    // ORDER_ID__REQ_MULTIPLE_SPI in firmware versions prior to 1.0.0 was 0x06 instead of 0x05
+++    if (strcmp(mcu_version, mcu_version_string) < 0) command = command + 1;
+++
+++    if (write_req(fd, command, in_out_buf, buf_size) != 0) {
++         printf("ERROR: failed to write REQ_MULTIPLE_SPI request\n");
++         return -1;
++     }
+ diff --git a/libloragw/src/loragw_reg.c b/libloragw/src/loragw_reg.c
+ index 6a7d0df..8019654 100644
+ --- a/libloragw/src/loragw_reg.c
+@@ -2560,7 +2657,7 @@ index effeaa0..40c3144 100644
+      }
+  
+ diff --git a/libloragw/src/loragw_usb.c b/libloragw/src/loragw_usb.c
+-index 4fe7e9a..b69f73c 100644
++index 4fe7e9a..019b5e8 100644
+ --- a/libloragw/src/loragw_usb.c
+ +++ b/libloragw/src/loragw_usb.c
+ @@ -47,6 +47,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
+@@ -2653,7 +2750,7 @@ index 4fe7e9a..b69f73c 100644
+              free(usb_device);
+              return LGW_USB_ERROR;
+          }
+-@@ -187,25 +189,25 @@ int lgw_usb_open(const char * com_path, void **com_target_ptr) {
++@@ -187,25 +189,26 @@ int lgw_usb_open(const char * com_path, void **com_target_ptr) {
+          *com_target_ptr = (void*)usb_device;
+  
+          /* Initialize pseudo-random generator for MCU request ID */
+@@ -2668,6 +2765,7 @@ index 4fe7e9a..b69f73c 100644
+ +            ERROR_PRINTF("failed to ping the concentrator MCU\n");
+              return LGW_USB_ERROR;
+          }
+++        mcu_save_version(gw_info.version + 1);
+          if (strncmp(gw_info.version + 1, mcu_version_string, sizeof mcu_version_string) != 0) {
+              printf("WARNING: MCU version mismatch (expected:%s, got:%s)\n", mcu_version_string, gw_info.version);
+          }
+@@ -2685,7 +2783,7 @@ index 4fe7e9a..b69f73c 100644
+  
+          /* Reset SX1302 */
+          x  = mcu_gpio_write(fd, 0, 1, 1); /*   set PA1 : POWER_EN */
+-@@ -215,7 +217,7 @@ int lgw_usb_open(const char * com_path, void **com_target_ptr) {
++@@ -215,7 +218,7 @@ int lgw_usb_open(const char * com_path, void **com_target_ptr) {
+          x |= mcu_gpio_write(fd, 0, 8, 0); /*   set PA8 : SX1261_NRESET active */
+          x |= mcu_gpio_write(fd, 0, 8, 1); /* unset PA8 : SX1261_NRESET inactive */
+          if (x != 0) {
+@@ -2694,7 +2792,7 @@ index 4fe7e9a..b69f73c 100644
+              free(usb_device);
+              return LGW_USB_ERROR;
+          }
+-@@ -247,7 +249,7 @@ int lgw_usb_close(void *com_target) {
++@@ -247,7 +250,7 @@ int lgw_usb_close(void *com_target) {
+      x |= mcu_gpio_write(usb_device, 0, 8, 0); /*   set PA8 : SX1261_NRESET active */
+      x |= mcu_gpio_write(usb_device, 0, 8, 1); /* unset PA8 : SX1261_NRESET inactive */
+      if (x != 0) {
+@@ -2703,7 +2801,7 @@ index 4fe7e9a..b69f73c 100644
+          err = LGW_USB_ERROR;
+      }
+  
+-@@ -255,16 +257,16 @@ int lgw_usb_close(void *com_target) {
++@@ -255,16 +258,16 @@ int lgw_usb_close(void *com_target) {
+      x = close(usb_device);
+      free(com_target);
+      if (x != 0) {
+@@ -2723,7 +2821,7 @@ index 4fe7e9a..b69f73c 100644
+          return LGW_USB_SUCCESS;
+      }
+  }
+-@@ -316,10 +318,10 @@ int lgw_usb_rmw(void *com_target, uint16_t address, uint8_t offs, uint8_t leng,
++@@ -316,10 +319,10 @@ int lgw_usb_rmw(void *com_target, uint16_t address, uint8_t offs, uint8_t leng,
+  
+      /* determine return code */
+      if (a != 0) {
+@@ -2736,7 +2834,7 @@ index 4fe7e9a..b69f73c 100644
+          return 0;
+      }
+  }
+-@@ -364,10 +366,10 @@ int lgw_usb_wb(void *com_target, uint8_t spi_mux_target, uint16_t address, const
++@@ -364,10 +367,10 @@ int lgw_usb_wb(void *com_target, uint8_t spi_mux_target, uint16_t address, const
+  
+      /* determine return code */
+      if (a != 0) {
+@@ -2749,7 +2847,7 @@ index 4fe7e9a..b69f73c 100644
+          return 0;
+      }
+  }
+-@@ -406,7 +408,7 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
++@@ -406,7 +409,7 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
+  
+      if (_lgw_write_mode == LGW_COM_WRITE_MODE_BULK) {
+          /* makes no sense to read in bulk mode, as we can't get the result */
+@@ -2758,7 +2856,7 @@ index 4fe7e9a..b69f73c 100644
+          return -1;
+      } else {
+          a = mcu_spi_write(usb_device, in_out_buf, command_size);
+-@@ -414,10 +416,10 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
++@@ -414,10 +417,10 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
+  
+      /* determine return code */
+      if (a != 0) {
+@@ -2771,7 +2869,7 @@ index 4fe7e9a..b69f73c 100644
+          memcpy(data, in_out_buf + 9, size); /* remove the first bytes, keep only the payload */
+          return 0;
+      }
+-@@ -427,11 +429,11 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
++@@ -427,11 +430,11 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
+  
+  int lgw_usb_set_write_mode(lgw_com_write_mode_t write_mode) {
+      if (write_mode >= LGW_COM_WRITE_MODE_UNKNOWN) {
+@@ -2785,7 +2883,7 @@ index 4fe7e9a..b69f73c 100644
+  
+      _lgw_write_mode = write_mode;
+  
+-@@ -447,7 +449,7 @@ int lgw_usb_flush(void *com_target) {
++@@ -447,7 +450,7 @@ int lgw_usb_flush(void *com_target) {
+      /* Check input parameters */
+      CHECK_NULL(com_target);
+      if (_lgw_write_mode != LGW_COM_WRITE_MODE_BULK) {
+@@ -2794,7 +2892,7 @@ index 4fe7e9a..b69f73c 100644
+          return -1;
+      }
+  
+-@@ -455,7 +457,7 @@ int lgw_usb_flush(void *com_target) {
++@@ -455,7 +458,7 @@ int lgw_usb_flush(void *com_target) {
+      _lgw_write_mode = LGW_COM_WRITE_MODE_SINGLE;
+  
+      if (_lgw_spi_req_nb == 0) {
+@@ -2803,7 +2901,7 @@ index 4fe7e9a..b69f73c 100644
+          return 0;
+      }
+  
+-@@ -464,7 +466,7 @@ int lgw_usb_flush(void *com_target) {
++@@ -464,7 +467,7 @@ int lgw_usb_flush(void *com_target) {
+      DEBUG_MSG("INFO: flushing USB write buffer\n");
+      a = mcu_spi_flush(usb_device);
+      if (a != 0) {
+@@ -2812,7 +2910,7 @@ index 4fe7e9a..b69f73c 100644
+      }
+  
+      /* reset the pending request number */
+-@@ -492,10 +494,10 @@ int lgw_usb_get_temperature(void *com_target, float * temperature) {
++@@ -492,10 +495,10 @@ int lgw_usb_get_temperature(void *com_target, float * temperature) {
+      usb_device = *(int *)com_target;
+  
+      if (mcu_get_status(usb_device, &mcu_status) != 0) {
 diff --git a/deps/smtcpico/V0.2.2-linuxpico.patch b/deps/smtcpico/V0.2.2-linuxpico.patch
 index fd4ca5a..a4bd19c 100644
 --- a/deps/smtcpico/V0.2.2-linuxpico.patch

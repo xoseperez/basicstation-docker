@@ -1,3 +1,4 @@
 build_private.sh
 .DS_Store
 .balena
+docker-compose-test.yml
