@@ -37,7 +37,7 @@ As long as the host can run docker containers, the Basics™ Station service can
 * ARMv8: Raspberry Pi 3/4, 400, Compute Module 3/4, Zero 2 W,...
 * ARMv7: Raspberry Pi 2
 
-> **NOTE**: you will need an OS in the host machine, for some SBC like a Raspberry Pi that means and SD card with an OS (like Rasperry Pi OS) flashed on it.
+> **NOTE**: you will need an OS in the host machine, for some SBC like a Raspberry Pi that means an SD card with an OS (like Rasperry Pi OS) flashed on it.
 
 #### LoRa Concentrators
 
