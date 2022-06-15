@@ -211,9 +211,15 @@ export LORAGW_SPI_SPEED=${SPI_SPEED:-8000000}
 # GPIO configuration (reset and power enable), only for SPI concentrators
 # -----------------------------------------------------------------------------
 
+# Default RESET pin (by their position on the 40-pin header)
+if [ "${INTERFACE}" == "USB" ]; then
+    GW_RESET_PIN=${GW_RESET_PIN:-0}
+else
+    GW_RESET_PIN=${GW_RESET_PIN:-11}
+fi
+
 # Map hardware pins to GPIO on Raspberry Pi
-declare -a GPIO_MAP=( -1 -1 -1 2 -1 3 -1 4 14 -1 15 17 18 27 -1 22 23 -1 24 10 -1 9 25 11 8 -1 7 0 1 5 -1 6 12 13 -1 19 16 26 20 -1 21 )
-GW_RESET_PIN=${GW_RESET_PIN:-11}
+declare -a GPIO_MAP=( 0 0 0 2 0 3 0 4 14 0 15 17 18 27 0 22 23 0 24 10 0 9 25 11 8 0 7 0 1 5 0 6 12 13 0 19 16 26 20 0 21 )
 GW_RESET_GPIO=${GW_RESET_GPIO:-${GPIO_MAP[$GW_RESET_PIN]}}
 
 # Some board might have an enable GPIO
