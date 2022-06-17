@@ -281,11 +281,18 @@ if [[ ! -f ./slave-0.conf ]]; then
 fi
 
 # -----------------------------------------------------------------------------
+# Create reset file
+# -----------------------------------------------------------------------------
+
+cp /app/reset.sh.template reset.sh
+sed -i "s#{{RESET_GPIO}}#${RESET_GPIO:-17}#" reset.sh
+sed -i "s#{{POWER_EN_GPIO}}#${POWER_EN_GPIO:-0}#" reset.sh
+sed -i "s#{{POWER_EN_LOGIC}}#${POWER_EN_LOGIC:-1}#" reset.sh
+chmod +x reset.sh
+
+# -----------------------------------------------------------------------------
 # Start basicstation
 # -----------------------------------------------------------------------------
 
-# Reset the concentrator
-RESET_GPIO=${GW_RESET_GPIO:-0} POWER_EN_GPIO=${GW_POWER_EN_GPIO:-0} POWER_EN_LOGIC=${GW_POWER_EN_LOGIC:-1} /app/reset.sh
-
 # Execute packet forwarder
-/app/design-${DESIGN}/bin/station -f
+STATION_RADIOINIT=./reset.sh /app/design-${DESIGN}/bin/station -f
