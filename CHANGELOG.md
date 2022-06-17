@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.3.4 (2022-06-17)
+
+* Provide pre-built reset script to basicstatin process
+
 ## 2.3.3 (2022-05-30)
 
 * Fix compatibility issue with USB Bridge firmware prior to 1.0.0 (RAK2287 USB)
