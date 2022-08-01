@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.3.5 (2022-08-01)
+
+* Force CUPS mode using USE_CUPS for compatibility with Actility ThingPark
+
 ## 2.3.4 (2022-06-17)
 
 * Provide pre-built reset script to basicstatin process
