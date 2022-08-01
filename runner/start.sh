@@ -72,12 +72,12 @@ push_variables
 
 # New USE_CUPS variable, will be mandatory in the future
 # Possible values are 0 or 1, setting it here to 2 when undefined
-USE_CUPS={$USE_CUPS:-2} # undefined by default
+USE_CUPS=${USE_CUPS:-2} # undefined by default
 
 # Configuration mode
 if [[ -f ./station.conf ]]; then 
     MODE="STATIC"
-    if [[ "$USE_CUPS" -eq 1 ]]; then
+    if [[ $USE_CUPS -eq 1 ]]; then
         PROTOCOL="CUPS"
     elif [[ -f ./cups.key ]] && [[ $USE_CUPS -ne 0 ]]; then
         PROTOCOL="CUPS"
@@ -90,7 +90,7 @@ if [[ -f ./station.conf ]]; then
     fi
 else
     MODE="DYNAMIC"
-    if [[ "$USE_CUPS" -eq 1 ]]; then
+    if [[ $USE_CUPS -eq 1 ]]; then
         PROTOCOL="CUPS"
     elif [[ "$CUPS_KEY" != "" ]] && [[ $USE_CUPS -ne 0 ]]; then
         PROTOCOL="CUPS"

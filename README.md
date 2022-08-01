@@ -320,6 +320,8 @@ services:
     devices:
       - /dev/spidev0.0
       - /dev/gpiochip0
+    volumes:
+      - ./config:/app/config
     environment:
       MODEL: "RAK7244C"
       GATEWAY_EUI: "0011223344556677"
