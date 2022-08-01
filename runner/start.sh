@@ -70,25 +70,35 @@ push_variables
 # Mode (static/dynamic) & protocol (cups/lns)
 # -----------------------------------------------------------------------------
 
+# New USE_CUPS variable, will be mandatory in the future
+# Possible values are 0 or 1, setting it here to 2 when undefined
+USE_CUPS={$USE_CUPS:-2} # undefined by default
+
 # Configuration mode
 if [[ -f ./station.conf ]]; then 
     MODE="STATIC"
-    if [[ -f ./cups.key ]]; then
+    if [[ "$USE_CUPS" -eq 1 ]]; then
         PROTOCOL="CUPS"
+    elif [[ -f ./cups.key ]] && [[ $USE_CUPS -ne 0 ]]; then
+        PROTOCOL="CUPS"
+        echo -e "\033[93mWARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS.\033[0m"
     elif [[ -f ./tc.key ]]; then
         PROTOCOL="LNS"
     else
-        echo -e "\033[91mERROR: Custom configuration folder found, but missing files: either cups.key or tc.key are required.\033[0m"
+        echo -e "\033[91mERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a cups.key or tc.key files.\033[0m"
         idle
     fi
 else
     MODE="DYNAMIC"
-    if [[ "$CUPS_KEY" != "" ]]; then 
+    if [[ "$USE_CUPS" -eq 1 ]]; then
         PROTOCOL="CUPS"
+    elif [[ "$CUPS_KEY" != "" ]] && [[ $USE_CUPS -ne 0 ]]; then
+        PROTOCOL="CUPS"
+        echo -e "\033[93mWARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS.\033[0m"
     elif [[ "$TC_KEY" != "" ]]; then 
         PROTOCOL="LNS"
     else
-        echo -e "\033[91mERROR: Missing configuration, either CUPS_KEY or TC_KEY are required.\033[0m"
+        echo -e "\033[91mERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define CUPS_KEY or TC_KEY.\033[0m"
         idle
     fi
 fi
