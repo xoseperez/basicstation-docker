@@ -405,7 +405,7 @@ You might have seen that on the examples above we are running docker in privileg
 
 On one side, the host network is required to access the MAC of the host interface instead of that of the virtual interface. This MAC is used to create the Gateway EUI. The virtual MAC changes everytime the container is created, so we need to access the physical interface because that one does not change. But if you set the Gateway EUI manually, using the `GATEWAY_EUI` variable, then this is not needed anymore.
 
-On the other side privileged mode is required to access the port where the concentrator is listening to (either SPI or USB) and the GPIOs to reset the concentrator for SPI modules. You can get rid of these too by mounting the right device in the container and also the `/sys` root so the container can reset the concentrator.
+On the other side privileged mode is required to access the port where the concentrator is listening to (either SPI or USB) and the GPIOs to reset the concentrator for SPI modules. You can get rid of these too by sharing the right device in the container and also the `/dev/gpiochip0` device so the container can reset the concentrator.
 
 Therefore, an example of this workaround for an SPI concentrator would be:
 
@@ -420,15 +420,14 @@ services:
     restart: unless-stopped
     devices:
       - /dev/spidev0.0
-    volumes:
-      - /sys:/sys
+      - /dev/gpiochip0
     environment:
       MODEL: "RAK5146"
       GATEWAY_EUI: "E45F01FFFE517BA8"
       TC_KEY: "..."
 ```
 
-For a USB concentrator you would mount the USB port instead of the SPI port and you won't need to mount the `/sys` volume, but remember to set `GW_RESET_GPIO` to 0 to avoid unwanted errors in the logs.
+For a USB concentrator you would mount the USB port instead of the SPI port and you won't need to share the `/dev/gpiochip0` device.
 
 
 ## Troubleshoothing

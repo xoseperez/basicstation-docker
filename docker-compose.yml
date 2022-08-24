@@ -15,9 +15,12 @@ services:
 
     container_name: basicstation
     restart: unless-stopped
-    privileged: true
-    network_mode: host      # required to read main interface MAC instead of virtual one, 
-                            # you don't need this if you set the GATEWAY_EUI manually
+    #privileged: true        # set this to true or define the required devices to share with the container under the `devices` tag below
+    network_mode: host       # required to read host interface MAC instead of virtual one, you don't need this if you set the GATEWAY_EUI manually
+
+    devices:
+      - /dev/spidev0.0       # share the device where your concentrator is connected to or set privileged to true above
+      - /dev/gpiochip0       # allow the container to access the GPIO (via gpiod) if using an SPI concentrator or set privileged to true above
 
     #volumes:
     #  - ./config:/app/config
@@ -62,12 +65,17 @@ services:
       #GATEWAY_EUI_NIC: "enx00e04c68160f"
 
       # You can also set a custom Gateway EUI (8 bytes in hex format)
+      # This is required if network_mode is not "host", otherwise the gateway
+      # will get a different EUI every time the container is recreated.
       #GATEWAY_EUI: "1122334455667788"
 
       # The default LNS server is the European TTN server. 
       # If you still want to use TTN but a different region you can set it this way,
       # this will create the TC_URI and CUPS_URI URLs for the corresponding TTN server
       #TTN_REGION: "au1"
+
+      # Force use CUPS protocol (regardless of TC_KEY existance below)
+      USE_CUPS: 0
 
       # Using LNS protocol: define a custom LNS server
       #TC_URI: "wss://lns.example.com:8887"
