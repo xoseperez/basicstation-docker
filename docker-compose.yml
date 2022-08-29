@@ -74,6 +74,11 @@ services:
       # this will create the TC_URI and CUPS_URI URLs for the corresponding TTN server
       #TTN_REGION: "au1"
 
+      # Server name indication (SNI) check, defaults to true.
+      # Use it only to connect to private LNS/CUPS servers with self-signed certificates
+      # Check https://github.com/xoseperez/basicstation/issues/4#issuecomment-1230138180
+      # TLS_SNI: false
+
       # Force use CUPS protocol (regardless of TC_KEY existance below)
       USE_CUPS: 0
 
