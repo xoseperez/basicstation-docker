@@ -20,6 +20,16 @@ function push_variables {
     fi
 }
 
+function push_TC_KEY {
+    RES=$(curl -X PATCH \
+        "https://api.balena-cloud.com/v6/device_environment_variable(TC_KEY)" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $BALENA_API_KEY" \
+        --data "{
+            \"value\": \"$TC_KEY\"
+        }")
+}
+
 function idle {
    [[ "$BALENA_DEVICE_UUID" != "" ]] && balena-idle || exit 1
 }
@@ -111,6 +121,74 @@ fi
 TTN_REGION=${TTN_REGION:-"eu1"}
 CUPS_URI=${CUPS_URI:-"https://${TTN_REGION}.cloud.thethings.network:443"} 
 TC_URI=${TC_URI:-"wss://${TTN_REGION}.cloud.thethings.network:8887"} 
+TC_URL=$TC_URI
+
+# Autoprovision variables needed
+TC_AUTOPROVISION=${TC_AUTOPROVISION:-"N"} 
+TC_USERNAME=${TC_USERNAME:-"none"}
+TC_AUTOPROVISION_URI=${TC_AUTOPROVISION_URI:-"company-region-plus-url"} #For TTN: eu1.cloud.thethings.network // For TTI: your-company.eu1.thethings.industries
+TC_AUTHORIZATION=${TC_AUTHORIZATION:-"your-personal-api-key"} 
+TC_AUTOPROVISION_REGION=${TC_AUTOPROVISION_REGION:-"EU_863_870_TTN"} #ToDo: find the list!
+GATEWAY_NAME=${GATEWAY_NAME:-"gateway-name"}
+GATEWAY_ID=${GATEWAY_ID:-"gateway-id"}
+
+
+# Autoprovision
+if [[ "$TC_AUTOPROVISION" == "Y" ]]; then
+
+    CODE=$(curl --location \
+            --header 'Accept: application/json' \
+            --header 'Authorization: Bearer '$TC_AUTHORIZATION'' \
+            --header 'Content-Type: application/json' \
+            --request POST \
+            --data-raw '{
+                "gateway": {
+                "ids": {
+                    "gateway_id": "'$GATEWAY_ID'",
+                    "eui": "'$GATEWAY_EUI'"
+                },
+                "name": "'$GATEWAY_NAME'",
+                "gateway_server_address": "'$TC_AUTOPROVISION_URI'",
+                "frequency_plan_id": "'$TC_AUTOPROVISION_REGION'"
+                }
+            }' \
+            'https://'$TC_AUTOPROVISION_URI'/api/v3/users/'$TC_USERNAME'/gateways' | jq --raw-output '.code')
+    
+    # ToDo: find more error codes when provision a gateway via API.   
+    if [[ -z "$CODE" ]]; then
+        echo "No errors autoprovisioning the gateway!"
+    elif [[ "$CODE" == 6 ]]; then
+        echo -e "\033[91mERROR: The gateway EU $GATEWAY_EUI is already registered (by you or someone else). Delete the gateway or change the Device Variable TC_AUTOPROVISION to 'N'."
+        idle
+    elif [[ "$CODE" == 9 ]]; then
+        echo -e "\033[91mERROR: The gateway had already been autoprovisioned. Error $CODE. Change the GATEWAY_NAME and GATEWAY_ID or change the Device Variable TC_AUTOPROVISION to 'N'."
+        #idle
+    else
+        echo -e "\033[91mERROR: The gateway had an error when autoprovisioned $CODE."
+        #idle
+    fi
+
+
+    API_KEY=$(curl --location \
+        --header 'Accept: application/json' \
+        --header 'Authorization: Bearer '$TC_AUTHORIZATION'' \
+        --header 'Content-Type: application/json' \
+        --request POST \
+        --data-raw '{
+            "name":"balena-key",
+            "rights":["RIGHT_GATEWAY_LINK"],
+            "expires_at":null
+        }' \
+        'https://'$TC_AUTOPROVISION_URI'/api/v3/gateways/'$GATEWAY_ID'/api-keys' | jq --raw-output '.key')
+
+    TC_KEY=$API_KEY
+    TC_URI="wss://${TC_AUTOPROVISION_URI}:8887"
+
+    # Push TC_KEY to balena
+    push_TC_KEY
+
+fi
+
 
 # CUPS protocol
 if [[ "$PROTOCOL" == "CUPS" ]]; then
@@ -255,6 +333,7 @@ if [[ ! -z $GATEWAY_EUI_NIC ]]; then
 echo "Main NIC:      $GATEWAY_EUI_NIC"
 fi
 echo "Gateway EUI:   $GATEWAY_EUI"
+echo "KEY generated: $TC_KEY"
 echo "------------------------------------------------------------------"
 echo "Radio"
 echo "------------------------------------------------------------------"
