@@ -13,33 +13,13 @@ COLOR_END="\e[0m"
 # Balena.io specific functions
 # -----------------------------------------------------------------------------
 
-function push_variables {
-    if [[ "$BALENA_DEVICE_UUID" != "" ]]; then
-        ID=$(curl -sX GET "https://api.balena-cloud.com/v5/device?\$filter=uuid%20eq%20'$BALENA_DEVICE_UUID'" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $BALENA_API_KEY" | \
-            jq ".d | .[0] | .id")
+# Load Balena methods
+if [ "$BALENA_DEVICE_UUID" != "" ]; then
+    source ./balena.sh
+fi
 
-        TAG=$(curl -sX POST \
-            "https://api.balena-cloud.com/v5/device_tag" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $BALENA_API_KEY" \
-            --data "{ \"device\": \"$ID\", \"tag_key\": \"EUI\", \"value\": \"$GATEWAY_EUI\" }" > /dev/null)
-
-    fi
-}
-
-function push_TC_KEY {
-    RES=$(curl -X PATCH \
-        "https://api.balena-cloud.com/v6/device_environment_variable(TC_KEY)" \
-        -H "Content-Type: application/json" \
-        -H "Authorization: Bearer $BALENA_API_KEY" \
-        --data "{
-            \"value\": \"$TC_KEY\"
-        }")
-}
-
-function idle {
+function idle() {
+    echo -e "${COLOR_INFO}GATEWAY_EUI: ${GATEWAY_EUI}${COLOR_END}"
    [[ "$BALENA_DEVICE_UUID" != "" ]] && balena-idle || exit 1
 }
 
@@ -80,10 +60,9 @@ else
     fi
 fi
 GATEWAY_EUI=${GATEWAY_EUI^^}
-echo -e "\033[93mGATEWAY_EUI: ${GATEWAY_EUI}\033[0m"
 
 # Push to Balena
-push_variables
+balena_set_label "EUI" "$GATEWAY_EUI"
 
 # -----------------------------------------------------------------------------
 # Mode (static/dynamic) & protocol (cups/lns)
@@ -194,7 +173,7 @@ if [[ "$TC_AUTOPROVISION" == "Y" ]]; then
     TC_URI="wss://${TC_AUTOPROVISION_URI}:8887"
 
     # Push TC_KEY to balena
-    push_TC_KEY
+    balena_set_variable "TC_KEY" "$TC_KEY"
 
 fi
 
