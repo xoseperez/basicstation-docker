@@ -213,6 +213,23 @@ Variable Name | Value | Description | Default
 
 > If you have more than one concentrator on the same device, you can set the BasicStation service to use both at the same time. Check `Advanced configuration` section below to know more. You can also bring up two instances of BasicStation on the same device to control two different concentrators. In this case you will want to assign different `DEVICE`, `GATEWAY_EUI` and `TC_KEY` values to each instance.
 
+#### Autoprovision your gateway on TTN or TTI
+
+These variables you can autoprovision the gateway using the TTN or TTI REST API.
+
+Variable Name | Value | Description | Default
+------------ | ------------- | ------------- | -------------
+**`TC_AUTOPROVISION`** | `STRING` | Flag to autoprovision the gateway. Change to `Y` to run the autoprovision script. | `N`
+**`TC_USERNAME`** | `STRING` | Your TTN/TTI Username | 
+**`TC_AUTOPROVISION_URI`** | `STRING` | The TTN/TTI URI without any port or protocol | 
+**`TC_AUTHORIZATION`** | `STRING` | Your TTN/TTI personal API KEY | 
+**`TC_AUTOPROVISION_REGION`** | `STRING` | Your Gateway Region | `EU_863_870_TTN`
+**`GATEWAY_NAME`** | `STRING` | Your TTN/TTI Gateway Name | 
+**`GATEWAY_ID`** | `STRING` | Your TTN/TTI Gateway ID | 
+
+Remember that when using TTN the `GATEWAY_NAME` and `GATEWAY_ID` must be unique. 
+
+The autoprovision process is going to create a single use `TC_KEY` which is not going to be stored on balenaCloud.
 
 ### Define your MODEL & DESIGN
 
