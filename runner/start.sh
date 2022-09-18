@@ -24,6 +24,107 @@ function idle() {
 }
 
 # -----------------------------------------------------------------------------
+# TTI autoprovision gateway
+# -----------------------------------------------------------------------------
+
+function tts_autoprovision() {
+
+    echo "Gateway provisioning using provided TTS_PERSONAL_KEY"
+
+    # Autoprovision variables needed
+    TTS_USERNAME=${TTS_USERNAME:-"none"}
+    TTS_FREQUENCY_PLAN_ID=${TTS_FREQUENCY_PLAN_ID:-"EU_863_870_TTN"}
+    GATEWAY_PREFIX=${GATEWAY_PREFIX:-"eui"}
+    GATEWAY_ID=${GATEWAY_ID:-"${GATEWAY_PREFIX,,}-${GATEWAY_EUI,,}"}
+    GATEWAY_NAME=${GATEWAY_NAME:-${GATEWAY_ID}}
+    local API_KEY_NAME="autoprovision-lns-key"
+    local RAW
+
+    RAW=$(curl -s --location \
+        --header 'Accept: application/json' \
+        --header 'Authorization: Bearer '$TTS_PERSONAL_KEY'' \
+        --header 'Content-Type: application/json' \
+        --request POST \
+        --data-raw '{
+            "gateway": {
+            "ids": {
+                "gateway_id": "'$GATEWAY_ID'",
+                "eui": "'$GATEWAY_EUI'"
+            },
+            "name": "'$GATEWAY_NAME'",
+            "gateway_server_address": "'$SERVER'",
+            "frequency_plan_id": "'$TTS_FREQUENCY_PLAN_ID'"
+            }
+        }' \
+        'https://'$SERVER'/api/v3/users/'$TTS_USERNAME'/gateways')
+    
+    #echo $RAW | jq
+    local CODE=$(echo $RAW | jq --raw-output '.code')
+    local MESSAGE=$(echo $RAW | jq --raw-output '.message_format')
+
+    # ToDo: find more error codes when provision a gateway via API.   
+    if [[ "$CODE" == "null" ]]; then
+        echo "No errors autoprovisioning the gateway!"
+    elif [[ "$CODE" == 6 ]]; then
+        echo -e "${COLOR_WARNING}WARNING: The gateway $GATEWAY_ID is already registered (by you or someone else).${COLOR_END}"
+        #idle
+    elif [[ "$CODE" == 9 ]]; then
+        echo -e "${COLOR_WARNING}WARNING: The gateway had already been autoprovisioned.${COLOR_END}"
+        #idle
+    else
+        echo -e "${COLOR_ERROR}ERROR: The gateway had an error when autoprovisioned: $MESSAGE ($CODE).${COLOR_END}\n"
+        idle
+    fi
+
+    # List api keys
+    local IDS=$(curl -s --location \
+        --header 'Accept: application/json' \
+        --header 'Authorization: Bearer '$TTS_PERSONAL_KEY'' \
+        --header 'Content-Type: application/json' \
+        --request GET \
+        'https://'$SERVER'/api/v3/gateways/'$GATEWAY_ID'/api-keys' | jq '.api_keys[] | select(.name == "'$API_KEY_NAME'") | .id')
+    
+    # Delete previous API keys
+    for ID in ${IDS[@]}; do
+        ID=$(echo $ID | tr -d '"')
+        curl -s --location \
+            --header 'Accept: application/json' \
+            --header 'Authorization: Bearer '$TTS_PERSONAL_KEY'' \
+            --header 'Content-Type: application/json' \
+            --request PUT \
+            --data-raw '{
+                "name":"'$API_KEY_NAME'",
+                "rights":[],
+                "expires_at":null
+            }' \
+            'https://'$SERVER'/api/v3/gateways/'$GATEWAY_ID'/api-keys/'$ID >/dev/null
+    done
+
+    # Create new api key
+    RAW=$(curl -s --location \
+        --header 'Accept: application/json' \
+        --header 'Authorization: Bearer '$TTS_PERSONAL_KEY'' \
+        --header 'Content-Type: application/json' \
+        --request POST \
+        --data-raw '{
+            "name":"'$API_KEY_NAME'",
+            "rights":["RIGHT_GATEWAY_LINK"],
+            "expires_at":null
+        }' \
+        'https://'$SERVER'/api/v3/gateways/'$GATEWAY_ID'/api-keys')
+
+    #echo $RAW | jq
+    local KEY=$(echo $RAW | jq --raw-output '.key')
+
+    if [[ "$KEY" != "null" ]]; then
+        TC_KEY=$KEY
+        echo "TC_KEY successfully generated"
+        balena_set_variable "TC_KEY" "$TC_KEY"
+    fi
+
+}
+
+# -----------------------------------------------------------------------------
 # Preparing configuration
 # -----------------------------------------------------------------------------
 
@@ -65,12 +166,33 @@ GATEWAY_EUI=${GATEWAY_EUI^^}
 balena_set_label "EUI" "$GATEWAY_EUI"
 
 # -----------------------------------------------------------------------------
+# URLs
+# Defaults to TTN server v3, `eu1` region, 
+# use a custom SERVER, CUPS_URI or TC_URI to change this
+# If TTS_TENANT is defined different than "ttn", it will be used to build the
+# tenant URL under thethings.industries, otherwise only the region will be used
+# to build the URL under thethings.network.
+# -----------------------------------------------------------------------------
+
+TTN_REGION=${TTN_REGION:-"eu1"}
+TTS_REGION=${TTS_REGION:-$TTN_REGION}
+TTS_TENANT=${TTS_TENANT:-"ttn"}
+if [[ "$TTS_TENANT" == "ttn" ]]; then
+    SERVER=${SERVER:-"${TTS_REGION}.cloud.thethings.network"}
+else
+    SERVER=${SERVER:-"${TTS_TENANT}.${TTS_REGION}.thethings.industries"}
+fi
+CUPS_URI=${CUPS_URI:-"https://${SERVER}:443"} 
+TC_URI=${TC_URI:-"wss://${SERVER}:8887"} 
+
+# -----------------------------------------------------------------------------
 # Mode (static/dynamic) & protocol (cups/lns)
 # -----------------------------------------------------------------------------
 
 # New USE_CUPS variable, will be mandatory in the future
 # Possible values are 0 or 1, setting it here to 2 when undefined
 USE_CUPS=${USE_CUPS:-2} # undefined by default
+PROTOCOL=""
 
 # Configuration mode
 if [[ -f ./station.conf ]]; then 
@@ -82,8 +204,14 @@ if [[ -f ./station.conf ]]; then
         echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS.${COLOR_END}"
     elif [[ -f ./tc.key ]]; then
         PROTOCOL="LNS"
-    else
-        echo -e "${COLOR_ERROR}ERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a cups.key or tc.key files.${COLOR_END}"
+    elif [[ "$TTS_PERSONAL_KEY" != "" ]]; then
+        tts_autoprovision
+        if [[ "$TC_KEY" != "" ]]; then 
+            PROTOCOL="LNS"
+        fi
+    fi
+    if [[ "$PROTOCOL" == "" ]]; then
+        echo -e "${COLOR_ERROR}ERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a valid cups.key or tc.key files or TTS_PERSONAL_KEY variable.${COLOR_END}"
         idle
     fi
 else
@@ -95,8 +223,14 @@ else
         echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS.${COLOR_END}"
     elif [[ "$TC_KEY" != "" ]]; then 
         PROTOCOL="LNS"
-    else
-        echo -e "${COLOR_ERROR}ERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define CUPS_KEY or TC_KEY.${COLOR_END}"
+    elif [[ "$TTS_PERSONAL_KEY" != "" ]]; then
+        tts_autoprovision
+        if [[ "$TC_KEY" != "" ]]; then 
+            PROTOCOL="LNS"
+        fi
+    fi
+    if [[ "$PROTOCOL" == "" ]]; then
+        echo -e "${COLOR_ERROR}ERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define valid TC_KEY, CUPS_KEY or TTS_PERSONAL_KEY.${COLOR_END}"
         idle
     fi
 fi
@@ -104,79 +238,6 @@ fi
 # -----------------------------------------------------------------------------
 # LNS/CUPS configuration
 # -----------------------------------------------------------------------------
-
-# Defaults to TTN server v3, `eu1` region, use a custom CUPS_URI or TC_URI to change this
-TTN_REGION=${TTN_REGION:-"eu1"}
-CUPS_URI=${CUPS_URI:-"https://${TTN_REGION}.cloud.thethings.network:443"} 
-TC_URI=${TC_URI:-"wss://${TTN_REGION}.cloud.thethings.network:8887"} 
-TC_URL=$TC_URI
-
-# Autoprovision variables needed
-TC_AUTOPROVISION=${TC_AUTOPROVISION:-"N"} 
-TC_USERNAME=${TC_USERNAME:-"none"}
-TC_AUTOPROVISION_URI=${TC_AUTOPROVISION_URI:-"company-region-plus-url"} #For TTN: eu1.cloud.thethings.network // For TTI: your-company.eu1.thethings.industries
-TC_AUTHORIZATION=${TC_AUTHORIZATION:-"your-personal-api-key"} 
-TC_AUTOPROVISION_REGION=${TC_AUTOPROVISION_REGION:-"EU_863_870_TTN"} #ToDo: find the list!
-GATEWAY_NAME=${GATEWAY_NAME:-"gateway-name"}
-GATEWAY_ID=${GATEWAY_ID:-"gateway-id"}
-
-
-# Autoprovision
-if [[ "$TC_AUTOPROVISION" == "Y" ]]; then
-
-    CODE=$(curl --location \
-            --header 'Accept: application/json' \
-            --header 'Authorization: Bearer '$TC_AUTHORIZATION'' \
-            --header 'Content-Type: application/json' \
-            --request POST \
-            --data-raw '{
-                "gateway": {
-                "ids": {
-                    "gateway_id": "'$GATEWAY_ID'",
-                    "eui": "'$GATEWAY_EUI'"
-                },
-                "name": "'$GATEWAY_NAME'",
-                "gateway_server_address": "'$TC_AUTOPROVISION_URI'",
-                "frequency_plan_id": "'$TC_AUTOPROVISION_REGION'"
-                }
-            }' \
-            'https://'$TC_AUTOPROVISION_URI'/api/v3/users/'$TC_USERNAME'/gateways' | jq --raw-output '.code')
-    
-    # ToDo: find more error codes when provision a gateway via API.   
-    if [[ -z "$CODE" ]]; then
-        echo "No errors autoprovisioning the gateway!"
-    elif [[ "$CODE" == 6 ]]; then
-        echo -e "\033[91mERROR: The gateway EU $GATEWAY_EUI is already registered (by you or someone else). Delete the gateway or change the Device Variable TC_AUTOPROVISION to 'N'."
-        idle
-    elif [[ "$CODE" == 9 ]]; then
-        echo -e "\033[91mERROR: The gateway had already been autoprovisioned. Error $CODE. Change the GATEWAY_NAME and GATEWAY_ID or change the Device Variable TC_AUTOPROVISION to 'N'."
-        #idle
-    else
-        echo -e "\033[91mERROR: The gateway had an error when autoprovisioned $CODE."
-        #idle
-    fi
-
-
-    API_KEY=$(curl --location \
-        --header 'Accept: application/json' \
-        --header 'Authorization: Bearer '$TC_AUTHORIZATION'' \
-        --header 'Content-Type: application/json' \
-        --request POST \
-        --data-raw '{
-            "name":"balena-key",
-            "rights":["RIGHT_GATEWAY_LINK"],
-            "expires_at":null
-        }' \
-        'https://'$TC_AUTOPROVISION_URI'/api/v3/gateways/'$GATEWAY_ID'/api-keys' | jq --raw-output '.key')
-
-    TC_KEY=$API_KEY
-    TC_URI="wss://${TC_AUTOPROVISION_URI}:8887"
-
-    # Push TC_KEY to balena
-    balena_set_variable "TC_KEY" "$TC_KEY"
-
-fi
-
 
 # CUPS protocol
 if [[ "$PROTOCOL" == "CUPS" ]]; then
