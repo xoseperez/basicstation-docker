@@ -5,13 +5,15 @@ services:
   basicstation:
     
     # Use pre-defined image
-    #image: xoseperez/basicstation:latest
+    image: xoseperez/basicstation:latest
     
     # Or comment out image and build it yourself
-    build:
-      context: .
+    #build:
+    #  context: .
     #  args:
-    #    ARCH: armv7hf
+    #    ARCH: amd64
+    #    REMOTE_TAG: v2.0.6
+    #    VARIANT: std
 
     container_name: basicstation
     restart: unless-stopped
@@ -25,12 +27,12 @@ services:
     #volumes:
     #  - ./config:/app/config
 
-    environment:
+    #environment:
 
       # To select your concentrator you have 3 options:
       # Option 1: set the model of the concentrator you are using (by RAK, SeeedStudio, IMST or MikroTik)
       # Option 2: set the Semtech's chip on it
-      MODEL: "RAK5146"
+      #MODEL: "RAK5146"
       #MODEL: "SX1303"
 
       # The concentrator design is usually taken from the MODEL (see https://doc.sm.tc/station):
@@ -72,7 +74,11 @@ services:
       # The default LNS server is the European TTN server. 
       # If you still want to use TTN but a different region you can set it this way,
       # this will create the TC_URI and CUPS_URI URLs for the corresponding TTN server
-      #TTN_REGION: "au1"
+      #TTS_REGION: "au1"
+
+      # Tenant name if using The Things Cloud
+      # This will create the TC_URI and CUPS_URI URLs for the corresponding server
+      #TTS_TENANT: "xoseperez"
 
       # Server name indication (SNI) check, defaults to true.
       # Use it only to connect to private LNS/CUPS servers with self-signed certificates
@@ -80,7 +86,7 @@ services:
       # TLS_SNI: false
 
       # Force use CUPS protocol (regardless of TC_KEY existance below)
-      USE_CUPS: 0
+      #USE_CUPS: 0
 
       # Using LNS protocol: define a custom LNS server
       #TC_URI: "wss://lns.example.com:8887"
@@ -89,7 +95,7 @@ services:
       #TC_TRUST: "-----BEGIN CERTIFICATE----- MIIDSjCCAjKgAwIBAgIQRK+wgNajJ7qJMDmGLvhAazANBgkqhkiG9w0BAQUFADA......"
 
       # Using LNS protocol: finally, you need to create a KEY for the gateway and provide it here:
-      TC_KEY: "NNSXS.SLOC764GN3....."
+      #TC_KEY: "NNSXS.SLOC764GN3....."
 
       # Using CUPS protocol: define a custom CUPS server
       #CUPS_URI: "https://lns.example.com:443"
@@ -100,4 +106,29 @@ services:
       # Using CUPS protocol: finally, you need to create a KEY for the service to connect to the CUPS server.
       #CUPS_KEY: "NNSXS.SLOC764GN3....."
 
+      # ------------------------------------------------
+      # The Things Industries - Autoprovision
+      # ------------------------------------------------
 
+      # Gateway prefix to autogenerate IDs in TTI/TTN (defaults to "eui")
+      #GATEWAY_PREFIX: "project"
+
+      # Gateway ID to use when registering the gateway in TTI/TTN (defaults to "<GATEWAY_PREFIX>-<GATEWAY_EUI>")
+      #GATEWAY_ID: "gw-test-01"
+
+      # Gateway NAME to use when registering the gateway in TTI/TTN (defaults to <GATEWAY_ID>)
+      #GATEWAY_NAME: "gw-test-01"
+
+      # TTS username with privileges to provision a gateway
+      #TTS_USERNAME: "xoseperez"
+
+      # Personal key with privileges to provision a gateway
+      # Required permissions:
+      # * link as Gateway to a Gateway Server for traffic exchange, i.e. write uplink and read downlink
+      # * view and edit gateway API keys
+      # * edit basic gateway settings
+      # * create a gateway under the user account
+      #TTS_PERSONAL_KEY: "NNSXS.E2CK53N....."
+      
+      # The Things Stack frequency plan (https://www.thethingsindustries.com/docs/reference/frequency-plans/)
+      #TTS_FREQUENCY_PLAN_ID: "EU_863_870_TTN"
