@@ -23,6 +23,10 @@ function idle() {
    [[ "$BALENA_DEVICE_UUID" != "" ]] && balena-idle || exit 1
 }
 
+function idle_if_balena() {
+   [[ "$BALENA_DEVICE_UUID" != "" ]] && balena-idle
+}
+
 # -----------------------------------------------------------------------------
 # TTI autoprovision gateway
 # -----------------------------------------------------------------------------
@@ -120,6 +124,7 @@ function tts_autoprovision() {
         TC_KEY=$KEY
         echo "TC_KEY successfully generated"
         balena_set_variable "TC_KEY" "$TC_KEY"
+        idle_if_balena
     fi
 
 }
