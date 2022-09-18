@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 
 # -----------------------------------------------------------------------------
+# Colors
+# -----------------------------------------------------------------------------
+
+COLOR_INFO="\e[32m" # green
+COLOR_WARNING="\e[33m" # yellow
+COLOR_ERROR="\e[31m" # red
+COLOR_END="\e[0m"
+
+# -----------------------------------------------------------------------------
 # Balena.io specific functions
 # -----------------------------------------------------------------------------
 
@@ -65,7 +74,7 @@ else
             GATEWAY_EUI_NIC=$(cat /proc/net/dev | tail -n+3 | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g')
         fi
         if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
-            echo -e "\033[91mERROR: No network interface found. Cannot set gateway EUI.\033[0m"
+            echo -e "${COLOR_ERROR}ERROR: No network interface found. Cannot set gateway EUI.${COLOR_END}"
         fi
         GATEWAY_EUI=$(ip link show $GATEWAY_EUI_NIC | awk '/ether/ {print $2}' | awk -F\: '{print $1$2$3"FFFE"$4$5$6}')
     fi
@@ -91,11 +100,11 @@ if [[ -f ./station.conf ]]; then
         PROTOCOL="CUPS"
     elif [[ -f ./cups.key ]] && [[ $USE_CUPS -ne 0 ]]; then
         PROTOCOL="CUPS"
-        echo -e "\033[93mWARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS.\033[0m"
+        echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS.${COLOR_END}"
     elif [[ -f ./tc.key ]]; then
         PROTOCOL="LNS"
     else
-        echo -e "\033[91mERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a cups.key or tc.key files.\033[0m"
+        echo -e "${COLOR_ERROR}ERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a cups.key or tc.key files.${COLOR_END}"
         idle
     fi
 else
@@ -104,11 +113,11 @@ else
         PROTOCOL="CUPS"
     elif [[ "$CUPS_KEY" != "" ]] && [[ $USE_CUPS -ne 0 ]]; then
         PROTOCOL="CUPS"
-        echo -e "\033[93mWARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS.\033[0m"
+        echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS.${COLOR_END}"
     elif [[ "$TC_KEY" != "" ]]; then 
         PROTOCOL="LNS"
     else
-        echo -e "\033[91mERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define CUPS_KEY or TC_KEY.\033[0m"
+        echo -e "${COLOR_ERROR}ERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define CUPS_KEY or TC_KEY.${COLOR_END}"
         idle
     fi
 fi
@@ -235,7 +244,7 @@ fi
 # * A concentrator chip (Semtech's naming), example: SX1303
 
 if [[ -z ${MODEL} ]]; then
-    echo -e "\033[91mERROR: MODEL variable not set.\033[0m"
+    echo -e "${COLOR_ERROR}ERROR: MODEL variable not set.${COLOR_END}"
 	idle
 fi
 MODEL=${MODEL^^}
@@ -247,7 +256,7 @@ declare -A MODEL_MAP=(
 )
 CONCENTRATOR=${MODEL_MAP[$MODEL]}
 if [[ "${CONCENTRATOR}" == "" ]]; then
-    echo -e "\033[91mERROR: Unknown MODEL value ($MODEL). Valid values are: ${!MODEL_MAP[@]}\033[0m"
+    echo -e "${COLOR_ERROR}ERROR: Unknown MODEL value ($MODEL). Valid values are: ${!MODEL_MAP[@]}${COLOR_END}"
 	idle
 fi
 
@@ -269,7 +278,7 @@ else
         DEVICE=${DEVICE:-"/dev/ttyACM0"}
     fi
     if [[ ! -e $DEVICE ]]; then
-        echo -e "\033[91mERROR: $DEVICE does not exist.\033[0m"
+        echo -e "${COLOR_ERROR}ERROR: $DEVICE does not exist.${COLOR_END}"
         idle
     fi
 fi
@@ -285,7 +294,7 @@ DESIGN=${DESIGN,,}
 
 # USB interface is not available for SX1301 concentrators
 if [[ "${CONCENTRATOR}" == "SX1301" ]] && [[ "$INTERFACE" == "USB" ]]; then
-    echo -e "\033[91mERROR: USB interface is not available for SX1301 concentrators.\033[0m"
+    echo -e "${COLOR_ERROR}ERROR: USB interface is not available for SX1301 concentrators.${COLOR_END}"
 	idle
 fi
 
@@ -318,40 +327,37 @@ GW_POWER_EN_LOGIC=${GW_POWER_EN_LOGIC:-1}
 # Debug
 # -----------------------------------------------------------------------------
 
-echo -e "\033[93m"
-echo "------------------------------------------------------------------"
-echo "Protocol"
-echo "------------------------------------------------------------------"
-echo "Mode:          $MODE"
-echo "Protocol:      $PROTOCOL"
+echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
+echo -e "${COLOR_INFO}Protocol${COLOR_END}"
+echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
+echo -e "${COLOR_INFO}Mode:          ${MODE}${COLOR_END}"
+echo -e "${COLOR_INFO}Protocol:      ${PROTOCOL}${COLOR_END}"
 if [[ "$PROTOCOL" == "CUPS" ]]; then
-echo "CUPS Server:   $CUPS_URI"
+echo -e "${COLOR_INFO}CUPS Server:   ${CUPS_URI}${COLOR_END}"
 else
-echo "LNS Server:    $TC_URI"
+echo -e "${COLOR_INFO}LNS Server:    ${TC_URI}${COLOR_END}"
 fi
 if [[ ! -z $GATEWAY_EUI_NIC ]]; then
-echo "Main NIC:      $GATEWAY_EUI_NIC"
+echo -e "${COLOR_INFO}Main NIC:      ${GATEWAY_EUI_NIC}${COLOR_END}"
 fi
-echo "Gateway EUI:   $GATEWAY_EUI"
-echo "KEY generated: $TC_KEY"
-echo "------------------------------------------------------------------"
-echo "Radio"
-echo "------------------------------------------------------------------"
-echo "Model:         $MODEL"
-echo "Concentrator:  $CONCENTRATOR"
-echo "Design:        ${DESIGN^^}"
-echo "Radio Device:  $DEVICE"
-echo "Interface:     $INTERFACE"
+echo -e "${COLOR_INFO}Gateway EUI:   ${GATEWAY_EUI}${COLOR_END}"
+echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
+echo -e "${COLOR_INFO}Radio${COLOR_END}"
+echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
+echo -e "${COLOR_INFO}Model:         ${MODEL}${COLOR_END}"
+echo -e "${COLOR_INFO}Concentrator:  ${CONCENTRATOR}${COLOR_END}"
+echo -e "${COLOR_INFO}Design:        ${DESIGN^^}${COLOR_END}"
+echo -e "${COLOR_INFO}Radio Device:  ${DEVICE}${COLOR_END}"
+echo -e "${COLOR_INFO}Interface:     ${INTERFACE}${COLOR_END}"
 if [[ "$INTERFACE" == "SPI" ]]; then
-echo "SPI Speed:     $LORAGW_SPI_SPEED"
+echo -e "${COLOR_INFO}SPI Speed:     ${LORAGW_SPI_SPEED}${COLOR_END}"
 fi
-echo "Reset GPIO:    $GW_RESET_GPIO"
-echo "Enable GPIO:   $GW_POWER_EN_GPIO"
+echo -e "${COLOR_INFO}Reset GPIO:    ${GW_RESET_GPIO}${COLOR_END}"
+echo -e "${COLOR_INFO}Enable GPIO:   ${GW_POWER_EN_GPIO}${COLOR_END}"
 if [[ $GW_POWER_EN_GPIO -ne 0 ]]; then
-echo "Enable Logic:  $GW_POWER_EN_LOGIC"
+echo -e "${COLOR_INFO}Enable Logic:  ${GW_POWER_EN_LOGIC}${COLOR_END}"
 fi
-echo "------------------------------------------------------------------"
-echo -e "\033[0m"
+echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
 
 # -----------------------------------------------------------------------------
 # Generate dynamic configuration files
