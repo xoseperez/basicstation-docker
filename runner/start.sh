@@ -49,6 +49,8 @@ function tts_autoprovision() {
             TTS_FREQUENCY_PLAN_ID="US_902_928_FSB_2"
         elif [[ "$TTN_REGION" == "au1" ]]; then
             TTS_FREQUENCY_PLAN_ID="AU_915_928_FSB_2"
+        else
+            TTS_FREQUENCY_PLAN_ID="EU_863_870_TTN"
         fi
     fi
 
