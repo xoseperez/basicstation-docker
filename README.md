@@ -219,17 +219,18 @@ These variables you can autoprovision the gateway using the TTN or TTI REST API.
 
 Variable Name | Value | Description | Default
 ------------ | ------------- | ------------- | -------------
-**`TC_AUTOPROVISION`** | `STRING` | Flag to autoprovision the gateway. Change to `Y` to run the autoprovision script. | `N`
 **`TC_USERNAME`** | `STRING` | Your TTN/TTI Username | 
 **`TC_AUTOPROVISION_URI`** | `STRING` | The TTN/TTI URI without any port or protocol | 
-**`TC_AUTHORIZATION`** | `STRING` | Your TTN/TTI personal API KEY | 
+**`TC_PERSONAL_KEY`** | `STRING` | Your TTN/TTI personal API KEY | 
 **`TC_AUTOPROVISION_REGION`** | `STRING` | Your Gateway Region | `EU_863_870_TTN`
-**`GATEWAY_NAME`** | `STRING` | Your TTN/TTI Gateway Name | 
-**`GATEWAY_ID`** | `STRING` | Your TTN/TTI Gateway ID | 
+**`TC_KEY_RIGHTS`** | `STRING` | Rights definition for yout Gateway Key | `RIGHT_GATEWAY_LINK`
+**`GATEWAY_NAME`** | `STRING` | Your TTN/TTI Gateway Name | EUI
+**`GATEWAY_ID`** | `STRING` | Your TTN/TTI Gateway ID | EUI
 
 Remember that when using TTN the `GATEWAY_NAME` and `GATEWAY_ID` must be unique. 
 
-The autoprovision process is going to create a single use `TC_KEY` which is not going to be stored on balenaCloud.
+The autoprovision process will start once you introduce the `TC_PERSONAL_KEY` and there is no `TC_KEY` defined in the environment.
+
 
 ### Define your MODEL & DESIGN
 

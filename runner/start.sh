@@ -1,37 +1,146 @@
 #!/usr/bin/env bash
 
 # -----------------------------------------------------------------------------
+# Colors
+# -----------------------------------------------------------------------------
+
+COLOR_INFO="\e[32m" # green
+COLOR_WARNING="\e[33m" # yellow
+COLOR_ERROR="\e[31m" # red
+COLOR_END="\e[0m"
+
+# -----------------------------------------------------------------------------
 # Balena.io specific functions
 # -----------------------------------------------------------------------------
 
-function push_variables {
-    if [[ "$BALENA_DEVICE_UUID" != "" ]]; then
-        ID=$(curl -sX GET "https://api.balena-cloud.com/v5/device?\$filter=uuid%20eq%20'$BALENA_DEVICE_UUID'" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $BALENA_API_KEY" | \
-            jq ".d | .[0] | .id")
+# Load Balena methods
+if [ "$BALENA_DEVICE_UUID" != "" ]; then
+    source ./balena.sh
+fi
 
-        TAG=$(curl -sX POST \
-            "https://api.balena-cloud.com/v5/device_tag" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $BALENA_API_KEY" \
-            --data "{ \"device\": \"$ID\", \"tag_key\": \"EUI\", \"value\": \"$GATEWAY_EUI\" }" > /dev/null)
-
-    fi
-}
-
-function push_TC_KEY {
-    RES=$(curl -X PATCH \
-        "https://api.balena-cloud.com/v6/device_environment_variable(TC_KEY)" \
-        -H "Content-Type: application/json" \
-        -H "Authorization: Bearer $BALENA_API_KEY" \
-        --data "{
-            \"value\": \"$TC_KEY\"
-        }")
-}
-
-function idle {
+function idle() {
+    echo -e "${COLOR_INFO}GATEWAY_EUI: ${GATEWAY_EUI}${COLOR_END}"
    [[ "$BALENA_DEVICE_UUID" != "" ]] && balena-idle || exit 1
+}
+
+function restart_if_balena() {
+   [[ "$BALENA_DEVICE_UUID" != "" ]] && \
+   echo -e "${COLOR_INFO}Restarting service now${COLOR_END}" && \
+   balena-idle
+}
+
+# -----------------------------------------------------------------------------
+# TTI autoprovision gateway
+# -----------------------------------------------------------------------------
+
+function tts_autoprovision() {
+
+    echo "Gateway provisioning using provided TTS_PERSONAL_KEY"
+
+    # Autoprovision variables needed
+    TTS_USERNAME=${TTS_USERNAME:-"none"}
+    TTS_FREQUENCY_PLAN_ID=${TTS_FREQUENCY_PLAN_ID:-"none"}
+
+    # Autoprovision regions defined here: https://www.thethingsindustries.com/docs/reference/frequency-plans/
+    if [[ "$TTS_FREQUENCY_PLAN_ID" == "none" ]]; then
+        if [[ "$TTN_REGION" == "eu1" ]]; then
+            TTS_FREQUENCY_PLAN_ID="EU_863_870_TTN"
+        elif [[ "$TTN_REGION" == "nam1" ]]; then
+            TTS_FREQUENCY_PLAN_ID="US_902_928_FSB_2"
+        elif [[ "$TTN_REGION" == "au1" ]]; then
+            TTS_FREQUENCY_PLAN_ID="AU_915_928_FSB_2"
+        fi
+    fi
+
+    GATEWAY_PREFIX=${GATEWAY_PREFIX:-"eui"}
+    GATEWAY_ID=${GATEWAY_ID:-"${GATEWAY_PREFIX,,}-${GATEWAY_EUI,,}"}
+    GATEWAY_NAME=${GATEWAY_NAME:-${GATEWAY_ID}}
+    local API_KEY_NAME="autoprovision-lns-key"
+    local RAW
+
+    RAW=$(curl -s --location \
+        --header 'Accept: application/json' \
+        --header 'Authorization: Bearer '$TTS_PERSONAL_KEY'' \
+        --header 'Content-Type: application/json' \
+        --request POST \
+        --data-raw '{
+            "gateway": {
+            "ids": {
+                "gateway_id": "'$GATEWAY_ID'",
+                "eui": "'$GATEWAY_EUI'"
+            },
+            "name": "'$GATEWAY_NAME'",
+            "gateway_server_address": "'$SERVER'",
+            "frequency_plan_id": "'$TTS_FREQUENCY_PLAN_ID'"
+            }
+        }' \
+        'https://'$SERVER'/api/v3/users/'$TTS_USERNAME'/gateways')
+    
+    #echo $RAW | jq
+    local CODE=$(echo $RAW | jq --raw-output '.code')
+    local MESSAGE=$(echo $RAW | jq --raw-output '.message_format')
+
+    # ToDo: find more error codes when provision a gateway via API.   
+    if [[ "$CODE" == "null" ]]; then
+        echo "No errors autoprovisioning the gateway!"
+    elif [[ "$CODE" == 6 ]]; then
+        echo -e "${COLOR_WARNING}WARNING: The gateway $GATEWAY_ID is already registered (by you or someone else)${COLOR_END}"
+        #idle
+    elif [[ "$CODE" == 9 ]]; then
+        echo -e "${COLOR_WARNING}WARNING: The gateway had already been autoprovisioned${COLOR_END}"
+        #idle
+    else
+        echo -e "${COLOR_ERROR}ERROR: The gateway had an error when autoprovisioned: $MESSAGE ($CODE)${COLOR_END}\n"
+        idle
+    fi
+
+    # List api keys
+    local IDS=$(curl -s --location \
+        --header 'Accept: application/json' \
+        --header 'Authorization: Bearer '$TTS_PERSONAL_KEY'' \
+        --header 'Content-Type: application/json' \
+        --request GET \
+        'https://'$SERVER'/api/v3/gateways/'$GATEWAY_ID'/api-keys' | jq '.api_keys[] | select(.name == "'$API_KEY_NAME'") | .id')
+    
+    # Delete previous API keys
+    for ID in ${IDS[@]}; do
+        ID=$(echo $ID | tr -d '"')
+        curl -s --location \
+            --header 'Accept: application/json' \
+            --header 'Authorization: Bearer '$TTS_PERSONAL_KEY'' \
+            --header 'Content-Type: application/json' \
+            --request PUT \
+            --data-raw '{
+                "name":"'$API_KEY_NAME'",
+                "rights":[],
+                "expires_at":null
+            }' \
+            'https://'$SERVER'/api/v3/gateways/'$GATEWAY_ID'/api-keys/'$ID >/dev/null
+    done
+
+    # Create new api key
+    RAW=$(curl -s --location \
+        --header 'Accept: application/json' \
+        --header 'Authorization: Bearer '$TTS_PERSONAL_KEY'' \
+        --header 'Content-Type: application/json' \
+        --request POST \
+        --data-raw '{
+            "name":"'$API_KEY_NAME'",
+            "rights":["RIGHT_GATEWAY_LINK"],
+            "expires_at":null
+        }' \
+        'https://'$SERVER'/api/v3/gateways/'$GATEWAY_ID'/api-keys')
+
+    #echo $RAW | jq
+    local KEY=$(echo $RAW | jq --raw-output '.key')
+
+    if [[ "$KEY" != "null" ]]; then
+        TC_KEY=$KEY
+        echo "TC_KEY successfully generated"
+        balena_set_variable "TC_KEY" "$TC_KEY"
+        restart_if_balena
+    fi
+
 }
 
 # -----------------------------------------------------------------------------
@@ -65,16 +174,35 @@ else
             GATEWAY_EUI_NIC=$(cat /proc/net/dev | tail -n+3 | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g')
         fi
         if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
-            echo -e "\033[91mERROR: No network interface found. Cannot set gateway EUI.\033[0m"
+            echo -e "${COLOR_ERROR}ERROR: No network interface found. Cannot set gateway EUI${COLOR_END}"
         fi
         GATEWAY_EUI=$(ip link show $GATEWAY_EUI_NIC | awk '/ether/ {print $2}' | awk -F\: '{print $1$2$3"FFFE"$4$5$6}')
     fi
 fi
 GATEWAY_EUI=${GATEWAY_EUI^^}
-echo -e "\033[93mGATEWAY_EUI: ${GATEWAY_EUI}\033[0m"
 
 # Push to Balena
-push_variables
+balena_set_label "EUI" "$GATEWAY_EUI"
+
+# -----------------------------------------------------------------------------
+# URLs
+# Defaults to TTN server v3, `eu1` region, 
+# use a custom SERVER, CUPS_URI or TC_URI to change this
+# If TTS_TENANT is defined different than "ttn", it will be used to build the
+# tenant URL under thethings.industries, otherwise only the region will be used
+# to build the URL under thethings.network.
+# -----------------------------------------------------------------------------
+
+TTN_REGION=${TTN_REGION:-"eu1"}
+TTS_REGION=${TTS_REGION:-$TTN_REGION}
+TTS_TENANT=${TTS_TENANT:-"ttn"}
+if [[ "$TTS_TENANT" == "ttn" ]]; then
+    SERVER=${SERVER:-"${TTS_REGION}.cloud.thethings.network"}
+else
+    SERVER=${SERVER:-"${TTS_TENANT}.${TTS_REGION}.thethings.industries"}
+fi
+CUPS_URI=${CUPS_URI:-"https://${SERVER}:443"} 
+TC_URI=${TC_URI:-"wss://${SERVER}:8887"} 
 
 # -----------------------------------------------------------------------------
 # Mode (static/dynamic) & protocol (cups/lns)
@@ -83,6 +211,7 @@ push_variables
 # New USE_CUPS variable, will be mandatory in the future
 # Possible values are 0 or 1, setting it here to 2 when undefined
 USE_CUPS=${USE_CUPS:-2} # undefined by default
+PROTOCOL=""
 
 # Configuration mode
 if [[ -f ./station.conf ]]; then 
@@ -91,11 +220,17 @@ if [[ -f ./station.conf ]]; then
         PROTOCOL="CUPS"
     elif [[ -f ./cups.key ]] && [[ $USE_CUPS -ne 0 ]]; then
         PROTOCOL="CUPS"
-        echo -e "\033[93mWARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS.\033[0m"
+        echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS${COLOR_END}"
     elif [[ -f ./tc.key ]]; then
         PROTOCOL="LNS"
-    else
-        echo -e "\033[91mERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a cups.key or tc.key files.\033[0m"
+    elif [[ "$TTS_PERSONAL_KEY" != "" ]]; then
+        tts_autoprovision
+        if [[ "$TC_KEY" != "" ]]; then 
+            PROTOCOL="LNS"
+        fi
+    fi
+    if [[ "$PROTOCOL" == "" ]]; then
+        echo -e "${COLOR_ERROR}ERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a valid cups.key or tc.key files or TTS_PERSONAL_KEY variable${COLOR_END}"
         idle
     fi
 else
@@ -104,11 +239,17 @@ else
         PROTOCOL="CUPS"
     elif [[ "$CUPS_KEY" != "" ]] && [[ $USE_CUPS -ne 0 ]]; then
         PROTOCOL="CUPS"
-        echo -e "\033[93mWARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS.\033[0m"
+        echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS${COLOR_END}"
     elif [[ "$TC_KEY" != "" ]]; then 
         PROTOCOL="LNS"
-    else
-        echo -e "\033[91mERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define CUPS_KEY or TC_KEY.\033[0m"
+    elif [[ "$TTS_PERSONAL_KEY" != "" ]]; then
+        tts_autoprovision
+        if [[ "$TC_KEY" != "" ]]; then 
+            PROTOCOL="LNS"
+        fi
+    fi
+    if [[ "$PROTOCOL" == "" ]]; then
+        echo -e "${COLOR_ERROR}ERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define valid TC_KEY, CUPS_KEY or TTS_PERSONAL_KEY${COLOR_END}"
         idle
     fi
 fi
@@ -116,79 +257,6 @@ fi
 # -----------------------------------------------------------------------------
 # LNS/CUPS configuration
 # -----------------------------------------------------------------------------
-
-# Defaults to TTN server v3, `eu1` region, use a custom CUPS_URI or TC_URI to change this
-TTN_REGION=${TTN_REGION:-"eu1"}
-CUPS_URI=${CUPS_URI:-"https://${TTN_REGION}.cloud.thethings.network:443"} 
-TC_URI=${TC_URI:-"wss://${TTN_REGION}.cloud.thethings.network:8887"} 
-TC_URL=$TC_URI
-
-# Autoprovision variables needed
-TC_AUTOPROVISION=${TC_AUTOPROVISION:-"N"} 
-TC_USERNAME=${TC_USERNAME:-"none"}
-TC_AUTOPROVISION_URI=${TC_AUTOPROVISION_URI:-"company-region-plus-url"} #For TTN: eu1.cloud.thethings.network // For TTI: your-company.eu1.thethings.industries
-TC_AUTHORIZATION=${TC_AUTHORIZATION:-"your-personal-api-key"} 
-TC_AUTOPROVISION_REGION=${TC_AUTOPROVISION_REGION:-"EU_863_870_TTN"} #ToDo: find the list!
-GATEWAY_NAME=${GATEWAY_NAME:-"gateway-name"}
-GATEWAY_ID=${GATEWAY_ID:-"gateway-id"}
-
-
-# Autoprovision
-if [[ "$TC_AUTOPROVISION" == "Y" ]]; then
-
-    CODE=$(curl --location \
-            --header 'Accept: application/json' \
-            --header 'Authorization: Bearer '$TC_AUTHORIZATION'' \
-            --header 'Content-Type: application/json' \
-            --request POST \
-            --data-raw '{
-                "gateway": {
-                "ids": {
-                    "gateway_id": "'$GATEWAY_ID'",
-                    "eui": "'$GATEWAY_EUI'"
-                },
-                "name": "'$GATEWAY_NAME'",
-                "gateway_server_address": "'$TC_AUTOPROVISION_URI'",
-                "frequency_plan_id": "'$TC_AUTOPROVISION_REGION'"
-                }
-            }' \
-            'https://'$TC_AUTOPROVISION_URI'/api/v3/users/'$TC_USERNAME'/gateways' | jq --raw-output '.code')
-    
-    # ToDo: find more error codes when provision a gateway via API.   
-    if [[ -z "$CODE" ]]; then
-        echo "No errors autoprovisioning the gateway!"
-    elif [[ "$CODE" == 6 ]]; then
-        echo -e "\033[91mERROR: The gateway EU $GATEWAY_EUI is already registered (by you or someone else). Delete the gateway or change the Device Variable TC_AUTOPROVISION to 'N'."
-        idle
-    elif [[ "$CODE" == 9 ]]; then
-        echo -e "\033[91mERROR: The gateway had already been autoprovisioned. Error $CODE. Change the GATEWAY_NAME and GATEWAY_ID or change the Device Variable TC_AUTOPROVISION to 'N'."
-        #idle
-    else
-        echo -e "\033[91mERROR: The gateway had an error when autoprovisioned $CODE."
-        #idle
-    fi
-
-
-    API_KEY=$(curl --location \
-        --header 'Accept: application/json' \
-        --header 'Authorization: Bearer '$TC_AUTHORIZATION'' \
-        --header 'Content-Type: application/json' \
-        --request POST \
-        --data-raw '{
-            "name":"balena-key",
-            "rights":["RIGHT_GATEWAY_LINK"],
-            "expires_at":null
-        }' \
-        'https://'$TC_AUTOPROVISION_URI'/api/v3/gateways/'$GATEWAY_ID'/api-keys' | jq --raw-output '.key')
-
-    TC_KEY=$API_KEY
-    TC_URI="wss://${TC_AUTOPROVISION_URI}:8887"
-
-    # Push TC_KEY to balena
-    push_TC_KEY
-
-fi
-
 
 # CUPS protocol
 if [[ "$PROTOCOL" == "CUPS" ]]; then
@@ -235,7 +303,7 @@ fi
 # * A concentrator chip (Semtech's naming), example: SX1303
 
 if [[ -z ${MODEL} ]]; then
-    echo -e "\033[91mERROR: MODEL variable not set.\033[0m"
+    echo -e "${COLOR_ERROR}ERROR: MODEL variable not set${COLOR_END}"
 	idle
 fi
 MODEL=${MODEL^^}
@@ -247,7 +315,7 @@ declare -A MODEL_MAP=(
 )
 CONCENTRATOR=${MODEL_MAP[$MODEL]}
 if [[ "${CONCENTRATOR}" == "" ]]; then
-    echo -e "\033[91mERROR: Unknown MODEL value ($MODEL). Valid values are: ${!MODEL_MAP[@]}\033[0m"
+    echo -e "${COLOR_ERROR}ERROR: Unknown MODEL value ($MODEL). Valid values are: ${!MODEL_MAP[@]}${COLOR_END}"
 	idle
 fi
 
@@ -269,7 +337,7 @@ else
         DEVICE=${DEVICE:-"/dev/ttyACM0"}
     fi
     if [[ ! -e $DEVICE ]]; then
-        echo -e "\033[91mERROR: $DEVICE does not exist.\033[0m"
+        echo -e "${COLOR_ERROR}ERROR: $DEVICE does not exist${COLOR_END}"
         idle
     fi
 fi
@@ -285,7 +353,7 @@ DESIGN=${DESIGN,,}
 
 # USB interface is not available for SX1301 concentrators
 if [[ "${CONCENTRATOR}" == "SX1301" ]] && [[ "$INTERFACE" == "USB" ]]; then
-    echo -e "\033[91mERROR: USB interface is not available for SX1301 concentrators.\033[0m"
+    echo -e "${COLOR_ERROR}ERROR: USB interface is not available for SX1301 concentrators${COLOR_END}"
 	idle
 fi
 
@@ -318,40 +386,37 @@ GW_POWER_EN_LOGIC=${GW_POWER_EN_LOGIC:-1}
 # Debug
 # -----------------------------------------------------------------------------
 
-echo -e "\033[93m"
-echo "------------------------------------------------------------------"
-echo "Protocol"
-echo "------------------------------------------------------------------"
-echo "Mode:          $MODE"
-echo "Protocol:      $PROTOCOL"
+echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
+echo -e "${COLOR_INFO}Protocol${COLOR_END}"
+echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
+echo -e "${COLOR_INFO}Mode:          ${MODE}${COLOR_END}"
+echo -e "${COLOR_INFO}Protocol:      ${PROTOCOL}${COLOR_END}"
 if [[ "$PROTOCOL" == "CUPS" ]]; then
-echo "CUPS Server:   $CUPS_URI"
+echo -e "${COLOR_INFO}CUPS Server:   ${CUPS_URI}${COLOR_END}"
 else
-echo "LNS Server:    $TC_URI"
+echo -e "${COLOR_INFO}LNS Server:    ${TC_URI}${COLOR_END}"
 fi
 if [[ ! -z $GATEWAY_EUI_NIC ]]; then
-echo "Main NIC:      $GATEWAY_EUI_NIC"
+echo -e "${COLOR_INFO}Main NIC:      ${GATEWAY_EUI_NIC}${COLOR_END}"
 fi
-echo "Gateway EUI:   $GATEWAY_EUI"
-echo "KEY generated: $TC_KEY"
-echo "------------------------------------------------------------------"
-echo "Radio"
-echo "------------------------------------------------------------------"
-echo "Model:         $MODEL"
-echo "Concentrator:  $CONCENTRATOR"
-echo "Design:        ${DESIGN^^}"
-echo "Radio Device:  $DEVICE"
-echo "Interface:     $INTERFACE"
+echo -e "${COLOR_INFO}Gateway EUI:   ${GATEWAY_EUI}${COLOR_END}"
+echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
+echo -e "${COLOR_INFO}Radio${COLOR_END}"
+echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
+echo -e "${COLOR_INFO}Model:         ${MODEL}${COLOR_END}"
+echo -e "${COLOR_INFO}Concentrator:  ${CONCENTRATOR}${COLOR_END}"
+echo -e "${COLOR_INFO}Design:        ${DESIGN^^}${COLOR_END}"
+echo -e "${COLOR_INFO}Radio Device:  ${DEVICE}${COLOR_END}"
+echo -e "${COLOR_INFO}Interface:     ${INTERFACE}${COLOR_END}"
 if [[ "$INTERFACE" == "SPI" ]]; then
-echo "SPI Speed:     $LORAGW_SPI_SPEED"
+echo -e "${COLOR_INFO}SPI Speed:     ${LORAGW_SPI_SPEED}${COLOR_END}"
 fi
-echo "Reset GPIO:    $GW_RESET_GPIO"
-echo "Enable GPIO:   $GW_POWER_EN_GPIO"
+echo -e "${COLOR_INFO}Reset GPIO:    ${GW_RESET_GPIO}${COLOR_END}"
+echo -e "${COLOR_INFO}Enable GPIO:   ${GW_POWER_EN_GPIO}${COLOR_END}"
 if [[ $GW_POWER_EN_GPIO -ne 0 ]]; then
-echo "Enable Logic:  $GW_POWER_EN_LOGIC"
+echo -e "${COLOR_INFO}Enable Logic:  ${GW_POWER_EN_LOGIC}${COLOR_END}"
 fi
-echo "------------------------------------------------------------------"
-echo -e "\033[0m"
+echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
 
 # -----------------------------------------------------------------------------
 # Generate dynamic configuration files
