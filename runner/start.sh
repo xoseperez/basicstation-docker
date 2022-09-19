@@ -39,10 +39,22 @@ function tts_autoprovision() {
 
     # Autoprovision variables needed
     TTS_USERNAME=${TTS_USERNAME:-"none"}
-    TTS_FREQUENCY_PLAN_ID=${TTS_FREQUENCY_PLAN_ID:-"EU_863_870_TTN"}
     GATEWAY_PREFIX=${GATEWAY_PREFIX:-"eui"}
     GATEWAY_ID=${GATEWAY_ID:-"${GATEWAY_PREFIX,,}-${GATEWAY_EUI,,}"}
     GATEWAY_NAME=${GATEWAY_NAME:-${GATEWAY_ID}}
+    
+    # Autoprovision regions defined here: https://www.thethingsindustries.com/docs/reference/frequency-plans/
+    TTS_FREQUENCY_PLAN_ID=${TTS_FREQUENCY_PLAN_ID:-""}
+    if [[ "$TTS_FREQUENCY_PLAN_ID" == "" ]]; then
+        if [[ "$TTS_REGION" == "nam1" ]]; then
+            TTS_FREQUENCY_PLAN_ID="US_902_928_FSB_2"
+        elif [[ "$TTS_REGION" == "au1" ]]; then
+            TTS_FREQUENCY_PLAN_ID="AU_915_928_FSB_2"
+        else
+            TTS_FREQUENCY_PLAN_ID="EU_863_870_TTN"
+        fi
+    fi
+
     local API_KEY_NAME="autoprovision-lns-key"
     local RAW
 
