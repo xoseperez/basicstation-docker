@@ -5,15 +5,15 @@ services:
   basicstation:
     
     # Use pre-defined image
-    image: xoseperez/basicstation:latest
+    #image: xoseperez/basicstation:latest
     
     # Or comment out image and build it yourself
-    #build:
-    #  context: .
-    #  args:
-    #    ARCH: amd64
-    #    REMOTE_TAG: v2.0.6
-    #    VARIANT: std
+    build:
+      context: .
+      args:
+        ARCH: amd64
+        REMOTE_TAG: v2.0.6
+        VARIANT: std
 
     container_name: basicstation
     restart: unless-stopped
