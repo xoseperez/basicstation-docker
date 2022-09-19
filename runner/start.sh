@@ -23,8 +23,10 @@ function idle() {
    [[ "$BALENA_DEVICE_UUID" != "" ]] && balena-idle || exit 1
 }
 
-function idle_if_balena() {
-   [[ "$BALENA_DEVICE_UUID" != "" ]] && balena-idle
+function restart_if_balena() {
+   [[ "$BALENA_DEVICE_UUID" != "" ]] && \
+   echo -e "${COLOR_INFO}Restarting service now${COLOR_END}" && \
+   balena-idle
 }
 
 # -----------------------------------------------------------------------------
@@ -70,13 +72,13 @@ function tts_autoprovision() {
     if [[ "$CODE" == "null" ]]; then
         echo "No errors autoprovisioning the gateway!"
     elif [[ "$CODE" == 6 ]]; then
-        echo -e "${COLOR_WARNING}WARNING: The gateway $GATEWAY_ID is already registered (by you or someone else).${COLOR_END}"
+        echo -e "${COLOR_WARNING}WARNING: The gateway $GATEWAY_ID is already registered (by you or someone else)${COLOR_END}"
         #idle
     elif [[ "$CODE" == 9 ]]; then
-        echo -e "${COLOR_WARNING}WARNING: The gateway had already been autoprovisioned.${COLOR_END}"
+        echo -e "${COLOR_WARNING}WARNING: The gateway had already been autoprovisioned${COLOR_END}"
         #idle
     else
-        echo -e "${COLOR_ERROR}ERROR: The gateway had an error when autoprovisioned: $MESSAGE ($CODE).${COLOR_END}\n"
+        echo -e "${COLOR_ERROR}ERROR: The gateway had an error when autoprovisioned: $MESSAGE ($CODE)${COLOR_END}\n"
         idle
     fi
 
@@ -124,7 +126,7 @@ function tts_autoprovision() {
         TC_KEY=$KEY
         echo "TC_KEY successfully generated"
         balena_set_variable "TC_KEY" "$TC_KEY"
-        idle_if_balena
+        restart_if_balena
     fi
 
 }
@@ -160,7 +162,7 @@ else
             GATEWAY_EUI_NIC=$(cat /proc/net/dev | tail -n+3 | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g')
         fi
         if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
-            echo -e "${COLOR_ERROR}ERROR: No network interface found. Cannot set gateway EUI.${COLOR_END}"
+            echo -e "${COLOR_ERROR}ERROR: No network interface found. Cannot set gateway EUI${COLOR_END}"
         fi
         GATEWAY_EUI=$(ip link show $GATEWAY_EUI_NIC | awk '/ether/ {print $2}' | awk -F\: '{print $1$2$3"FFFE"$4$5$6}')
     fi
@@ -206,7 +208,7 @@ if [[ -f ./station.conf ]]; then
         PROTOCOL="CUPS"
     elif [[ -f ./cups.key ]] && [[ $USE_CUPS -ne 0 ]]; then
         PROTOCOL="CUPS"
-        echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS.${COLOR_END}"
+        echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS${COLOR_END}"
     elif [[ -f ./tc.key ]]; then
         PROTOCOL="LNS"
     elif [[ "$TTS_PERSONAL_KEY" != "" ]]; then
@@ -216,7 +218,7 @@ if [[ -f ./station.conf ]]; then
         fi
     fi
     if [[ "$PROTOCOL" == "" ]]; then
-        echo -e "${COLOR_ERROR}ERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a valid cups.key or tc.key files or TTS_PERSONAL_KEY variable.${COLOR_END}"
+        echo -e "${COLOR_ERROR}ERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a valid cups.key or tc.key files or TTS_PERSONAL_KEY variable${COLOR_END}"
         idle
     fi
 else
@@ -225,7 +227,7 @@ else
         PROTOCOL="CUPS"
     elif [[ "$CUPS_KEY" != "" ]] && [[ $USE_CUPS -ne 0 ]]; then
         PROTOCOL="CUPS"
-        echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS.${COLOR_END}"
+        echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS${COLOR_END}"
     elif [[ "$TC_KEY" != "" ]]; then 
         PROTOCOL="LNS"
     elif [[ "$TTS_PERSONAL_KEY" != "" ]]; then
@@ -235,7 +237,7 @@ else
         fi
     fi
     if [[ "$PROTOCOL" == "" ]]; then
-        echo -e "${COLOR_ERROR}ERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define valid TC_KEY, CUPS_KEY or TTS_PERSONAL_KEY.${COLOR_END}"
+        echo -e "${COLOR_ERROR}ERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define valid TC_KEY, CUPS_KEY or TTS_PERSONAL_KEY${COLOR_END}"
         idle
     fi
 fi
@@ -289,7 +291,7 @@ fi
 # * A concentrator chip (Semtech's naming), example: SX1303
 
 if [[ -z ${MODEL} ]]; then
-    echo -e "${COLOR_ERROR}ERROR: MODEL variable not set.${COLOR_END}"
+    echo -e "${COLOR_ERROR}ERROR: MODEL variable not set${COLOR_END}"
 	idle
 fi
 MODEL=${MODEL^^}
@@ -323,7 +325,7 @@ else
         DEVICE=${DEVICE:-"/dev/ttyACM0"}
     fi
     if [[ ! -e $DEVICE ]]; then
-        echo -e "${COLOR_ERROR}ERROR: $DEVICE does not exist.${COLOR_END}"
+        echo -e "${COLOR_ERROR}ERROR: $DEVICE does not exist${COLOR_END}"
         idle
     fi
 fi
@@ -339,7 +341,7 @@ DESIGN=${DESIGN,,}
 
 # USB interface is not available for SX1301 concentrators
 if [[ "${CONCENTRATOR}" == "SX1301" ]] && [[ "$INTERFACE" == "USB" ]]; then
-    echo -e "${COLOR_ERROR}ERROR: USB interface is not available for SX1301 concentrators.${COLOR_END}"
+    echo -e "${COLOR_ERROR}ERROR: USB interface is not available for SX1301 concentrators${COLOR_END}"
 	idle
 fi
 

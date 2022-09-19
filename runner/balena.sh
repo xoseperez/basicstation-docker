@@ -21,7 +21,7 @@ balena_set_variable() {
             "https://api.balena-cloud.com/v6/device_environment_variable" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $BALENA_API_KEY" \
-            --data "{\"device\": \"$BALENA_ID\",\"name\": \"$NAME\",\"value\": \"$VALUE\"}" 2> /dev/null
+            --data "{\"device\": \"$BALENA_ID\",\"name\": \"$NAME\",\"value\": \"$VALUE\"}" >/dev/null 2>&1
 
     else
 
@@ -29,7 +29,7 @@ balena_set_variable() {
             "https://api.balena-cloud.com/v6/device_environment_variable($VARIABLE_ID)" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $BALENA_API_KEY" \
-            --data "{\"value\": \"$VALUE\"}" 2> /dev/null
+            --data "{\"value\": \"$VALUE\"}" >/dev/null 2>&1
 
     fi
 
@@ -48,7 +48,7 @@ balena_set_label() {
             "https://api.balena-cloud.com/v6/device_tag" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $BALENA_API_KEY" \
-            --data "{\"device\": \"$BALENA_ID\",\"tag_key\": \"$NAME\",\"value\": \"$VALUE\"}" 2> /dev/null
+            --data "{\"device\": \"$BALENA_ID\",\"tag_key\": \"$NAME\",\"value\": \"$VALUE\"}" >/dev/null 2>&1
 
     else
 
@@ -56,7 +56,7 @@ balena_set_label() {
             "https://api.balena-cloud.com/v6/device_tag($TAG_ID)" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $BALENA_API_KEY" \
-            --data "{\"value\": \"$VALUE\"}" 2> /dev/null
+            --data "{\"value\": \"$VALUE\"}" >/dev/null 2>&1
 
     fi
 
