@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.0 (2022-09-19)
+
+* Autoprovision gateway in The Things Stack (TTI/TTN)
+* Improve logs readibility in docker
+
 ## 2.3.5 (2022-08-01)
 
 * Force CUPS mode using USE_CUPS for compatibility with Actility ThingPark
