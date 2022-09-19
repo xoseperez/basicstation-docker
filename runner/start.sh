@@ -125,7 +125,7 @@ function tts_autoprovision() {
     if [[ "$KEY" != "null" ]]; then
         TC_KEY=$KEY
         echo "TC_KEY successfully generated"
-        balena_set_variable "TC_KEY" "$TC_KEY"
+        [[ "$BALENA_DEVICE_UUID" != "" ]] && balena_set_variable "TC_KEY" "$TC_KEY"
         restart_if_balena
     fi
 
@@ -170,7 +170,7 @@ fi
 GATEWAY_EUI=${GATEWAY_EUI^^}
 
 # Push to Balena
-balena_set_label "EUI" "$GATEWAY_EUI"
+[[ "$BALENA_DEVICE_UUID" != "" ]] && balena_set_label "EUI" "$GATEWAY_EUI"
 
 # -----------------------------------------------------------------------------
 # URLs
