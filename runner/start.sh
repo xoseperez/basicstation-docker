@@ -25,7 +25,7 @@ function idle() {
 
 function restart_if_balena() {
    [[ "$BALENA_DEVICE_UUID" != "" ]] && \
-   echo -e "${COLOR_INFO}Restarting service now${COLOR_END}" && \
+   echo -e "${COLOR_INFO}Service will restart now${COLOR_END}" && \
    balena-idle
 }
 
@@ -74,11 +74,11 @@ function tts_autoprovision() {
             "frequency_plan_id": "'$TTS_FREQUENCY_PLAN_ID'"
             }
         }' \
-        'https://'$SERVER'/api/v3/users/'$TTS_USERNAME'/gateways')
+        'https://'$SERVER'/api/v3/users/'$TTS_USERNAME'/gateways' 2>/dev/null)
     
     #echo $RAW | jq
-    local CODE=$(echo $RAW | jq --raw-output '.code')
-    local MESSAGE=$(echo $RAW | jq --raw-output '.message_format')
+    local CODE=$(echo $RAW | jq --raw-output '.code' 2>/dev/null)
+    local MESSAGE=$(echo $RAW | jq --raw-output '.message_format' 2>/dev/null)
 
     # ToDo: find more error codes when provision a gateway via API.   
     if [[ "$CODE" == "null" ]]; then
@@ -100,7 +100,7 @@ function tts_autoprovision() {
         --header 'Authorization: Bearer '$TTS_PERSONAL_KEY'' \
         --header 'Content-Type: application/json' \
         --request GET \
-        'https://'$SERVER'/api/v3/gateways/'$GATEWAY_ID'/api-keys' | jq '.api_keys[] | select(.name == "'$API_KEY_NAME'") | .id')
+        'https://'$SERVER'/api/v3/gateways/'$GATEWAY_ID'/api-keys' | jq '.api_keys[] | select(.name == "'$API_KEY_NAME'") | .id' 2>/dev/null)
     
     # Delete previous API keys
     for ID in ${IDS[@]}; do
@@ -129,10 +129,10 @@ function tts_autoprovision() {
             "rights":["RIGHT_GATEWAY_LINK"],
             "expires_at":null
         }' \
-        'https://'$SERVER'/api/v3/gateways/'$GATEWAY_ID'/api-keys')
+        'https://'$SERVER'/api/v3/gateways/'$GATEWAY_ID'/api-keys' 2>/dev/null)
 
     #echo $RAW | jq
-    local KEY=$(echo $RAW | jq --raw-output '.key')
+    local KEY=$(echo $RAW | jq --raw-output '.key' 2>/dev/null)
 
     if [[ "$KEY" != "null" ]]; then
         TC_KEY=$KEY
@@ -190,7 +190,7 @@ GATEWAY_EUI=${GATEWAY_EUI^^}
 # use a custom SERVER, CUPS_URI or TC_URI to change this
 # If TTS_TENANT is defined different than "ttn", it will be used to build the
 # tenant URL under thethings.industries, otherwise only the region will be used
-# to build the URL under thethings.network.
+# to build the URL under cloud.thethings.network.
 # -----------------------------------------------------------------------------
 
 TTN_REGION=${TTN_REGION:-"eu1"}

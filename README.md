@@ -1,7 +1,37 @@
 # LoRa Basics™ Station for Docker
 
-This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward protocol using Docker or Balena.io. It runs on a PC, a Raspberry Pi 3/4, Compute Module 3/4 or balenaFin with SX1301, SX1302 or SX1303 LoRa concentrators (e.g. RAK831, RAK833, RAK2245, RAK2247, RAK2287, RAK5146, Seeed WM1302 and IMST iC880a among others).
+This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward protocol using Docker or Balena.io. It runs on a PC, a Raspberry Pi 3/4, Compute Module 3/4 or balenaFin with SX1301, SX1302, SX1303 or SX1308 LoRa concentrators (e.g. RAK831, RAK833, RAK2245, RAK2247, RAK2287, RAK5146, Seeed WM1302 and IMST iC880a among others).
 
+## Table of Contents
+
+* [Table of Contents](#table-of-contents)
+* [Introduction](#introduction)
+* [Requirements](#requirements)
+    * [Hardware](#hardware)
+      * [LoRa Concentrators](#lora-concentrators)
+    * [Software](#software)
+* [Installing docker &amp; docker-compose on the OS](#installing-docker--docker-compose-on-the-os)
+* [Deploy the code](#deploy-the-code)
+    * [Via docker-compose](#via-docker-compose)
+    * [Build the image (not required)](#build-the-image-not-required)
+    * [Via <a href="https://www.balena.io/docs/learn/deploy/deploy-with-balena-button/" rel="nofollow">Balena Deploy</a>](#via-balena-deploy)
+    * [Via <a href="https://www.balena.io/docs/reference/balena-cli/" rel="nofollow">Balena-CLI</a>](#via-balena-cli)
+* [Configure the Gateway](#configure-the-gateway)
+    * [Basics Station Service Variables](#basics-station-service-variables)
+    * [Define your MODEL &amp; DESIGN](#define-your-model--design)
+    * [Get the EUI of the Gateway](#get-the-eui-of-the-gateway)
+    * [CUPS and LNS protocols](#cups-and-lns-protocols)
+    * [Configure your gateway with The Things Stack CE (TTNv3)](#configure-your-gateway-with-the-things-stack-ce-ttnv3)
+    * [Autoprovision your gateway on TTN or TTI](#autoprovision-your-gateway-on-ttn-or-tti)
+    * [Configure your gateway with Actility ThingPark Community](#configure-your-gateway-with-actility-thingpark-community)
+    * [Not using TTN or Actility?](#not-using-ttn-or-actility)
+    * [Advanced configuration](#advanced-configuration)
+    * [Running with less privileges](#running-with-less-privileges)
+* [Troubleshoothing](#troubleshoothing)
+* [Parsers](#parsers)
+* [Attribution](#attribution)
+* [License](#license)
+    
 
 ## Introduction
 
@@ -16,6 +46,7 @@ Main features:
 * Support for multiple concentrators on the same device (using one basicstation service).
 * Compatible with The Things Stack (Comunity Edition / TTNv3) or Chirpstack LNS amongst others.
 * CUPS & LNS protocol configuration supported
+* Gateway autoprovision for TTS servers (TTI or TTN)
 * Almost one click deploy and at the same time highly configurable.
 
 Based on Semtech's [Basics™ Station](https://github.com/lorabasics/basicstation/) code.
@@ -35,7 +66,7 @@ As long as the host can run docker containers, the Basics™ Station service can
 
 * AMD64: most PCs out there
 * ARMv8: Raspberry Pi 3/4, 400, Compute Module 3/4, Zero 2 W,...
-* ARMv7: Raspberry Pi 2
+* ARMv7: Raspberry Pi 2, Zero 2,...
 
 > **NOTE**: you will need an OS in the host machine, for some SBC like a Raspberry Pi that means an SD card with an OS (like Rasperry Pi OS) flashed on it.
 
@@ -107,6 +138,7 @@ docker --version
 docker-compose --version
 ```
 
+Note than on recent version of docker, compose is a plugin (`docker compose`).
 
 ## Deploy the code
 
@@ -206,6 +238,12 @@ Variable Name | Value | Description | Default
 **`TC_URI`** | `STRING` | LoRaWAN Network Server to connect to | Automatically created based on `SERVER`
 **`TC_TRUST`** | `STRING` | Certificate for the server | Precached certificate
 **`TC_KEY`** | `STRING` | Unique gateway key used to connect to the LNS | Paste API key from your LNS
+**`GATEWAY_PREFIX`** | `STRING` | Prefix to autogenerate GATEWAY_ID for TTS/TTI/TTN autoprovision | `eui`
+**`GATEWAY_ID`** | `STRING` | ID to use when autoprovisioning the gateway on TTS/TTI/TTN | `GATEWAY_PREFIX` + `-` + `GATEWAY_EUI`
+**`GATEWAY_NAME`** | `STRING` | Name to use when autoprovisioning the gateway on TTS/TTI/TTN | `GATEWAY_ID`
+**`TTS_USERNAME`** | `STRING` | Name of your user on the TTS instance you want to register the gateway | Paste your username
+**`TTS_PERSONAL_KEY`** | `STRING` | Unique key to create the gateway and its key | Paste personal API key from your TTS instance (check section about autoprovision below)
+**`TTS_FREQUENCY_PLAN_ID`** | `STRING` | The Things Stack frequency plan (https://www.thethingsindustries.com/docs/reference/frequency-plans/) | "EU_863_870_TTN"
 **`GW_RESET_PIN`** | `INT` | PIN number that resets de concentrator (Header pin number) **deprecated, use GW_RESET_GPIO instead** | 11
 **`LORAGW_SPI`** | `STRING` | Where the concentrator is connected to **depecated, use DEVICE instead** | `/dev/spidev0.0`
 **`TTN_REGION`** | `STRING` | Region of the TTNv3 server to use **depecated, use TTS_REGION instead**  | ```eu1```
@@ -215,26 +253,6 @@ Variable Name | Value | Description | Default
 > When using CUPS (setting `USE_CUPS` to 1 or defining the `CUPS_KEY` variable), LNS configuration is retrieved from the CUPS server, so you don't have to set the `TC_*` variables.
 
 > If you have more than one concentrator on the same device, you can set the BasicStation service to use both at the same time. Check `Advanced configuration` section below to know more. You can also bring up two instances of BasicStation on the same device to control two different concentrators. In this case you will want to assign different `DEVICE`, `GATEWAY_EUI` and `TC_KEY` values to each instance.
-
-### Autoprovision your gateway on TTN or TTI
-
-These variables you can autoprovision the gateway using the The Things Stack REST API, compatible with The Things Cloud and The Things Cloud Community (TTN).
-
-Variable Name | Value | Description | Default
------------- | ------------- | ------------- | -------------
-**`GATEWAY_PREFIX`** | `STRING` | Prefix to autogenerate GATEWAY_ID for TTS/TTI/TTN autoprovision | `eui`
-**`GATEWAY_ID`** | `STRING` | ID to use when autoprovisioning the gateway on TTS/TTI/TTN | `GATEWAY_PREFIX` + `-` + `GATEWAY_EUI`
-**`GATEWAY_NAME`** | `STRING` | Name to use when autoprovisioning the gateway on TTS/TTI/TTN | `GATEWAY_ID`
-**`TTS_USERNAME`** | `STRING` | Name of your user on the TTS instance you want to register the gateway | Paste your username
-**`TTS_PERSONAL_KEY`** | `STRING` | Unique key to create the gateway and its key | Paste personal API key from your TTS instance (check section about autoprovision below)
-**`TTS_FREQUENCY_PLAN_ID`** | `STRING` | The Things Stack frequency plan (https://www.thethingsindustries.com/docs/reference/frequency-plans/) | "EU_863_870_TTN"
-
-Remember that when using TTN the `GATEWAY_NAME` and `GATEWAY_ID` must be unique over time (including deleted gateways). 
-
-The autoprovision process is going to create the gateway and a single use `TC_KEY`. The `TC_KEY` will be stored on the mounted `config` volume or inn your Balena Dashboard if used from Balena. If you are not using Balena or you don't have a mounted volume, the `TC_KEY` will be regenerated every time you reboot the service.
-
-This is specially useful when deploying a fleet of gateways with the same hardware. You only have to define `MODEL`, `TTS_USERNAME` and `TTS_PERSONAL_KEY` at fleet level and the gateways will autoregister and provision the keys to connect to your TTN instance. You might want to change the `TTS_REGION` if not using the european server, set `TTS_TENANT` if using a The Things Clound instance or `SERVER` if using a on-premise instance of The Things Stack.
-
 
 ### Define your MODEL & DESIGN
 
@@ -327,7 +345,43 @@ More information on these pages:
 * https://www.thethingsindustries.com/docs/gateways/lora-basics-station/lns/
 * https://www.thethingsindustries.com/docs/gateways/lora-basics-station/cups/
 
-### Configuring your gateway with Actility ThingPark Community
+
+### Autoprovision your gateway on TTN or TTI
+
+These variables you can autoprovision the gateway using the The Things Stack REST API, compatible with The Things Cloud and The Things Cloud Community (TTN): `GATEWAY_PREFIX`, `GATEWAY_ID`, `GATEWAY_NAME`, `TTS_USERNAME`, `TTS_PERSONAL_KEY`, `TTS_FREQUENCY_PLAN_ID`. Only `TTS_USERNAME` and `TTS_PERSONAL_KEY` are mandatory to configure autoprovisioning, the rest have sensible defaults you can use. This is specially useful when deploying a fleet of gateways with the same hardware. You only have to define `MODEL`, `TTS_USERNAME` and `TTS_PERSONAL_KEY` at fleet level and the gateways will autoregister and provision the keys to connect to your TTN instance. 
+
+An example `docker-compose.yml` file to autoprovision a gateway to the european server of TTN (that's the default) would be:
+```
+version: '2.0'
+
+services:
+
+  basicstation:
+    image: xoseperez/basicstation:latest
+    container_name: basicstation
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    environment:
+      MODEL: "SX1303"
+      TTS_USERNAME: "xoseperez" # use here your TTN user name
+      TTS_PERSONAL_KEY: "NNSXS.E2CK53N....." # use here a personal key with the required permissions
+```
+
+`TTS_PERSONAL_KEY` should be a key with, at least, the following permissions:
+* link as Gateway to a Gateway Server for traffic exchange, i.e. write uplink and read downlink
+* view and edit gateway API keys
+* edit basic gateway settings
+* create a gateway under the user account
+
+Remember that when using TTN the `GATEWAY_NAME` and `GATEWAY_ID` must be unique over time (including deleted gateways). 
+
+The autoprovision process is going to create the gateway and a single use `TC_KEY`. The `TC_KEY` will be stored on the mounted `config` volume or inn your Balena Dashboard if used from Balena. If you are not using Balena or you don't have a mounted volume, the `TC_KEY` will be regenerated every time you reboot the service and the previous key will be deleted.
+
+You might want to change the `TTS_REGION` if not using the european server, set `TTS_TENANT` if using a The Things Clound instance or `SERVER` if using a on-premise instance of The Things Stack.
+
+
+### Configure your gateway with Actility ThingPark Community
 
 ThingPark uses the CUPS server only for bootstrapping and providing an initial certificate to the gateway, then the secure TLS connection is established with the ThingPark LNS (called “LRC”) which manages all aspects of the LoRaWAN protocol as well as management and supervision. Therefore you don't need a CUPS_KEY, and there is no CUPS key you can define but you can force CUPS by setting `USE_CUPS` to 1. Check the example below:
 
@@ -451,10 +505,6 @@ services:
 ```
 
 For a USB concentrator you would mount the USB port instead of the SPI port and you won't need to share the `/dev/gpiochip0` device.
-
-### Connect to LNS/CUPS servers with self-signed certificates
-
-
 
 ## Troubleshoothing
 
