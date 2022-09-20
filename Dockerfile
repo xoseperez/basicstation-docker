@@ -41,6 +41,7 @@ LABEL org.label-schema.vcs-url="https://github.com/xoseperez/basicstation"
 LABEL org.label-schema.vcs-ref=${TAG}
 LABEL org.label-schema.arch=${ARCH}
 LABEL org.label-schema.license="BSD License 2.0"
+LABEL io.balena.features.balena-api="1"
 
 # Install required runtime packages
 RUN install_packages jq vim gpiod
