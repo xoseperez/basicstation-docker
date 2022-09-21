@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.1 (2022-09-21)
+
+* Fix wrong URL for The Things Cloud server
+
 ## 2.4.0 (2022-09-19)
 
 * Autoprovision gateway in The Things Stack (TTI/TTN)
