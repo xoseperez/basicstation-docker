@@ -199,7 +199,7 @@ TTS_TENANT=${TTS_TENANT:-"ttn"}
 if [[ "$TTS_TENANT" == "ttn" ]]; then
     SERVER=${SERVER:-"${TTS_REGION}.cloud.thethings.network"}
 else
-    SERVER=${SERVER:-"${TTS_TENANT}.${TTS_REGION}.thethings.industries"}
+    SERVER=${SERVER:-"${TTS_TENANT}.${TTS_REGION}.cloud.thethings.industries"}
 fi
 CUPS_URI=${CUPS_URI:-"https://${SERVER}:443"} 
 TC_URI=${TC_URI:-"wss://${SERVER}:8887"} 
