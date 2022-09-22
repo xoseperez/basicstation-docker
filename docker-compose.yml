@@ -17,13 +17,14 @@ services:
 
     container_name: basicstation
     restart: unless-stopped
-    #privileged: true        # set this to true or define the required devices to share with the container under the `devices` tag below
+    privileged: true         # set this to true or define the required devices to share with the container under the `devices` tag below
     network_mode: host       # required to read host interface MAC instead of virtual one, you don't need this if you set the GATEWAY_EUI manually
 
-    devices:
-      - /dev/spidev0.0       # share the device where your concentrator is connected to or set privileged to true above
-      - /dev/gpiochip0       # allow the container to access the GPIO (via gpiod) if using an SPI concentrator or set privileged to true above
-
+    #devices:
+    #  - /dev/ttyACM0         # share the device where your concentrator is connected to or set privileged to true above
+    #  - /dev/spidev0.0       # share the device where your concentrator is connected to or set privileged to true above
+    #  - /dev/gpiochip0       # allow the container to access the GPIO (via gpiod) if using an SPI concentrator or set privileged to true above
+    
     #volumes:
     #  - ./config:/app/config
 

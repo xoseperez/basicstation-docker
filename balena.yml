@@ -19,7 +19,6 @@ data:
     - GW_RESET_GPIO: 17
     - GW_POWER_EN_GPIO: 0
     - TTN_REGION: eu1
-    - TC_KEY: 0
     - TLS_SNI: true
   defaultDeviceType: raspberrypi3
   supportedDeviceTypes:

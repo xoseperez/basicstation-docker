@@ -223,14 +223,14 @@ if [[ -f ./station.conf ]]; then
         echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS${COLOR_END}"
     elif [[ -f ./tc.key ]]; then
         PROTOCOL="LNS"
-    elif [[ "$TTS_PERSONAL_KEY" != "" ]]; then
+    elif [[ "$TTS_PERSONAL_KEY" != "" ]] && [[ "$TTS_USERNAME" != "" ]]; then
         tts_autoprovision
         if [[ "$TC_KEY" != "" ]]; then 
             PROTOCOL="LNS"
         fi
     fi
     if [[ "$PROTOCOL" == "" ]]; then
-        echo -e "${COLOR_ERROR}ERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a valid cups.key or tc.key files or TTS_PERSONAL_KEY variable${COLOR_END}"
+        echo -e "${COLOR_ERROR}ERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a valid cups.key or tc.key files or TTS_PERSONAL_KEY and TTS_USERNAME variable${COLOR_END}"
         idle
     fi
 else
@@ -242,14 +242,14 @@ else
         echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS${COLOR_END}"
     elif [[ "$TC_KEY" != "" ]]; then 
         PROTOCOL="LNS"
-    elif [[ "$TTS_PERSONAL_KEY" != "" ]]; then
+    elif [[ "$TTS_PERSONAL_KEY" != "" ]] && [[ "$TTS_USERNAME" != "" ]]; then
         tts_autoprovision
         if [[ "$TC_KEY" != "" ]]; then 
             PROTOCOL="LNS"
         fi
     fi
     if [[ "$PROTOCOL" == "" ]]; then
-        echo -e "${COLOR_ERROR}ERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define valid TC_KEY, CUPS_KEY or TTS_PERSONAL_KEY${COLOR_END}"
+        echo -e "${COLOR_ERROR}ERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define valid TC_KEY, CUPS_KEY or TTS_PERSONAL_KEY and TTS_USERNAME${COLOR_END}"
         idle
     fi
 fi
