@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.2 (2022-10-11)
+
+* Fix GW_RESET_GPIO not working (#8)
+
 ## 2.4.1 (2022-09-21)
 
 * Fix wrong URL for The Things Cloud server
