@@ -117,28 +117,28 @@ On both cases you will also need:
 Once all of this is ready, you are able to deploy this repository following instructions below.
 
 
-## Installing docker & docker-compose on the OS
+## Installing docker & docker compose on the OS
 
-If you are going to run this project directly using docker (not using Balena) then you will need to install docker on the OS first. Installing docker-compose is strongly recommended. This is pretty straight forward, just follow these steps:
+If you are going to run this project directly using docker (not using Balena) then you will need to install docker on the OS first. Instruction on how to install docker can be found in the official documentation here: https://docs.docker.com/engine/install/. Below you have a summary of the steps required to install it using the convenience script provided by docker:
 
 ```
-sudo apt-get update && sudo apt-get upgrade -y
-curl -sSL https://get.docker.com | sh
-sudo usermod -aG docker ${USER}
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo groupadd docker
+sudo usermod -aG docker $USER
 newgrp docker
-sudo apt install -y python3 python3-dev python3-pip libffi-dev libssl-dev
-sudo pip3 install docker-compose
-sudo systemctl enable docker
+sudo systemctl enable docker.service
+sudo systemctl enable containerd.service
 ```
 
 Once done, you should be able to check the instalation is alright by testing:
 
 ```
-docker --version
-docker-compose --version
+docker version
+docker compose version
 ```
 
-Note than on recent version of docker, compose is a plugin (`docker compose`).
+Note than on previous versions of docker, compose was a 3rd party utility you had to install manually (`sudo pip3 install docker-compose`).
 
 ## Deploy the code
 
