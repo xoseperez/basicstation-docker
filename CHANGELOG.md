@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.3 (2022-11-01)
+
+* Revert to using `sysfs` as default way to manage the GPIO. Management via `libgpiod` is still available by setting `USE_GPIOLIB` to 1
+
 ## 2.4.2 (2022-10-11)
 
 * Fix GW_RESET_GPIO not working (#8)

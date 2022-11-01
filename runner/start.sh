@@ -438,7 +438,12 @@ fi
 # Create reset file
 # -----------------------------------------------------------------------------
 
-cp /app/reset.sh.template reset.sh
+USE_LIBGPIOD=${USE_LIBGPIOD:-0}
+if [[ $USE_LIBGPIOD -eq 0 ]]; then
+    cp /app/reset.sh.legacy reset.sh
+else
+    cp /app/reset.sh.gpiod reset.sh
+fi
 sed -i "s#{{RESET_GPIO}}#${GW_RESET_GPIO:-17}#" reset.sh
 sed -i "s#{{POWER_EN_GPIO}}#${GW_POWER_EN_GPIO:-0}#" reset.sh
 sed -i "s#{{POWER_EN_LOGIC}}#${GW_POWER_EN_LOGIC:-1}#" reset.sh
