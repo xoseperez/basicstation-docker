@@ -2,7 +2,8 @@
 
 # Uses docker buildx and https://github.com/estesp/manifest-tool
 
-ACTION=$@
+FIRST=$1
+ARGS=$@
 MANIFEST_TOOL=manifest-tool
 
 export TAG=$(git rev-parse --short HEAD)
@@ -20,7 +21,7 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 
-if [ "$ACTION" == "--push" ]; then
+if [ "$FIRST" == "--push" ]; then
 
   # Check we have the manifest modifier tool
   hash $MANIFEST_TOOL &> /dev/null
@@ -41,10 +42,10 @@ if [ "$ACTION" == "--push" ]; then
 fi
 
 # Building
-time docker buildx bake $ACTION
+time docker buildx bake $ARGS
 
 # Merge individual archs into the same tags
-if [ "$ACTION" == "--push" ]; then
+if [ "$FIRST" == "--push" ]; then
 
     MANIFEST=manifest.yaml
     cat > $MANIFEST << EOL
@@ -56,6 +57,10 @@ manifests:
       architecture: arm64
       os: linux  
   - image: $REGISTRY:armv7hf-latest
+    platform:
+      architecture: arm
+      os: linux  
+  - image: $REGISTRY:armv6l-latest
     platform:
       architecture: arm
       os: linux  
