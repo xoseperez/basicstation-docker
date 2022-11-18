@@ -6,7 +6,21 @@ variable "REMOTE_TAG" { default = "v2.0.6" }
 variable "VARIANT" { default = "std" }
 
 group "default" {
-    targets = ["armv7hf", "aarch64", "amd64"]
+    targets = ["armv6l", "armv7hf", "aarch64", "amd64"]
+}
+
+target "armv6l" {
+    tags = ["${REGISTRY}:armv6l-latest"]
+    dockerfile = "Dockerfile.armv6l"
+    args = {
+        "ARCH" = "armv6l",
+        "REMOTE_TAG" = "${REMOTE_TAG}",
+        "VARIANT" = "${VARIANT}",
+        "TAG" = "${TAG}",
+        "VERSION" = "${VERSION}",
+        "BUILD_DATE" = "${BUILD_DATE}"
+    }
+    platforms = ["linux/arm/v6"]
 }
 
 target "armv7hf" {

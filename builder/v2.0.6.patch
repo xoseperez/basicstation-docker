@@ -811,10 +811,10 @@ index fd4ca5a..a4bd19c 100644
  new file mode 100644
  index 0000000..a282b8f
 diff --git a/setup.gmk b/setup.gmk
-index d7c4363..80d434b 100644
+index d7c4363..55d74c1 100644
 --- a/setup.gmk
 +++ b/setup.gmk
-@@ -35,18 +35,28 @@ NQ = $(if ${V},>/dev/null,)
+@@ -35,18 +35,31 @@ NQ = $(if ${V},>/dev/null,)
  
  platform ?= linux
  variant  ?= std
@@ -834,14 +834,17 @@ index d7c4363..80d434b 100644
 +ARCH.linux.default   = x86_64-linux-gnu
 +ARCH.linuxV2.default = x86_64-linux-gnu
 +ARCH.linuxpico.default = x86_64-linux-gnu
++ARCH.linuxpico.armv6l = arm-linux-gnueabi
 +ARCH.linuxpico.armv7hf = arm-linux-gnueabihf
 +ARCH.linuxpico.aarch64 = aarch64-linux-gnu
 +ARCH.linuxpico.amd64 = x86_64-linux-gnu
 +ARCH.corecell.default  = arm-linux-gnueabihf
++ARCH.corecell.armv6l  = arm-linux-gnueabi
 +ARCH.corecell.armv7hf  = arm-linux-gnueabihf
 +ARCH.corecell.aarch64  = aarch64-linux-gnu
 +ARCH.corecell.amd64  = x86_64-linux-gnu
 +ARCH.rpi.default  = arm-linux-gnueabihf
++ARCH.rpi.armv6l  = arm-linux-gnueabi
 +ARCH.rpi.armv7hf  = arm-linux-gnueabihf
 +ARCH.rpi.aarch64  = aarch64-linux-gnu
 +ARCH.rpi.amd64  = x86_64-linux-gnu
