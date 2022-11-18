@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.5.0 (2022-11-18)
+
+* Support for ARMv6 architectures (Raspberry PI 1, Raspberry Pi Zero), this includes RAK7246.
+
 ## 2.4.3 (2022-11-01)
 
 * Revert to using `sysfs` as default way to manage the GPIO. Management via `libgpiod` is still available by setting `USE_GPIOLIB` to 1
