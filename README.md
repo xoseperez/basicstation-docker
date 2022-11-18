@@ -1,6 +1,6 @@
 # LoRa Basics™ Station for Docker
 
-This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward protocol using Docker or Balena.io. It runs on a PC, a Raspberry Pi 3/4, Compute Module 3/4 or balenaFin with SX1301, SX1302, SX1303 or SX1308 LoRa concentrators (e.g. RAK831, RAK833, RAK2245, RAK2247, RAK2287, RAK5146, Seeed WM1302 and IMST iC880a among others).
+This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward protocol using Docker or Balena.io. It runs on a PC, a Raspberry Pi, Compute Module or balenaFin with SX1301, SX1302, SX1303 or SX1308 LoRa concentrators (e.g. RAK831, RAK833, RAK2245, RAK2246, RAK2247, RAK2287, RAK5146, Seeed WM1302 and IMST iC880a among others).
 
 ## Table of Contents
 
@@ -39,7 +39,7 @@ Deploy a LoRaWAN gateway running the Basics™ Station Semtech Packet Forward pr
 
 Main features:
 
-* Support for AMD64 (x86_64), ARMv8 and ARMv7 architectures.
+* Support for AMD64 (x86_64), ARMv8, ARMv7 and ARMv6 architectures.
 * Support for SX1301 SPI concentrators.
 * Support for SX1302 and SX1303 SPI and USB (CoreCell) concentrators.
 * Support for SX1308 SPI and SX1308 USB (PicoCell) concentrators.
@@ -66,7 +66,8 @@ As long as the host can run docker containers, the Basics™ Station service can
 
 * AMD64: most PCs out there
 * ARMv8: Raspberry Pi 3/4, 400, Compute Module 3/4, Zero 2 W,...
-* ARMv7: Raspberry Pi 2, Zero 2,...
+* ARMv7: Raspberry Pi 2,...
+* ARMv6: Raspberry Pi 1, Zero W, Compute Module 1,...
 
 > **NOTE**: you will need an OS in the host machine, for some SBC like a Raspberry Pi that means an SD card with an OS (like Rasperry Pi OS) flashed on it.
 
@@ -172,12 +173,12 @@ In case you can not pull the already built image from Docker Hub or if you want 
 docker buildx bake --load aarch64
 ```
 
-Once built (it will take some minutes) you can bring it up by using `xoseperez/basicstation:aarch64` as the image name in your `docker-compose.yml` file. If you are not in an ARMv8 64 bits machine (like a Raspberry Pi 4) you can change the `aarch64` with `armv7hf` (ARMv7) or `amd64` (AMD64).
+Once built (it will take some minutes) you can bring it up by using `xoseperez/basicstation:aarch64` as the image name in your `docker-compose.yml` file. If you are not in an ARMv8 64 bits machine (like a Raspberry Pi 4) you can change the `aarch64` with `armv7hf` (ARMv7), `armv6l` (ARMv6) or `amd64` (AMD64).
 
-The default built is the `std` variant. In case you want to build the `stdn` variant that supports multiple radios you can do it like this:
+The default built is the `stdn` variant that supports multiple radios. In case you want to build the `std` variantyou can do it like this:
 
 ```
-VARIANT=stdn docker buildx bake --load aarch64
+VARIANT=std docker buildx bake --load aarch64
 ```
 
 The included build script in the root folder can be user to build all architectures and (optionally) push the to a repository. The default repository is `https://hub.docker.com/r/xoseperez/basicstation` which you don't have permissions to push to (obviously), but you can easily push the images to your own repo by doing:
@@ -260,8 +261,8 @@ Variable Name | Value | Description | Default
 The model is defined depending on the version of the LoRa concentrator chip: `SX1301`, `SX1302`, `SX1303` or `SX1308`. You can also use the concentrator module name or even the gateway model (for RAKwireless gateways). Actual list of valid values:
 
 * Semtech chip model: SX1301, SX1302, SX1303, SX1308
-* Concentrator modules: IC880A, R11E-LORA8, R11E-LORA9, RAK2245, RAK2247, RAK2287, RAK5146, RAK831, RAK833, WM1302
-* RAK WisGate Development gateways: RAK7243, RAK7243C, RAK7244, RAK7244C, RAK7248, RAK7248C, RAK7271, RAK7371
+* Concentrator modules: IC880A, R11E-LORA8, R11E-LORA9, RAK2245, RAK2246, RAK2247, RAK2287, RAK5146, RAK831, RAK833, WM1302
+* RAK WisGate Development gateways: RAK7243, RAK7243C, RAK7244, RAK7244C, RAK7246, RAK7248, RAK7248C, RAK7271, RAK7371
 
 If the module is not on the list check the manufacturer to see which one to use. It's important to set the `MODEL` variable (in you `docker-compose.yml` file or in balenaCloud) to the correct one. The default model is the `SX1301`.
 
