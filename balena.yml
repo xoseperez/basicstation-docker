@@ -22,6 +22,9 @@ data:
     - TLS_SNI: true
   defaultDeviceType: raspberrypi3
   supportedDeviceTypes:
+    - raspberry-pi
+    - raspberrypi0-2w-64
+    - raspberry-pi2
     - raspberrypi3
     - raspberrypi3-64
     - raspberrypi4-64
