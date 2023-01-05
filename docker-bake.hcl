@@ -3,7 +3,7 @@ variable "VERSION" { default = "" }
 variable "BUILD_DATE" { default = "" }
 variable "REGISTRY" { default = "docker.io/xoseperez/basicstation" }
 variable "REMOTE_TAG" { default = "v2.0.6" }
-variable "VARIANT" { default = "std" }
+variable "VARIANT" { default = "stdn" }
 
 group "default" {
     targets = ["armv6l", "armv7hf", "aarch64", "amd64"]

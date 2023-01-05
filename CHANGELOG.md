@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.6.0 (2023-01-05)
+
+* Support for client certificate/key based connections (like ChirpStack does)
+
 ## 2.5.0 (2022-11-18)
 
 * Support for ARMv6 architectures (Raspberry PI 1, Raspberry Pi Zero), this includes RAK7246.
