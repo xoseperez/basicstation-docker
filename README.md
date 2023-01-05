@@ -233,13 +233,15 @@ Variable Name | Value | Description | Default
 **`TTS_TENANT`** | `STRING` | Tenant you are using (only if using TTI) | (empty)
 **`SERVER`** | `STRING` | Host machine that hosts the LNS | Automatically created based on `TTS_REGION` for TTN or `TTS_TENANT` and `TTS_REGION` for TTI
 **`TLS_SNI`**| `true` or `false` | Server name indication (SNI) check | `true`
+**`TC_URI`** | `STRING` | LoRaWAN Network Server to connect to | Automatically created based on `SERVER`
+**`TC_TRUST`** | `STRING` | CA certificate for the server | Precached certificate
+**`TC_CRT`** | `STRING` | Client certificate (only if required by the server) | 
+**`TC_KEY`** | `STRING` | Unique gateway key or client key used to connect to the LNS | 
 **`USE_CUPS`** | 0 or 1 | Set to 1 to force CUPS even without a CUPS_KEY variable or cups.key file | 0
 **`CUPS_URI`** | `STRING` | CUPS Server to connect to | Automatically created based on `SERVER`
-**`CUPS_TRUST`** | `STRING` | Certificate for the CUPS server | Precached certificate
-**`CUPS_KEY`** | `STRING` | Unique gateway key used to connect to the CUPS server | Paste API key from your provider
-**`TC_URI`** | `STRING` | LoRaWAN Network Server to connect to | Automatically created based on `SERVER`
-**`TC_TRUST`** | `STRING` | Certificate for the server | Precached certificate
-**`TC_KEY`** | `STRING` | Unique gateway key used to connect to the LNS | Paste API key from your LNS
+**`CUPS_TRUST`** | `STRING` | CA certificate for the CUPS server | Precached certificate
+**`CUPS_CRT`** | `STRING` | Client certificate (only if required by the server) | 
+**`CUPS_KEY`** | `STRING` | Unique gateway key or client key used to connect to the CUPS server |
 **`GATEWAY_PREFIX`** | `STRING` | Prefix to autogenerate GATEWAY_ID for TTS/TTI/TTN autoprovision | `eui`
 **`GATEWAY_ID`** | `STRING` | ID to use when autoprovisioning the gateway on TTS/TTI/TTN | `GATEWAY_PREFIX` + `-` + `GATEWAY_EUI`
 **`GATEWAY_NAME`** | `STRING` | Name to use when autoprovisioning the gateway on TTS/TTI/TTN | `GATEWAY_ID`
@@ -381,6 +383,43 @@ Remember that when using TTN the `GATEWAY_NAME` and `GATEWAY_ID` must be unique 
 The autoprovision process is going to create the gateway and a single use `TC_KEY`. The `TC_KEY` will be stored on the mounted `config` volume or inn your Balena Dashboard if used from Balena. If you are not using Balena or you don't have a mounted volume, the `TC_KEY` will be regenerated every time you reboot the service and the previous key will be deleted.
 
 You might want to change the `TTS_REGION` if not using the european server, set `TTS_TENANT` if using a The Things Clound instance or `SERVER` if using a on-premise instance of The Things Stack.
+
+
+### Configure your gateway with ChirpStack v4
+
+You first have to have a Chirpstack v4 servie running with proper certificates. You can build the certificates using https://github.com/brocaar/chirpstack-certificates and configuring the hostname, domain name or IP of the machine running ChirpStack on the different configuration files under the `config` folder. Then add the paths the generated certificates in the configuration files of the different services using https://github.com/brocaar/chirpstack-docker example code to deploy ChirpStack v4. Search for `tls` or `certs` in the config files and map the files to the ones created by the `chirtstack-certificates` project. Notice the folder names to know what file to add where.
+
+Next, once you log into ChirpStack and create a gateway you have to generate the TLS certificates for the gateway. This option (inside the gateway configuration) will provide the following output: CA certificate, TLS certificate and TLS key. 
+
+Copy each of the values to the corresponding environment variable in your basicstation `docker-compose.yml` file as a one-liner (no line feeds). The mapping should be:
+
+|ChirpStack|BasicStation|
+|---|---|
+|CA certificate|TC_TRUST|
+|TLS certificate|TC_CRT|
+|TLS key|TC_KEY|
+
+An example `docker-compose.yml` file might look like this:
+
+```
+version: '2.0'
+
+services:
+
+  basicstation:
+    image: xoseperez/basicstation:latest
+    container_name: basicstation
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    environment:
+      MODEL: "SX1303"
+      TC_URI: "wss://lns.example.com:8887"
+      TC_TRUST: "-----BEGIN CERTIFICATE-----MIIDADCCAeigAwIBAgIUYIAaOZqJ7xtKBcc2hzpcgxUBk6swDQYJKoZIhvcNAQELBQAwGDEWMBQGA1UEAxMNQ2hpcnBTdGFjayBDQTAeFw0yMzAxMDQxMzEzMDBaFw0yODAxMDMxMzEzMDBaMBgxFjAUBgNVBAMTDUNoaXJwU3RhY2sgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDMC1TsZB6fDMzzu9ZdIYXWicehmOuH2z++dodNK2XZ4pA6AvcIEORPDSdh4IibnE4RFhQT6tV3GSjkE6OSlL3A2biQlVykfVc2Num5NpUYEHi3o2iwxM+ibm865VHbsLXG7K0JBChlzSQP3Txs83uuR1BFxmOhKpQLxZa3oNljHQ7sQ3/8D8oher1wr+3XkGIJI5+uag7wVMk/bMKTpSYRMnZHJ7N0kBly3Ly8s85e+PmKuwHkTxRKlYkB7SBiE8YpdxAyp/R2V/bcIioo3u/fCEZiu8dblrq6CuTN2IDm+ZmyqIxeqBs9FXhZkxI0coSXox1B5/3X1HPPER68Fwd7AgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBSE6KKY+e9aorRE2YxA7ri73KeChDANBgkqhkiG9w0BAQsFAAOCAQEAMi7JvJygtGycgjdq3Obs0sNSilqM06UlANrvfTBThjznnYjc72trOYpmcJs8EuX6A3zOYJnOJIwjJ5nl1GigyyCUWZkameBTn7sjtBVondwjgUY6+RJYTstxc4r3ELaicTcHJVy7+fY5ZfoZ4pgkh+ac9jbXWJW9EfMhpiTR3XSfvzPdqDbF0UVMQqSb2eP+hCVVRp+WAEXITNceZ6U+KJjZtX/beRbV547xBbtIs/uPtCnJ7xzRuqGFEZsjUf0hS3pLQ2tMxJnkYYECdrJ3bgDsp3mSKgppNKoL5PwTQraDU87t45jYpgHbXJRro8HvIlVG6YOu01ZKFftdxME7ag==-----END CERTIFICATE-----"
+      TC_CRT: "-----BEGIN CERTIFICATE-----MIICUzCCATugAwIBAgIUKGWM6utODCeqLXjXV1Nb4BhEHoYwDQYJKoZIhvcNAQELBQAwGDEWMBQGA1UEAxMNQ2hpcnBTdGFjayBDQTAeFw0yMzAxMDQxMzIwNDBaFw0yNDAxMDQxMzIwNDBaMBsxGTAXBgNVBAMMEGVmNmM0OTljNmM5NTc2NTAwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAT3QTr2zkKUAxFX8orFfWlMMl6Vku5pn0tVVil+7OU9e2X2lKRVPUsCrtFMgJHz46FDDUz2Rz/W6OQBF6chEShWo10wWzAJBgNVHRMEAjAAMA4GA1UdDwEB/wQEAwIHgDAdBgNVHQ4EFgQUBSz8hq6VqZ7YaoBorXduA1dPYA0wHwYDVR0jBBgwFoAUhOiimPnvWqK0RNmMQO64u9yngoQwDQYJKoZIhvcNAQELBQADggEBACAePMImBs08VuYdXQ8rR30XLQ75GblEOJ3+zIqr6k399yeMaXTPoDDhv0NvHuIGedftB5+l1G5/AyyezNDMO61WVJIairo7/b0y+0tXXBdiWwqqraXFaKAECK9yM8m++os/G5QjNS/kYba+5t3geyRFpXflPPCmLWzYzPcevTG2H/H9rFX8YPzDDybX+j/B63gvHCyO6X/KO/4bBOrfdInEoLZ8+Pl8dgiO1M9t4DolAd7xUu0AqftGgTfJB0wnBHyPe+XbAhH4dziGHndqQe4DxCzll6HmFqsnaAWkK1E+uS9A2I/r2AmCGkJGAQ+70pAOfdml6q1MUGl+YtiNzlw=-----END CERTIFICATE-----"
+      TC_KEY: "-----BEGIN PRIVATE KEY-----MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgX9+0oaCXacjlG13nU5ybFI1RI4aZ7J0VRXRNVsarKVChRANCAAT3QTr2zkKUAxFX8orFfWlMMl6Vku5pn0tVVil+7OU9e2X2lKRVPUsCrtFMgJHz46FDDUz2Rz/W6OQBF6chEShW-----END PRIVATE KEY-----"
+
+```
 
 
 ### Configure your gateway with Actility ThingPark Community
@@ -550,7 +589,7 @@ Parsers that used to be available under the `tools` folder have been moved to th
 
 The contents of this repository (not of those repositories linked or used by this one) are under BSD 3-Clause License.
 
-Copyright (c) 2021-2022 Xose Pérez <xose.perez@gmail.com>
+Copyright (c) 2021-2023 Xose Pérez <xose.perez@gmail.com>
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

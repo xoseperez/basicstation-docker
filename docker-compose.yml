@@ -85,7 +85,7 @@ services:
       # Server name indication (SNI) check, defaults to true.
       # Use it only to connect to private LNS/CUPS servers with self-signed certificates
       # Check https://github.com/xoseperez/basicstation/issues/4#issuecomment-1230138180
-      # TLS_SNI: false
+      #TLS_SNI: false
 
       # Force use CUPS protocol (regardless of TC_KEY existance below)
       #USE_CUPS: 0
@@ -94,19 +94,38 @@ services:
       #TC_URI: "wss://lns.example.com:8887"
 
       # Using LNS protocol: if you use a server other than TTN, you will have to provide the certificate for that server.
-      #TC_TRUST: "-----BEGIN CERTIFICATE----- MIIDSjCCAjKgAwIBAgIQRK+wgNajJ7qJMDmGLvhAazANBgkqhkiG9w0BAQUFADA......"
+      #TC_TRUST: "-----BEGIN CERTIFICATE-----MIIDJDCCAgygAwIBAgIUdoPom8rI1/IYR7dG6JyxDGSUGBQwDQYJKoZIhvcNAQELBQAwGDE...."
 
-      # Using LNS protocol: finally, you need to create a KEY for the gateway and provide it here:
+      # Some servers will require you to include the client certificate:
+      #TC_CRT: "-----BEGIN CERTIFICATE-----MIICUzCCATugAwIBAgIUM3K60JYw9eRjxXly27wVD0w6QF0wDQYJKoZIhvcNAQELBQAwGDEWMBQG...."
+
+      # Finally, you need to provide the key for the gateway, 
+      # this can either be the client key for the client certificate above or
+      # the API key provided by the LNS (if no client certificate)
       #TC_KEY: "NNSXS.SLOC764GN3....."
+      #TC_KEY: "-----BEGIN PRIVATE KEY-----MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgDO/pLoHo5zF4Rcok7HYT3cG2...."
 
-      # Using CUPS protocol: define a custom CUPS server
+      # ------------------------------------------------
+      # CUPS Protocol
+      # ------------------------------------------------
+
+      # Force use CUPS protocol (regardless of TC_KEY existance below)
+      #USE_CUPS: 0
+
+      # Define a custom CUPS server
       #CUPS_URI: "https://lns.example.com:443"
 
-      # Using CUPS protocol: if you use a server other than TTN, you will have to provide the certificate for that server.
+      # If you use a server other than TTN, you will have to provide the trusted CA certificate for that server
       #CUPS_TRUST: "-----BEGIN CERTIFICATE----- MIIDSjCCAjKgAwIBAgIQRK+wgNajJ7qJMDmGLvhAazANBgkqhkiG9w0BAQUFADA......"
 
-      # Using CUPS protocol: finally, you need to create a KEY for the service to connect to the CUPS server.
+      # Some servers will require you to include the client certificate:
+      #CUPS_CRT: "-----BEGIN CERTIFICATE-----MIICUzCCATugAwIBAgIUKGWM6utODCeqLXjXV1Nb4BhEHoYwDQYJKoZIhvcNAQE...."
+
+      # Finally, you need to provide the key for the gateway, 
+      # this can either be the client key for the client certificate above or
+      # the API key provided by the LNS (if no client certificate)
       #CUPS_KEY: "NNSXS.SLOC764GN3....."
+      #CUPS_KEY: "-----BEGIN PRIVATE KEY-----MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgX9+0oaCXacjlG13nU5y....."
 
       # ------------------------------------------------
       # The Things Industries - Autoprovision

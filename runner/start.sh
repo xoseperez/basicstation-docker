@@ -144,6 +144,19 @@ function tts_autoprovision() {
 }
 
 # -----------------------------------------------------------------------------
+# Utils
+# -----------------------------------------------------------------------------
+
+function clean_certs_keys() {
+    echo $1 | sed 's/\s//g' | \
+        sed 's/-----BEGINCERTIFICATE-----/-----BEGIN CERTIFICATE-----\n/g' | \
+        sed 's/-----ENDCERTIFICATE-----/\n-----END CERTIFICATE-----\n/g' | \
+        sed 's/-----BEGINPRIVATEKEY-----/-----BEGIN PRIVATE KEY-----\n/g' | \
+        sed 's/-----ENDPRIVATEKEY-----/\n-----END PRIVATE KEY-----\n/g' | \
+        sed 's/\n+/\n/g'
+}
+
+# -----------------------------------------------------------------------------
 # Preparing configuration
 # -----------------------------------------------------------------------------
 
@@ -267,12 +280,20 @@ if [[ "$PROTOCOL" == "CUPS" ]]; then
         if [[ "$CUPS_TRUST" == "" ]]; then
             cp /app/cacert.pem cups.trust
         else
-            CUPS_TRUST=$(echo $CUPS_TRUST | sed 's/\s//g' | sed 's/-----BEGINCERTIFICATE-----/-----BEGIN CERTIFICATE-----\n/g' | sed 's/-----ENDCERTIFICATE-----/\n-----END CERTIFICATE-----\n/g' | sed 's/\n+/\n/g')
-            echo "$CUPS_TRUST" > cups.trust
+            clean_certs_keys "$CUPS_TRUST" > cups.trust
+        fi
+    fi
+    if [[ ! -f ./cups.crt ]]; then 
+        if [[ "$CUPS_CRT" != "" ]]; then
+            clean_certs_keys "$CUPS_CRT" > cups.crt
         fi
     fi
     if [[ ! -f ./cups.key ]]; then 
-	    echo "Authorization: Bearer $CUPS_KEY" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > cups.key
+        if [[ ! -f ./cups.crt ]]; then 
+	        echo "Authorization: Bearer $CUPS_KEY" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > cups.key
+        else
+            clean_certs_keys "$CUPS_KEY" > cups.key
+        fi
     fi
 fi
 
@@ -285,12 +306,20 @@ if [[ "$PROTOCOL" == "LNS" ]]; then
         if [[ "$TC_TRUST" == "" ]]; then
             cp /app/cacert.pem tc.trust
         else
-            TC_TRUST=$(echo $TC_TRUST | sed 's/\s//g' | sed 's/-----BEGINCERTIFICATE-----/-----BEGIN CERTIFICATE-----\n/g' | sed 's/-----ENDCERTIFICATE-----/\n-----END CERTIFICATE-----\n/g' | sed 's/\n+/\n/g')
-            echo "$TC_TRUST" > tc.trust
+            clean_certs_keys "$TC_TRUST" > tc.trust
+        fi
+    fi
+    if [[ ! -f ./tc.crt ]]; then 
+        if [[ "$TC_CRT" != "" ]]; then
+            clean_certs_keys "$TC_CRT" > tc.crt
         fi
     fi
     if [[ ! -f ./tc.key ]]; then 
-	    echo "Authorization: Bearer $TC_KEY" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > tc.key
+        if [[ ! -f ./tc.crt ]]; then
+        	echo "Authorization: Bearer $TC_KEY" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > tc.key
+        else
+            clean_certs_keys "$TC_KEY" > tc.key
+        fi
     fi
 fi
 
