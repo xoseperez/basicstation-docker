@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* Option to define the radio clock source for the concentrator using CLKSRC
+
 ## 2.6.0 (2023-01-05)
 
 * Support for client certificate/key based connections (like ChirpStack does)

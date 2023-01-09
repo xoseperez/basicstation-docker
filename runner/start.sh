@@ -386,9 +386,10 @@ if [[ "${CONCENTRATOR}" == "SX1301" ]] && [[ "$INTERFACE" == "USB" ]]; then
 	idle
 fi
 
-# Set default SPI speed for SX1301 concentrators to 2MHz
+# Set default SPI speed and clock source for SX1301 concentrators to 2MHz and radio_1
 if [[ "${CONCENTRATOR}" == "SX1301" ]]; then
     SPI_SPEED=${SPI_SPEED:-2000000}
+    CLKSRC=${CLKSRC:-1}
 fi
 export LORAGW_SPI_SPEED=${SPI_SPEED:-8000000}
 
@@ -455,7 +456,8 @@ echo -e "${COLOR_INFO}----------------------------------------------------------
 if [[ ! -f ./station.conf ]]; then
     cp /app/station.${DESIGN}.conf station.conf
     sed -i "s#\"device\":\s*.*,#\"device\": \"${INTERFACE,,}:${DEVICE}\",#" station.conf
-    sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"$GATEWAY_EUI\",#" station.conf
+    sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"${GATEWAY_EUI}\",#" station.conf
+    sed -i "s#\"clksrc\":\s*.*,#\"clksrc\": ${CLKSRC:-0},#" station.conf
 fi
 
 # If stdn variant (or any *n variant) we need at least one slave concentrator
