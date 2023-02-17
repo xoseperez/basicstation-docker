@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 2.6.1 (2023-02-17)
 
 * Option to define the radio clock source for the concentrator using CLKSRC
+* Fix certificate cleaning, was failing for RSA certs like the ones used by AWS LNS
 
 ## 2.6.0 (2023-01-05)
 
