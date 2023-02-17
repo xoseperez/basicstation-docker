@@ -148,12 +148,24 @@ function tts_autoprovision() {
 # -----------------------------------------------------------------------------
 
 function clean_certs_keys() {
-    echo $1 | sed 's/\s//g' | \
-        sed 's/-----BEGINCERTIFICATE-----/-----BEGIN CERTIFICATE-----\n/g' | \
-        sed 's/-----ENDCERTIFICATE-----/\n-----END CERTIFICATE-----\n/g' | \
-        sed 's/-----BEGINPRIVATEKEY-----/-----BEGIN PRIVATE KEY-----\n/g' | \
-        sed 's/-----ENDPRIVATEKEY-----/\n-----END PRIVATE KEY-----\n/g' | \
-        sed 's/\n+/\n/g'
+    
+    local CONTENT=$1
+
+    if [[ "$CONTENT" == *-----* ]]; then
+    
+        CONTENT=$( echo "$CONTENT" | sed 's/-----/-/g' )
+        readarray -d '-' -t PARTS <<< "$CONTENT"
+        local HEADER=${PARTS[1]}
+        local KEY=$( echo "${PARTS[2]}" | tr '\n' ' ' | sed 's/\s//g' )
+        local FOOTER=${PARTS[3]}
+        echo -e "-----$HEADER-----\n$KEY\n-----$FOOTER-----"
+
+    else
+        
+        echo $CONTENT
+    
+    fi
+        
 }
 
 # -----------------------------------------------------------------------------
