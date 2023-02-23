@@ -25,7 +25,7 @@ This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward pro
     - [Autoprovision your gateway on TTN or TTI](#autoprovision-your-gateway-on-ttn-or-tti)
     - [Configure your gateway with ChirpStack v4](#configure-your-gateway-with-chirpstack-v4)
     - [Configure your gateway with Actility ThingPark Community](#configure-your-gateway-with-actility-thingpark-community)
-    - [Not using TTN or Actility?](#not-using-ttn-or-actility)
+    - [Configure your gateway with AWS LNS](#configure-your-gateway-with-aws-lns)
     - [Advanced configuration](#advanced-configuration)
     - [Running with less privileges](#running-with-less-privileges)
 - [Troubleshoothing](#troubleshoothing)
@@ -392,7 +392,7 @@ You first have to have a Chirpstack v4 servie running with proper certificates. 
 
 Next, once you log into ChirpStack and create a gateway you have to generate the TLS certificates for the gateway. This option (inside the gateway configuration) will provide the following output: CA certificate, TLS certificate and TLS key. 
 
-Copy each of the values to the corresponding environment variable in your basicstation `docker-compose.yml` file as a one-liner (no line feeds). The mapping should be:
+Copy each of the values to the corresponding environment variable in your basicstation `docker-compose.yml` file. The mapping should be:
 
 |ChirpStack|BasicStation|
 |---|---|
@@ -449,14 +449,62 @@ services:
       CUPS_TRUST: "-----BEGIN CERTIFICATE-----MIIDQTCCAimgAwIBAgITBmyfz5m/jAo54vB4ikPmljZbyjANBgkqhkiG9w0BAQsFADA5MQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRkwFwYDVQQDExBBbWF6b24gUm9vdCBDQSAxMB4XDTE1MDUyNjAwMDAwMFoXDTM4MDExNzAwMDAwMFowOTELMAkGA1UEBhMCVVMxDzANBgNVBAoTBkFtYXpvbjEZMBcGA1UEAxMQQW1hem9uIFJvb3QgQ0EgMTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALJ4gHHKeNXjca9HgFB0fW7Y14h29Jlo91ghYPl0hAEvrAIthtOgQ3pOsqTQNroBvo3bSMgHFzZM9O6II8c+6zf1tRn4SWiw3te5djgdYZ6k/oI2peVKVuRF4fn9tBb6dNqcmzU5L/qwIFAGbHrQgLKm+a/sRxmPUDgH3KKHOVj4utWp+UhnMJbulHheb4mjUcAwhmahRWa6VOujw5H5SNz/0egwLX0tdHA114gk957EWW67c4cX8jJGKLhD+rcdqsq08p8kDi1L93FcXmn/6pUCyziKrlA4b9v7LWIbxcceVOF34GfID5yHI9Y/QCB/IIDEgEw+OyQmjgSubJrIqg0CAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAYYwHQYDVR0OBBYEFIQYzIU07LwMlJQuCFmcx7IQTgoIMA0GCSqGSIb3DQEBCwUAA4IBAQCY8jdaQZChGsV2USggNiMOruYou6r4lK5IpDB/G/wkjUu0yKGX9rbxenDIU5PMCCjjmCXPI6T53iHTfIUJrU6adTrCC2qJeHZERxhlbI1Bjjt/msv0tadQ1wUsN+gDS63pYaACbvXy8MWy7Vu33PqUXHeeE6V/Uq2V8viTO96LXFvKWlJbYK8U90vvo/ufQJVtMVT8QtPHRh8jrdkPSHCa2XV4cdFyQzR1bldZwgJcJmApzyMZFo6IQ6XU5MsI+yMRQ+hDKXJioaldXgjUkK642M4UwtBV8ob2xJNDd2ZhwLnoQdeXeGADbkpyrqXRfboQnoZsG4q5WTP468SQvvG5-----END CERTIFICATE-----"
 ```
 
-### Not using TTN or Actility?
+### Configure your gateway with AWS LNS
 
-In case that you want to point to another LNS different from the previous ones you will have to define a specific `TC_URI` or `CUPS_URI` and a valid `TC_KEY` or `CUPS_KEY` for your server. If your server certificate is not issued by a known authority (for instance, if it's self-signed) you will also have to define the `TC_TRUST` or `CUPS_TRUST` variable with the public certificate for your LSN server. It should be something like (in one line): 
+To connect your gateway to AWS LNS (AWS IoT Core for LoRaWAN) you first need the EUI for the gateway. You can get it by bringing up the container once. Once you have the EUI you need to create the gateway on the AWS IoT Core for LoRaWAN dashboard and create the certificates for the device. Download the certificate files, you will need to copy their contents to the `docker-compose.yml` file. Check the example below.
+
+Copy each of the values to the corresponding environment variable in your basicstation `docker-compose.yml` file. The mapping should be:
+
+|AWS LNS|BasicStation|
+|---|---|
+|The https URL provided in the dashboard|CUPS_URI|
+|Contents of the `cups.trust` file|CUPS_TRUST|
+|Contents of the `nnnnnnnn-nnnn-nnnn-nnnn-nnnnnnnnnnnn.cert.pem` file|CUPS_CERT|
+|Contents of the `nnnnnnnn-nnnn-nnnn-nnnn-nnnnnnnnnnnn.private.key` file|CUPS_KEY|
+
+An example `docker-compose.yml` file might look like this:
 
 ```
------BEGIN CERTIFICATE----- MIIDSjCCAjKgAwIBAgIQRK+wgNajJ7qJMDmGLvhAazANBgkqhkiG9w0BAQUFADA/MSQwIgYDVQQKExtEaWdpdGFsIFNpZ25hdHVyZSBUcnVzdCBDby4xFzAVBgNVBAMTDkRTVCBSb290IENBIFgzMB4XDTAwMDkzMDIxMTIxOVoXDTIxMDkzMDE0MDExNVowPzEkMCIGA1UEChMbRGlnaXRhbCBTaWduYXR1cmUgVHJ1c3QgQ28uMRcwFQYDVQQDEw5EU1QgUm9vdCBDQSBYMzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAN+v6ZdQCINXtMxiZfaQguzH0yxrMMpb7NnDfcdAwRgUi+DoM3ZJKuM/IUmTrE4Orz5Iy2Xu/NMhD2XSKtkyj4zl93ewEnu1lcCJo6m67XMuegwGMoOifooUMM0RoOEqOLl5CjH9UL2AZd+3UWODyOKIYepLYYHsUmu5ouJLGiifSKOeDNoJjj4XLh7dIN9bxiqKqy69cK3FCxolkHRyxXtqqzTWMIn/5WgTe1QLyNau7Fqckh49ZLOMxt+/yUFw7BZy1SbsOFU5Q9D8/RhcQPGX69Wam40dutolucbY38EVAjqr2m7xPi71XAicPNaDaeQQmxkqtilX4+U9m5/wAl0CAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYwHQYDVR0OBBYEFMSnsaR7LHH62+FLkHX/xBVghYkQMA0GCSqGSIb3DQEBBQUAA4IBAQCjGiybFwBcqR7uKGY3Or+Dxz9LwwmglSBd49lZRNI+DT69ikugdB/OEIKcdBodfpga3csTS7MgROSR6cz8faXbauX+5v3gTt23ADq1cEmv8uXrAvHRAosZy5Q6XkjEGB5YGV8eAlrwDPGxrancWYaLbumR9YbK+rlmM6pZW87ipxZzR8srzJmwN0jP41ZL9c8PDHIyh8bwRLtTcm1D9SZImlJnt1ir/md2cXjbDaJWFBM5JDGFoqgCWjBH4d1QB7wCCZAA62RjYJsWvIjJEubSfZGL+T0yjWW06XyxV3bqxbYoOb8VZRzI9neWagqNdwvYkQsEjgfbKbYK7p2CNTUQ -----END CERTIFICATE-----
-```
+version: '2.0'
 
+services:
+
+  basicstation:
+    
+    image: xoseperez/basicstation:latest
+    container_name: basicstation
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+
+    environment:
+      MODEL: "RAK5146"
+      INTERFACE: "USB"
+      DEVICE: "/dev/ttyACM0"
+
+      # CUPS configuration
+      CUPS_URI: "https://A3IPHN70F6M9FY.cups.lorawan.eu-west-1.amazonaws.com:443"
+      CUPS_TRUST: "-----BEGIN CERTIFICATE-----
+MIIEdTCCA12gAwIBAgIJAKcOSkw0grd/MA0GCSqGSIb3DQEBCwUAMGgxCzAJBgNV
+BAYTAlVTMSUwIwYDVQQKExxTdGFyZmllbGQgVGVjaG5vbG9naWVzLCBJbmMuMTIw
+...
+59vPr5KW7ySaNRB6nJHGDn2Z9j8Z3/VyVOEVqQdZe4O/Ui5GjLIAZHYcSNPYeehu
+VsyuLAOQ1xk4meTKCRlb/weWsKh/NEnfVqn3sF/tM+2MR7cwA130A4w=
+-----END CERTIFICATE-----"
+      CUPS_CRT: "-----BEGIN CERTIFICATE-----
+MIIDWTCCAkGgAwIBAgIUNU8AvHHnMG3/9JUnbTtQdhLJn+wwDQYJKoZIhvcNAQEL
+BQAwTTFLMEkGA1UECwxCQW1hem9uIFdlYiBTZXJ2aWNlcyBPPUFtYXpvbi5jb20g
+...
+76txsviRIbRIpZhp0g4YLBDtzgYUTxIdjG3o2FH+gbgIHxNHt8JzlJTrbbgeRzK8
+NMwBTroOxp7cM0hQ+EcwGAdHJKxPxC7kyr2gFBO4iYKfOj48psrL5jju1sme
+      CUPS_KEY: "-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEAsx9aEyHb+14Gf8/2p1E8Bty3w0eL4qlezfXZl9mPbHeO7Ku4
+MzK4o3lwY9tP77It308cF5PIXq8Xe2/n0sL17y/CZOK7Ufu9r8Tw1zqSChk4ZgSC
+...
+dU+IgoOGfg0N8NXFN+2XYZwe6/0z1Qru0IGES6kCgYEA0suAXmTdP3OB2fP9czbe
+EyZeqpnOcKTCZOUsFma6DRvfWN2VzKdcc2cptQBA8Ux8ZeP6U5DAlg==
+-----END RSA PRIVATE KEY-----"
+```
 
 ### Advanced configuration
 
