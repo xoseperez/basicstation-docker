@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* Fix upstream bug in parsing region_id (#11, https://github.com/lorabasics/basicstation/issues/162)
+
 ## 2.6.1 (2023-02-17)
 
 * Option to define the radio clock source for the concentrator using CLKSRC

@@ -853,3 +853,16 @@ index d7c4363..55d74c1 100644
  
  export TDfull := $(shell cd ${TD} && pwd)
  TOOLCHAIN=${HOME}/toolchain-${platform}
+diff --git a/src/s2e.c b/src/s2e.c
+index 6a9c009..879d3c9 100644
+--- a/src/s2e.c
++++ b/src/s2e.c
+@@ -1791,7 +1791,7 @@ int s2e_onMsg (s2ctx_t* s2ctx, char* json, ujoff_t jsonlen) {
+         LOG(MOD_S2E|ERROR, "Parsing of JSON message failed - ignored");
+         return 1;   // return fail? would trigger a reconnect
+     }
+-    if( s2ctx->region == 0 && (msgtype == J_dnmsg || msgtype == J_dnsched || msgtype == J_dnframe) ) {
++    if( s2ctx->txpow == 0 && (msgtype == J_dnmsg || msgtype == J_dnsched || msgtype == J_dnframe) ) {
+         // Might happen if messages are still queued
+         LOG(MOD_S2E|WARNING, "Received '%.*s' before 'router_config' - dropped", D.str.len, D.str.beg);
+         return 1;
