@@ -399,7 +399,7 @@ if [[ "${CONCENTRATOR}" == "SX1301" ]] && [[ "$INTERFACE" == "USB" ]]; then
 fi
 
 # Set default SPI speed and clock source for SX1301 concentrators to 2MHz and radio_1
-if [[ "${CONCENTRATOR}" == "SX1301" ]]; then
+if [[ "${CONCENTRATOR}" == "SX1301" ]] || [[ "${CONCENTRATOR}" == "SX1308" ]]; then
     SPI_SPEED=${SPI_SPEED:-2000000}
     CLKSRC=${CLKSRC:-1}
 fi
