@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.6.2 (2023-11-13)
 
 * Use 2MHz as default LORAGW_SPI_SPEED for SX1308 concentrators (#10)
 * Fix upstream bug in parsing region_id (#11, https://github.com/lorabasics/basicstation/issues/162)
