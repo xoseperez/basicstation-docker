@@ -224,7 +224,8 @@ Variable Name | Value | Description | Default
 **`DEVICE`** | `STRING` | Where the concentrator is connected to | `/dev/spidev0.0` for SPI, `/dev/ttyACM0` for USB
 **`SPI_SPEED`** | `INT` | Speed of the SPI interface | 2000000 (2MHz) for SX1301 concentrators, 8000000 (8Mhz) for the rest
 **`CLKSRC`** | `INT` | Radio index that provides clock to concentrator | 1 for SX1301 concentradors, 0 for the rest 
-**`USE_LIBGPIOD`** | `INT` | Use `libgpiod` (1) instead of default `sysfs` (0) to manage the GPIOs. The former is the recommended but not yet supported on all platforms. | 0
+**`USE_LIBGPIOD`** | `INT` | Use `libgpiod` (1) instead of default `sysfs` (0) to manage the GPIOs. The former is the recommended but not yet supported on all platforms. | 0 (1 for Raspberry Pi 5)
+**`GPIO_CHIP`** | `STRING` | GPIO ID to use when using libgpiod | `gpiochip0` (`gpiochip4` for Raspberry Pi 5)
 **`GW_RESET_GPIO`** | `INT` | GPIO number that resets (Broadcom pin number, if not defined it's calculated based on the `GW_RESET_PIN`) | 17
 **`GW_POWER_EN_GPIO`** | `INT` | GPIO number that enables power (by pulling HIGH) to the concentrator (Broadcom pin number). 0 means no required. | 0
 **`GW_POWER_EN_LOGIC`** | `INT` | If `GW_POWER_EN_GPIO` is not 0, the corresponding GPIO will be set to this value | 1
@@ -595,6 +596,28 @@ services:
 ```
 
 For a USB concentrator you would mount the USB port instead of the SPI port and you won't need to share the `/dev/gpiochip0` device.
+
+### Raspberry Pi 5
+
+The new Raspberry Pi 5 requires using the `gpiod` library to access the GPIO to reset SPI concentrators. The service automatically detects the Raspberry Pi 5 and sets these default like in the example below, but you can still override them:
+
+```
+version: '2.0'
+
+services:
+
+  basicstation:
+    image: xoseperez/basicstation:latest
+    container_name: basicstation
+    restart: unless-stopped
+    devices:
+      - /dev/spidev0.0
+      - /dev/gpiochip4
+    environment:
+      MODEL: "RAK5146"
+      USE_LIBGPIOD: 1
+      GPIO_CHIP: "gpiochip4"
+```
 
 ## Troubleshoothing
 

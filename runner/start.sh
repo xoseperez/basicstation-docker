@@ -424,6 +424,15 @@ GW_RESET_GPIO=${GW_RESET_GPIO:-${GPIO_MAP[$GW_RESET_PIN]}}
 GW_POWER_EN_GPIO=${GW_POWER_EN_GPIO:-0}
 GW_POWER_EN_LOGIC=${GW_POWER_EN_LOGIC:-1}
 
+# Raspberry Pi requires using libgpiod with gpiochip4
+if [[ `cat /proc/cpuinfo | grep "Raspberry Pi 5"` != "" ]]; then
+    USE_LIBGPIOD=${USE_LIBGPIOD:-1}
+    GPIO_CHIP=${GPIO_CHIP:-gpiochip4}
+else
+    USE_LIBGPIOD=${USE_LIBGPIOD:-0}
+    GPIO_CHIP=${GPIO_CHIP:-gpiochip0}
+fi
+
 # -----------------------------------------------------------------------------
 # Debug
 # -----------------------------------------------------------------------------
@@ -453,6 +462,9 @@ echo -e "${COLOR_INFO}Interface:     ${INTERFACE}${COLOR_END}"
 if [[ "$INTERFACE" == "SPI" ]]; then
 echo -e "${COLOR_INFO}SPI Speed:     ${LORAGW_SPI_SPEED}${COLOR_END}"
 fi
+if [[ $USE_LIBGPIOD -eq 1 ]]; then
+echo -e "${COLOR_INFO}GPIO chip:     ${GPIO_CHIP}${COLOR_END}"
+fi
 echo -e "${COLOR_INFO}Reset GPIO:    ${GW_RESET_GPIO}${COLOR_END}"
 echo -e "${COLOR_INFO}Enable GPIO:   ${GW_POWER_EN_GPIO}${COLOR_END}"
 if [[ $GW_POWER_EN_GPIO -ne 0 ]]; then
@@ -481,12 +493,12 @@ fi
 # Create reset file
 # -----------------------------------------------------------------------------
 
-USE_LIBGPIOD=${USE_LIBGPIOD:-0}
 if [[ $USE_LIBGPIOD -eq 0 ]]; then
     cp /app/reset.sh.legacy reset.sh
 else
     cp /app/reset.sh.gpiod reset.sh
 fi
+sed -i "s#{{GPIO_CHIP}}#${GPIO_CHIP}#" reset.sh
 sed -i "s#{{RESET_GPIO}}#${GW_RESET_GPIO:-17}#" reset.sh
 sed -i "s#{{POWER_EN_GPIO}}#${GW_POWER_EN_GPIO:-0}#" reset.sh
 sed -i "s#{{POWER_EN_LOGIC}}#${GW_POWER_EN_LOGIC:-1}#" reset.sh

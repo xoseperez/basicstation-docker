@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.7.0 (2024-02-05)
+
+* Support for Raspberry Pi 5
+
 ## 2.6.2 (2023-11-13)
 
 * Use 2MHz as default LORAGW_SPI_SPEED for SX1308 concentrators (#10)
