@@ -22,6 +22,7 @@ data:
     - TLS_SNI: true
   defaultDeviceType: raspberrypi3
   supportedDeviceTypes:
+    - fincm3
     - raspberry-pi
     - raspberrypi0-2w-64
     - raspberry-pi2
@@ -30,6 +31,6 @@ data:
     - raspberrypi4-64
     - raspberrypi400-64
     - raspberrypicm4-ioboard
-    - fincm3
+    - raspberrypi5
     - generic
 version: 2.7.0
