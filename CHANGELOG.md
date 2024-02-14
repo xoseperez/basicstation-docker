@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.7.1 (Unreleased)
+
+* Auto-discover concentrator for corecell
+* Option to get the EUI from a corecell chip ID
+* Refactor gateway_eui and find_concentrator utilities
+* Deprecation notices for `GATEWAY_EUI_NIC`, `GW_RESET_GPIO`, `GW_POWER_EN_GPIO` and `GW_POWER_EN_LOGIC`
+
 ## 2.7.0 (2024-02-05)
 
 * Support for Raspberry Pi 5

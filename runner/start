@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+VERSION=2.7.1
+
 # -----------------------------------------------------------------------------
 # Colors
 # -----------------------------------------------------------------------------
@@ -20,13 +22,44 @@ fi
 
 function idle() {
     echo -e "${COLOR_INFO}GATEWAY_EUI: ${GATEWAY_EUI}${COLOR_END}"
-   [[ "$BALENA_DEVICE_UUID" != "" ]] && balena-idle || exit 1
+   [[ "$BALENA_DEVICE_UUID" != "" ]] && balena-idle || sleep 2; exit 1
 }
 
 function restart_if_balena() {
    [[ "$BALENA_DEVICE_UUID" != "" ]] && \
    echo -e "${COLOR_INFO}Service will restart now${COLOR_END}" && \
-   balena-idle
+   balena-idle 
+}
+
+# -----------------------------------------------------------------------------
+# Chip ID
+# -----------------------------------------------------------------------------
+
+function chip_id {
+
+    local DESIGN=$1
+    local DEVICE=$2
+    
+    CHIP_ID_COMMAND="/app/design-${DESIGN}/bin/chip_id"
+    TIMEOUT=${TIMEOUT:-3}
+
+    if [[ -f $CHIP_ID_COMMAND ]]; then
+        
+        if [[ "$DESIGN" == "corecell" ]]; then
+            if [[ "$DEVICE" == *"tty"* ]]; then COM_TYPE="-u"; fi
+            echo $( timeout ${TIMEOUT}s $CHIP_ID_COMMAND $COM_TYPE -d $DEVICE | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
+            return
+        fi
+        
+        #if [[ "$DESIGN" == "picocell" ]]; then
+        #    echo $( timeout ${TIMEOUT}s $CHIP_ID_COMMAND | sed 's/^.*0x//' | tr [a-z] [A-Z] )
+        #    return
+        #fi
+        
+    fi
+    
+    echo ""
+    
 }
 
 # -----------------------------------------------------------------------------
@@ -177,46 +210,14 @@ mkdir -p config
 pushd config >> /dev/null
 
 # -----------------------------------------------------------------------------
-# Gateway EUI
+# Server configuration
 # -----------------------------------------------------------------------------
 
-if [[ -f ./station.conf ]]; then
-    GATEWAY_EUI=$(cat /app/config/station.conf | jq '.station_conf.routerid' | sed 's/"//g')
-else
-    if [[ -z $GATEWAY_EUI ]]; then
-        GATEWAY_EUI_NIC=${GATEWAY_EUI_NIC:-"eth0"}
-        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
-            GATEWAY_EUI_NIC="eth0"
-        fi
-        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
-            GATEWAY_EUI_NIC="wlan0"
-        fi
-        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
-            GATEWAY_EUI_NIC="usb0"
-        fi
-        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
-            # Last chance: get the most used NIC based on received bytes
-            GATEWAY_EUI_NIC=$(cat /proc/net/dev | tail -n+3 | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g')
-        fi
-        if [[ `grep "$GATEWAY_EUI_NIC" /proc/net/dev` == "" ]]; then
-            echo -e "${COLOR_ERROR}ERROR: No network interface found. Cannot set gateway EUI${COLOR_END}"
-        fi
-        GATEWAY_EUI=$(ip link show $GATEWAY_EUI_NIC | awk '/ether/ {print $2}' | awk -F\: '{print $1$2$3"FFFE"$4$5$6}')
-    fi
-fi
-GATEWAY_EUI=${GATEWAY_EUI^^}
-
-# Push to Balena
-[[ "$BALENA_DEVICE_UUID" != "" ]] && balena_set_label "EUI" "$GATEWAY_EUI"
-
-# -----------------------------------------------------------------------------
-# URLs
 # Defaults to TTN server v3, `eu1` region, 
-# use a custom SERVER, CUPS_URI or TC_URI to change this
+# use a custom SERVER, CUPS_URI or TC_URI to change this.
 # If TTS_TENANT is defined different than "ttn", it will be used to build the
 # tenant URL under thethings.industries, otherwise only the region will be used
 # to build the URL under cloud.thethings.network.
-# -----------------------------------------------------------------------------
 
 TTN_REGION=${TTN_REGION:-"eu1"}
 TTS_REGION=${TTS_REGION:-$TTN_REGION}
@@ -336,24 +337,44 @@ if [[ "$PROTOCOL" == "LNS" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# Model / concentrator configuration
+# Identify concentrator
 # -----------------------------------------------------------------------------
 # MODEL can be:
 # * A developing gateway (mostly by RAKwireless), example: RAK7248
 # * A concentrator module (by RAKWireless, IMST, SeeedStudio,...), example: RAK5416
 # * A concentrator chip (Semtech's naming), example: SX1303
 
+# MODEL is the only required variable
 if [[ -z ${MODEL} ]]; then
     echo -e "${COLOR_ERROR}ERROR: MODEL variable not set${COLOR_END}"
 	idle
 fi
 MODEL=${MODEL^^}
+
+# Get the concentrator based on MODEL
 declare -A MODEL_MAP=(
-    [RAK7243]=SX1301 [RAK7243C]=SX1301 [RAK7244]=SX1301 [RAK7244C]=SX1301 [RAK7246]=SX1308 [RAK7246G]=SX1308 [RAK7248]=SX1302 [RAK7248C]=SX1302 [RAK7271]=SX1302 [RAK7371]=SX1303 
-    [RAK831]=SX1301 [RAK833]=SX1301 [RAK2245]=SX1301 [RAK2246]=SX1308 [RAK2247]=SX1301 [RAK2287]=SX1302 [RAK5146]=SX1303
-    [IC880A]=SX1301 [WM1302]=SX1302 [R11E-LORA8]=SX1308 [R11E-LORA9]=SX1308
-    [SX1301]=SX1301 [SX1302]=SX1302 [SX1303]=SX1303 [SX1308]=SX1308
+
+    # SX1301
+    [SX1301]=SX1301
+    [RAK7243]=SX1301 [RAK7243C]=SX1301 [RAK7244]=SX1301 [RAK7244C]=SX1301 [RAK831]=SX1301 [RAK833]=SX1301 [RAK2245]=SX1301 [RAK2247]=SX1301 
+    [IC880A]=SX1301
+    
+    # SX1302
+    [SX1302]=SX1302
+    [RAK7248]=SX1302 [RAK7248C]=SX1302 [RAK7271]=SX1302 [RAK2287]=SX1302 [RAK5146]=SX1303
+    [WM1302]=SX1302
+    
+    # SX1303
+    [SX1303]=SX1303
+    [RAK7371]=SX1303 
+     
+    # SX1308
+    [SX1308]=SX1308
+    [RAK7246]=SX1308 [RAK7246G]=SX1308 [RAK2246]=SX1308
+    [R11E-LR8]=SX1308 [R11E-LR9]=SX1308 [R11E-LORA8]=SX1308 [R11E-LORA9]=SX1308
+    
 )
+
 CONCENTRATOR=${MODEL_MAP[$MODEL]}
 if [[ "${CONCENTRATOR}" == "" ]]; then
     echo -e "${COLOR_ERROR}ERROR: Unknown MODEL value ($MODEL). Valid values are: ${!MODEL_MAP[@]}${COLOR_END}"
@@ -361,27 +382,25 @@ if [[ "${CONCENTRATOR}" == "" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# Device (port) configuration
+# Identify interface
 # -----------------------------------------------------------------------------
 
-# Default interface is SPI
-INTERFACE=${INTERFACE:-"SPI"}
+# Backwards compatibility
+DEVICE=${DEVICE:-$LORAGW_SPI}
 
-# Check port and interface
-if [[ "${MODE}" == "STATIC" ]]; then
-    DEVICE=$(cat /app/config/station.conf | jq '.[] | .device' | head -1 | sed 's/"//g')
+# Models with USB interface
+MODELS_WITH_USB="RAK7271 RAK7371 R11E-LORA8 R11E-LORA9 R11E-LR8 R11E-LR9"
+if [[ $MODELS_WITH_USB =~ (^|[[:space:]])$MODEL($|[[:space:]]) ]]; then
+    INTERFACE="${INTERFACE:-"USB"}"
+elif [[ "${DEVICE}" == "AUTO" ]]; then
+    INTERFACE=${INTERFACE:-"ANY"}
 else
-    DEVICE=${DEVICE:-$LORAGW_SPI} # backwards compatibility
-    if [[ "${INTERFACE}" == "SPI" ]]; then
-        DEVICE=${DEVICE:-"/dev/spidev0.0"}
-    else
-        DEVICE=${DEVICE:-"/dev/ttyACM0"}
-    fi
-    if [[ ! -e $DEVICE ]]; then
-        echo -e "${COLOR_ERROR}ERROR: $DEVICE does not exist${COLOR_END}"
-        idle
-    fi
+    INTERFACE=${INTERFACE:-"SPI"}
 fi
+
+# -----------------------------------------------------------------------------
+# Identify concentrator design
+# -----------------------------------------------------------------------------
 
 # Concentrator design
 if [[ "${CONCENTRATOR}" == "SX1308" ]] && [[ "${INTERFACE}" == "USB" ]]; then
@@ -392,37 +411,37 @@ fi
 DESIGN=${DESIGN:-"corecell"}
 DESIGN=${DESIGN,,}
 
-# USB interface is not available for SX1301 concentrators
-if [[ "${CONCENTRATOR}" == "SX1301" ]] && [[ "$INTERFACE" == "USB" ]]; then
-    echo -e "${COLOR_ERROR}ERROR: USB interface is not available for SX1301 concentrators${COLOR_END}"
-	idle
-fi
-
-# Set default SPI speed and clock source for SX1301 and SX1308 concentrators to 2MHz and radio_1
-if [[ "${CONCENTRATOR}" == "SX1301" ]] || [[ "${CONCENTRATOR}" == "SX1308" ]]; then
-    SPI_SPEED=${SPI_SPEED:-2000000}
-    CLKSRC=${CLKSRC:-1}
-fi
-export LORAGW_SPI_SPEED=${SPI_SPEED:-8000000}
-
 # -----------------------------------------------------------------------------
-# GPIO configuration (reset and power enable), only for SPI concentrators
+# GPIO configuration
 # -----------------------------------------------------------------------------
 
-# Default RESET pin (by their position on the 40-pin header)
-if [ "${INTERFACE}" == "USB" ]; then
-    GW_RESET_PIN=${GW_RESET_PIN:-0}
+# Backwards compatibility
+RESET_GPIO=${RESET_GPIO:-$GW_RESET_GPIO}
+POWER_EN_GPIO=${POWER_EN_GPIO:-$GW_POWER_EN_GPIO}
+
+# If interface is USB disable RESET_GPIO, otherwise default to GPIO17 or pin 11
+if [[ "${INTERFACE}" == "USB" ]]; then
+    RESET_PIN=${RESET_PIN:-0}
 else
-    GW_RESET_PIN=${GW_RESET_PIN:-11}
+    RESET_PIN=${RESET_PIN:-11}
 fi
 
 # Map hardware pins to GPIO on Raspberry Pi
 declare -a GPIO_MAP=( 0 0 0 2 0 3 0 4 14 0 15 17 18 27 0 22 23 0 24 10 0 9 25 11 8 0 7 0 1 5 0 6 12 13 0 19 16 26 20 0 21 )
-GW_RESET_GPIO=${GW_RESET_GPIO:-${GPIO_MAP[$GW_RESET_PIN]}}
+RESET_GPIO=${RESET_GPIO:-${GPIO_MAP[$RESET_PIN]}}
 
-# Some board might have an enable GPIO
-GW_POWER_EN_GPIO=${GW_POWER_EN_GPIO:-0}
-GW_POWER_EN_LOGIC=${GW_POWER_EN_LOGIC:-1}
+# The RAK833-SPI/USB has a SPDT to select USB/SPI interfaces
+# If used with RAK2247 or RAK2287 hats this is wired to GPIO20
+if [[ "$MODEL" == "RAK833" ]]; then
+    if [[ "$INTERFACE" != "USB" ]]; then
+        POWER_EN_GPIO=${POWER_EN_GPIO:-20}
+        POWER_EN_LOGIC=${POWER_EN_LOGIC:-0}
+    fi
+fi
+
+# Otherwise the default is no power enable pin
+POWER_EN_GPIO=${POWER_EN_GPIO:-0}
+POWER_EN_LOGIC=${POWER_EN_LOGIC:-1}
 
 # Raspberry Pi requires using libgpiod with gpiochip4
 if [[ `cat /proc/cpuinfo | grep "Raspberry Pi 5"` != "" ]]; then
@@ -434,10 +453,194 @@ else
 fi
 
 # -----------------------------------------------------------------------------
+# Create reset file
+# -----------------------------------------------------------------------------
+
+if [[ "${INTERFACE}" == "USB" ]]; then
+    echo "" > reset.sh
+else
+    if [[ $USE_LIBGPIOD -eq 0 ]]; then
+        cp /app/reset.sh.legacy reset.sh
+    else
+        cp /app/reset.sh.gpiod reset.sh
+    fi
+    sed -i "s#{{GPIO_CHIP}}#${GPIO_CHIP}#" reset.sh
+    sed -i "s#{{RESET_GPIO}}#${RESET_GPIO:-17}#" reset.sh
+    sed -i "s#{{POWER_EN_GPIO}}#${POWER_EN_GPIO:-0}#" reset.sh
+    sed -i "s#{{POWER_EN_LOGIC}}#${POWER_EN_LOGIC:-1}#" reset.sh
+fi
+chmod +x reset.sh
+ln -s reset.sh reset_lgw.sh 2>/dev/null
+
+# -----------------------------------------------------------------------------
+# Radio device discovery
+# -----------------------------------------------------------------------------
+
+if [[ "${DEVICE}" == "AUTO" ]]; then
+
+    unset DEVICE
+
+    # Grab potential devices based on interface
+    if [[ "${INTERFACE}" == "ANY" ]]; then
+        DEVICES=$( ls /dev/spidev* /dev/ttyACM* /dev/ttyUSB* 2>/dev/null )
+    elif [[ "${INTERFACE}" == "SPI" ]]; then
+        DEVICES=$( ls /dev/spidev* 2>/dev/null )
+    else
+        DEVICES=$( ls /dev/ttyACM* /dev/ttyUSB* 2>/dev/null )
+    fi
+
+    # Look for devices
+    FOUND=0
+    RADIO_NUM=${RADIO_NUM:-1}
+    for DEV in $DEVICES; do
+        RESPONSE=$( chip_id $DESIGN $DEV )
+        if [[ "${RESPONSE}" != "" ]]; then
+            FOUND=$(( $FOUND + 1 ))
+            if [[ ${FOUND} -eq $RADIO_NUM ]]; then
+                DEVICE=$DEV
+                CHIP_ID=$RESPONSE
+                break
+            fi
+        fi
+    done
+
+    # Not found warning
+    if [[ ${FOUND} -eq 0 ]]; then
+        echo -e "${COLOR_WARNING}ERROR: DEVICE set to auto discover but no concentrator found! (INTERFACE set to $INTERFACE) ${COLOR_END}"
+    fi
+
+fi
+
+# Assign proper INTERFACE
+if [[ "${INTERFACE}" == "ANY" ]]; then
+    if [[ "${DEVICE}" == *"spi"* ]]; then 
+        INTERFACE="SPI"
+    else 
+        INTERFACE="USB"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+# Device (port) configuration
+# -----------------------------------------------------------------------------
+
+# Check port and interface
+if [[ "${MODE}" == "STATIC" ]]; then
+
+    DEVICE=$(cat /app/config/station.conf | jq '.[] | .device' | head -1 | sed 's/"//g')
+
+else
+    
+    if [[ "${INTERFACE}" == "SPI" ]]; then
+        
+        DEVICE=${DEVICE:-"/dev/spidev0.0"}
+
+        # Set default SPI speed and clock source for SX1301 and SX1308 concentrators to 2MHz and radio_1
+        if [[ "${CONCENTRATOR}" == "SX1301" ]] || [[ "${CONCENTRATOR}" == "SX1308" ]]; then
+            SPI_SPEED=${SPI_SPEED:-2000000}
+            CLKSRC=${CLKSRC:-1}
+        fi
+
+    else
+
+        MODELS_WITHOUT_ACM="RAK833 RAK2247"
+        if [[ $MODELS_WITHOUT_ACM =~ (^|[[:space:]])$MODEL($|[[:space:]]) ]]; then
+            DEVICE=${DEVICE:-"/dev/ttyUSB0"}
+        fi
+        DEVICE=${DEVICE:-"/dev/ttyACM0"}
+
+    fi
+
+fi
+
+# BasicStation not compatible with SX1301 USB concentrators
+if [[ "${CONCENTRATOR}" == "SX1301" ]] && [[ "$INTERFACE" == "USB" ]]; then
+    echo -e "${COLOR_ERROR}ERROR: USB interface is not available for SX1301 concentrators${COLOR_END}"
+    idle
+fi
+
+# Assert device
+if [[ ! -e $DEVICE ]]; then
+    echo -e "${COLOR_ERROR}ERROR: $DEVICE does not exist${COLOR_END}"
+    idle
+fi
+
+export LORAGW_SPI_SPEED=${SPI_SPEED:-8000000}
+
+# -----------------------------------------------------------------------------
+# Gateway EUI
+# -----------------------------------------------------------------------------
+
+# Source to get the EUI from
+GATEWAY_EUI_NIC=${GATEWAY_EUI_NIC:-"manual"}
+GATEWAY_EUI_SOURCE=${GATEWAY_EUI_SOURCE:-$GATEWAY_EUI_NIC}
+
+# If the is a station.conf, we always get the EUI from it
+if [[ -f ./station.conf ]]; then
+    GATEWAY_EUI=$(cat /app/config/station.conf | jq '.station_conf.routerid' | sed 's/"//g')
+fi
+
+# Otherwise, check if we should get the GATEWAY_EUI from the chip
+if [[ "$GATEWAY_EUI" == "" ]]; then
+    if [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
+        GATEWAY_EUI=${CHIP_ID:-$( chip_id $DESIGN $DEVICE )}
+    fi
+fi
+
+# Finally, try building it from a NIC MAC
+if [[ "$GATEWAY_EUI" == "" ]]; then
+
+    if [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
+        GATEWAY_EUI_SOURCE="eth0"
+    fi
+
+    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
+        GATEWAY_EUI_SOURCE="eth0"
+    fi
+    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
+        GATEWAY_EUI_SOURCE="wlan0"
+    fi
+    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
+        GATEWAY_EUI_SOURCE="usb0"
+    fi
+    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
+        GATEWAY_EUI_SOURCE="eth1"
+    fi
+    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
+        # Last chance: get the most used NIC based on received bytes
+        GATEWAY_EUI_SOURCE=$(cat /proc/net/dev | tail -n+3 | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g')
+    fi
+    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
+        echo -e "${COLOR_ERROR}ERROR: No network interface found. Cannot set gateway EUI.${COLOR_END}"
+    fi
+    GATEWAY_EUI=$(ip link show $GATEWAY_EUI_SOURCE | awk '/ether/ {print $2}' | awk -F\: '{print $1$2$3"FFFE"$4$5$6}')
+
+fi
+
+# Normalize EUI
+GATEWAY_EUI=${GATEWAY_EUI^^}
+
+# Check we have an EUI
+if [[ -z ${GATEWAY_EUI} ]] ; then
+    echo -e "${COLOR_ERROR}ERROR: GATEWAY_EUI not set.${COLOR_END}"
+	idle
+fi
+
+# -----------------------------------------------------------------------------
 # Debug
 # -----------------------------------------------------------------------------
 
-echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
+echo -e "${COLOR_WARNING}------------------------------------------------------------------${COLOR_END}"
+echo -e "${COLOR_WARNING}BasicStation (TM) Packet Forwarder Container v${VERSION}${COLOR_END}"
+echo -e "${COLOR_WARNING}(c) Xose Pérez 2022-2024${COLOR_END}"
+echo -e ""
+echo -e "${COLOR_WARNING}Based on:${COLOR_END}"
+echo -e "${COLOR_WARNING} * basicstation v2.0.6${COLOR_END}"
+echo -e "${COLOR_WARNING} * sx1302_hal v2.1.0${COLOR_END}"
+echo -e "${COLOR_WARNING}------------------------------------------------------------------${COLOR_END}"
+
+echo -e ""
+
 echo -e "${COLOR_INFO}Protocol${COLOR_END}"
 echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
 echo -e "${COLOR_INFO}Mode:          ${MODE}${COLOR_END}"
@@ -447,30 +650,41 @@ echo -e "${COLOR_INFO}CUPS Server:   ${CUPS_URI}${COLOR_END}"
 else
 echo -e "${COLOR_INFO}LNS Server:    ${TC_URI}${COLOR_END}"
 fi
-if [[ ! -z $GATEWAY_EUI_NIC ]]; then
-echo -e "${COLOR_INFO}Main NIC:      ${GATEWAY_EUI_NIC}${COLOR_END}"
-fi
 echo -e "${COLOR_INFO}Gateway EUI:   ${GATEWAY_EUI}${COLOR_END}"
-echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
+echo -e "${COLOR_INFO}EUI Source:    ${GATEWAY_EUI_SOURCE}${COLOR_END}"
+
+echo -e ""
+
 echo -e "${COLOR_INFO}Radio${COLOR_END}"
 echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
 echo -e "${COLOR_INFO}Model:         ${MODEL}${COLOR_END}"
 echo -e "${COLOR_INFO}Concentrator:  ${CONCENTRATOR}${COLOR_END}"
 echo -e "${COLOR_INFO}Design:        ${DESIGN^^}${COLOR_END}"
-echo -e "${COLOR_INFO}Radio Device:  ${DEVICE}${COLOR_END}"
 echo -e "${COLOR_INFO}Interface:     ${INTERFACE}${COLOR_END}"
+echo -e "${COLOR_INFO}Radio Device:  ${DEVICE}${COLOR_END}"
+if [[ "$CHIP_ID" != "" ]]; then
+echo -e "${COLOR_INFO}Chip ID:       ${CHIP_ID}${COLOR_END}"
+fi
+
 if [[ "$INTERFACE" == "SPI" ]]; then
 echo -e "${COLOR_INFO}SPI Speed:     ${LORAGW_SPI_SPEED}${COLOR_END}"
-fi
 if [[ $USE_LIBGPIOD -eq 1 ]]; then
 echo -e "${COLOR_INFO}GPIO chip:     ${GPIO_CHIP}${COLOR_END}"
 fi
-echo -e "${COLOR_INFO}Reset GPIO:    ${GW_RESET_GPIO}${COLOR_END}"
-echo -e "${COLOR_INFO}Enable GPIO:   ${GW_POWER_EN_GPIO}${COLOR_END}"
-if [[ $GW_POWER_EN_GPIO -ne 0 ]]; then
-echo -e "${COLOR_INFO}Enable Logic:  ${GW_POWER_EN_LOGIC}${COLOR_END}"
+echo -e "${COLOR_INFO}Reset GPIO:    ${RESET_GPIO}${COLOR_END}"
+echo -e "${COLOR_INFO}Enable GPIO:   ${POWER_EN_GPIO}${COLOR_END}"
 fi
-echo -e "${COLOR_INFO}------------------------------------------------------------------${COLOR_END}"
+if [[ $POWER_EN_GPIO -ne 0 ]]; then
+echo -e "${COLOR_INFO}Enable Logic:  ${POWER_EN_LOGIC}${COLOR_END}"
+fi
+
+echo -e ""
+
+# -----------------------------------------------------------------------------
+# Push to Balena
+# -----------------------------------------------------------------------------
+
+[[ "$BALENA_DEVICE_UUID" != "" ]] && balena_set_label "EUI" "$GATEWAY_EUI"
 
 # -----------------------------------------------------------------------------
 # Generate dynamic configuration files
@@ -490,23 +704,7 @@ if [[ ! -f ./slave-0.conf ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# Create reset file
+# Start packet forwarder
 # -----------------------------------------------------------------------------
 
-if [[ $USE_LIBGPIOD -eq 0 ]]; then
-    cp /app/reset.sh.legacy reset.sh
-else
-    cp /app/reset.sh.gpiod reset.sh
-fi
-sed -i "s#{{GPIO_CHIP}}#${GPIO_CHIP}#" reset.sh
-sed -i "s#{{RESET_GPIO}}#${GW_RESET_GPIO:-17}#" reset.sh
-sed -i "s#{{POWER_EN_GPIO}}#${GW_POWER_EN_GPIO:-0}#" reset.sh
-sed -i "s#{{POWER_EN_LOGIC}}#${GW_POWER_EN_LOGIC:-1}#" reset.sh
-chmod +x reset.sh
-
-# -----------------------------------------------------------------------------
-# Start basicstation
-# -----------------------------------------------------------------------------
-
-# Execute packet forwarder
-STATION_RADIOINIT=./reset.sh /app/design-${DESIGN}/bin/station -f
+STATION_RADIOINIT=/app/config/reset.sh /app/design-${DESIGN}/bin/station -f

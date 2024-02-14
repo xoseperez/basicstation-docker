@@ -1,0 +1,114 @@
+#!/usr/bin/env bash 
+
+cd $(dirname $0)
+
+# -----------------------------------------------------------------------------
+# Chip ID
+# -----------------------------------------------------------------------------
+
+function chip_id {
+
+    local DESIGN=$1
+    local DEVICE=$2
+    
+    CHIP_ID_COMMAND="/app/design-${DESIGN}/bin/chip_id"
+    TIMEOUT=${TIMEOUT:-3}
+
+    if [[ -f $CHIP_ID_COMMAND ]]; then
+        
+        if [[ "$DESIGN" == "corecell" ]]; then
+            if [[ "$DEVICE" == *"tty"* ]]; then COM_TYPE="-u"; fi
+            echo $( timeout ${TIMEOUT}s $CHIP_ID_COMMAND $COM_TYPE -d $DEVICE | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
+            return
+        fi
+        
+        #if [[ "$DESIGN" == "picocell" ]]; then
+        #    echo $( timeout ${TIMEOUT}s $CHIP_ID_COMMAND | sed 's/^.*0x//' | tr [a-z] [A-Z] )
+        #    return
+        #fi
+        
+    fi
+    
+    echo ""
+    
+}
+
+# -----------------------------------------------------------------------------
+# Create reset file
+# -----------------------------------------------------------------------------
+
+# Raspberry Pi requires using libgpiod with gpiochip4
+if [[ `cat /proc/cpuinfo | grep "Raspberry Pi 5"` != "" ]]; then
+    USE_LIBGPIOD=${USE_LIBGPIOD:-1}
+    GPIO_CHIP=${GPIO_CHIP:-gpiochip4}
+fi
+
+# Create reset file
+if [[ ${USE_LIBGPIOD:-0} -eq 0 ]]; then
+    cp reset.sh.legacy reset_lgw.sh
+else
+    cp reset.sh.gpiod reset_lgw.sh
+fi
+sed -i "s#{{GPIO_CHIP}}#${GPIO_CHIP:-gpiochip0}#" reset_lgw.sh
+sed -i "s#{{RESET_GPIO}}#${RESET_GPIO:-6,17}#" reset_lgw.sh
+sed -i "s#{{POWER_EN_GPIO}}#${POWER_EN_GPIO:-0}#" reset_lgw.sh
+sed -i "s#{{POWER_EN_LOGIC}}#${POWER_EN_LOGIC:-1}#" reset_lgw.sh
+chmod +x reset_lgw.sh
+
+# -----------------------------------------------------------------------------
+# Entry point
+# -----------------------------------------------------------------------------
+
+if [[ -f /app/config/station.conf ]]; then
+
+    GATEWAY_EUI=$(cat /app/config/station.conf | jq '.station_conf.routerid' | sed 's/"//g')
+
+    echo "Gateway EUI: ${GATEWAY_EUI^^} (read from station.conf)"
+
+elif [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
+    
+    # Get all possible devices
+    DEVICES=$( ls /dev/spidev* /dev/ttyACM* /dev/ttyUSB* 2> /dev/null )
+
+    # Look for devices
+    FOUND=0
+    for DEVICE in $DEVICES; do
+        for DESIGN in corecell; do
+            RESPONSE=$( chip_id $DESIGN $DEVICE )
+            if [[ "${RESPONSE}" != "" ]]; then
+                echo "Gateway EUI: ${RESPONSE^^} (based on $DESIGN concentrator at $DEVICE)"
+                FOUND=1
+            fi
+        done
+    done
+
+    if [[ $FOUND -eq 0 ]]; then
+        echo "No concentrator found, GATEWAY_EUI from concentrator is not possible"
+    fi
+
+else
+
+    GATEWAY_EUI_SOURCE=${GATEWAY_EUI_SOURCE:-"eth0"}
+    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
+        GATEWAY_EUI_SOURCE="eth0"
+    fi
+    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
+        GATEWAY_EUI_SOURCE="wlan0"
+    fi
+    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
+        GATEWAY_EUI_SOURCE="usb0"
+    fi
+    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
+        # Last chance: get the most used NIC based on received bytes
+        GATEWAY_EUI_SOURCE=$(cat /proc/net/dev | tail -n+3 | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g')
+    fi
+    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
+        echo -e "\033[91mERROR: No network interface found. Cannot set gateway EUI.\033[0m"
+    fi
+
+    GATEWAY_EUI=$(ip link show $GATEWAY_EUI_SOURCE | awk '/ether/ {print $2}' | awk -F\: '{print $1$2$3"FFFE"$4$5$6}')
+
+    echo "Gateway EUI: ${GATEWAY_EUI^^} (based on interface ${GATEWAY_EUI_SOURCE})"
+
+fi
+

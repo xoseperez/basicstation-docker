@@ -15,9 +15,10 @@ ARG VARIANT
 WORKDIR /app
 
 # Checkout and compile remote code
-COPY builder/* ./
-RUN chmod +x *.sh
-RUN ARCH=${ARCH} REMOTE_TAG=${REMOTE_TAG} VARIANT=${VARIANT} ./build.sh
+COPY builder/build ./
+COPY builder/patches ./patches
+RUN chmod +x build
+RUN ARCH=${ARCH} REMOTE_TAG=${REMOTE_TAG} VARIANT=${VARIANT} ./build
 
 # Runner image
 FROM balenalib/armv5e-debian:buster-run as runner
@@ -54,7 +55,10 @@ COPY --from=builder /app/basicstation/build-rpi-${VARIANT} ./design-v2
 COPY --from=builder /app/basicstation/build-corecell-${VARIANT} ./design-corecell
 COPY --from=builder /app/basicstation/build-linuxpico-${VARIANT} ./design-picocell
 COPY runner/* ./
-RUN chmod +x *.sh
+RUN chmod +x start gateway_eui find_concentrator
+
+# Add application folder to path
+ENV PATH="${PATH}:/app"
 
 # Launch our binary on container startup.
-CMD ["bash", "start.sh"]
+CMD ["start"]
