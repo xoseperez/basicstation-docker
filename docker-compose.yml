@@ -8,12 +8,12 @@ services:
     image: xoseperez/basicstation:latest
     
     # Or comment out image and build it yourself
-    build:
-      context: .
-      args:
-        ARCH: aarch64
-        REMOTE_TAG: v2.0.6
-        VARIANT: std
+    #build:
+    #  context: .
+    #  args:
+    #    ARCH: aarch64
+    #    REMOTE_TAG: v2.0.6
+    #    VARIANT: std
 
     container_name: basicstation
     restart: unless-stopped
@@ -28,13 +28,13 @@ services:
     #volumes:
     #  - ./config:/app/config
 
-    environment:
+    #environment:
 
       # To select your concentrator you have 3 options:
       # Option 1: set the MODEL to the device model number (i.e. RAK7371)
       # Option 2: set the MODEL to the concentrator model number (i.e. RAK5146, WM1302, R11E-LR8...)
       # Option 2: set the MODEL to the concentrator chip (i.e. SX1303)
-      MODEL: "RAK5146"
+      #MODEL: "RAK5146"
       #MODEL: "SX1303"
 
       # The concentrator design is usually taken from the MODEL (see https://doc.sm.tc/station):
@@ -70,7 +70,7 @@ services:
 
       # You can set a fixed custom Gateway EUI (8 bytes in hex format),
       # otherwise a GATEWAY_EUI will be retrieved from different sources (see below)
-      GATEWAY_EUI: "DCA632FFFED6C6DA"
+      #GATEWAY_EUI: "DCA632FFFED6C6DA"
 
       # If no GATEWAY_EUI defined above, the service will define the Gateway EUI based on (in order):
       # 1) An existing station.conf mounted as volume
@@ -111,7 +111,7 @@ services:
       # Finally, you need to provide the key for the gateway, 
       # this can either be the client key for the client certificate above or
       # the API key provided by the LNS (if no client certificate)
-      TC_KEY: "NNSXS.O27GW2MQKFVGCVN7AQAFLAXCOCSAJ62MFI7KZUQ.X4FFJOHUIYUU4BHG7734C45TTZPUYU5423FPTH4MXYQVRCLPQXGQ"
+      #TC_KEY: "NNSXS.O27GW2MQK..."
       #TC_KEY: "-----BEGIN PRIVATE KEY-----MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgDO/pLoHo5zF4Rcok7HYT3cG2...."
 
       # ------------------------------------------------
