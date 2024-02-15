@@ -256,6 +256,7 @@ function clean_certs_keys() {
 # Move into configuration folder
 mkdir -p config
 pushd config >> /dev/null
+CONFIG_FILE=./station.json
 
 # -----------------------------------------------------------------------------
 # Server configuration
@@ -288,7 +289,7 @@ USE_CUPS=${USE_CUPS:-2} # undefined by default
 PROTOCOL=""
 
 # Configuration mode
-if [[ -f ./station.conf ]]; then 
+if [[ -f $CONFIG_FILE ]]; then 
     MODE="STATIC"
     if [[ $USE_CUPS -eq 1 ]]; then
         PROTOCOL="CUPS"
@@ -332,10 +333,10 @@ fi
 # Retrieve values from static config files
 # -----------------------------------------------------------------------------
 
-if [[ -f ./station.conf ]]; then
+if [[ -f $CONFIG_FILE ]]; then
 
     # Get device & interface
-    DEVICE=$(cat ./station.conf | jq '.[] | .device' | head -1 | sed 's/\("\|spi:\|usb:\)//g')
+    DEVICE=$(cat $CONFIG_FILE | jq '.[] | .device' | head -1 | sed 's/\("\|spi:\|usb:\)//g')
     if [[ "${DEVICE}" == *"spi"* ]]; then 
         INTERFACE="SPI"
     else 
@@ -343,7 +344,7 @@ if [[ -f ./station.conf ]]; then
     fi
 
     # Guess generic model
-    if [[ `grep "SX1302_conf" ./station.conf` != "" ]]; then
+    if [[ `grep "SX1302_conf" $CONFIG_FILE` != "" ]]; then
         MODEL=${MODEL:-"SX1302"}
     elif [[ "${INTERFACE}" == "USB" ]]; then
         MODEL=${MODEL:-"SX1308"}
@@ -352,7 +353,7 @@ if [[ -f ./station.conf ]]; then
     fi
 
     # Get Gateway EUI
-    GATEWAY_EUI=$(cat ./station.conf | jq '.station_conf.routerid' | sed 's/"//g')
+    GATEWAY_EUI=$(cat $CONFIG_FILE | jq '.station_conf.routerid' | sed 's/"//g')
     if [[ "${GATEWAY_EUI}" != "" ]]; then
         GATEWAY_EUI_SOURCE="file"
     fi
@@ -454,8 +455,9 @@ if [[ "${CONCENTRATOR}" == "SX1308" ]] && [[ "${INTERFACE}" == "USB" ]]; then
     DESIGN=${DESIGN:-"picocell"}
 elif [[ "${CONCENTRATOR}" == "SX1301" ]] || [[ "${CONCENTRATOR}" == "SX1308" ]]; then
     DESIGN=${DESIGN:-"v2"}
+else
+    DESIGN=${DESIGN:-"corecell"}
 fi
-DESIGN=${DESIGN:-"corecell"}
 DESIGN=${DESIGN,,}
 
 # -----------------------------------------------------------------------------
@@ -703,11 +705,11 @@ echo -e ""
 # -----------------------------------------------------------------------------
 
 # Link the corresponding configuration file
-if [[ ! -f ./station.conf ]]; then
-    cp /app/station.${DESIGN}.conf ./station.conf
-    sed -i "s#\"device\":\s*.*,#\"device\": \"${INTERFACE,,}:${DEVICE}\",#" ./station.conf
-    sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"${GATEWAY_EUI}\",#" ./station.conf
-    sed -i "s#\"clksrc\":\s*.*,#\"clksrc\": ${CLKSRC:-0},#" ./station.conf
+if [[ ! -f $CONFIG_FILE ]]; then
+    cp /app/station.${DESIGN}.conf $CONFIG_FILE
+    sed -i "s#\"device\":\s*.*,#\"device\": \"${INTERFACE,,}:${DEVICE}\",#" $CONFIG_FILE
+    sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"${GATEWAY_EUI}\",#" $CONFIG_FILE
+    sed -i "s#\"clksrc\":\s*.*,#\"clksrc\": ${CLKSRC:-0},#" $CONFIG_FILE
 fi
 
 # If stdn variant (or any *n variant) we need at least one slave concentrator
