@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION=2.7.1
+VERSION=2.8.0
 
 # -----------------------------------------------------------------------------
 # Colors
@@ -32,7 +32,7 @@ function restart_if_balena() {
 }
 
 # -----------------------------------------------------------------------------
-# Chip ID
+# Utils
 # -----------------------------------------------------------------------------
 
 function chip_id {
@@ -40,31 +40,83 @@ function chip_id {
     local DESIGN=$1
     local DEVICE=$2
     
-    CHIP_ID_COMMAND="/app/design-${DESIGN}/bin/chip_id"
     TIMEOUT=${TIMEOUT:-3}
 
-    if [[ -f $CHIP_ID_COMMAND ]]; then
-        
-        if [[ "$DESIGN" == "corecell" ]]; then
-            if [[ "$DEVICE" == *"tty"* ]]; then COM_TYPE="-u"; fi
-            echo $( timeout ${TIMEOUT}s $CHIP_ID_COMMAND $COM_TYPE -d $DEVICE | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
-            return
+    if [[ "$DESIGN" == "auto" ]] || [[ "$DESIGN" == "corecell" ]]; then
+        if [[ "$DEVICE" == *"tty"* ]]; then COM_TYPE="-u"; fi
+        local CHIP_ID=$( timeout ${TIMEOUT}s /app/design-corecell/bin/chip_id $COM_TYPE -d $DEVICE | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
+        if [[ "${CHIP_ID}" != "" ]]; then
+            OUTPUT=("corecell" $DEVICE $CHIP_ID)
+            return 1
+        fi
         fi
         
-        #if [[ "$DESIGN" == "picocell" ]]; then
-        #    echo $( timeout ${TIMEOUT}s $CHIP_ID_COMMAND | sed 's/^.*0x//' | tr [a-z] [A-Z] )
-        #    return
-        #fi
+    #if [[ "$DESIGN" == "auto" ]] || [[ "$DESIGN" == "picocell" ]]; then
+    #    local CHIP_ID=$( timeout ${TIMEOUT}s /app/design-picocell/bin/chip_id | sed 's/^.*0x//' | tr [a-z] [A-Z] )
+    #    if [[ "${CHIP_ID}" != "" ]]; then
+    #        OUTPUT=("picocell" $DEVICE $CHIP_ID)
+    #        return 1
+    #    fi
+    #fi
         
-    fi
-    
-    echo ""
+    return 0
     
 }
 
-# -----------------------------------------------------------------------------
-# TTI autoprovision gateway
-# -----------------------------------------------------------------------------
+function create_reset {
+
+    local RESET_FILE=/app/config/reset.sh
+    
+    if [[ "${INTERFACE}" == "USB" ]]; then
+        echo "" > $RESET_FILE
+    else
+        if [[ $USE_LIBGPIOD -eq 0 ]]; then
+            cp /app/reset.sh.legacy $RESET_FILE
+        else
+            cp /app/reset.sh.gpiod $RESET_FILE
+        fi
+        sed -i "s#{{GPIO_CHIP}}#${GPIO_CHIP}#" $RESET_FILE
+        sed -i "s#{{RESET_GPIO}}#${RESET_GPIO:-17}#" $RESET_FILE
+        sed -i "s#{{POWER_EN_GPIO}}#${POWER_EN_GPIO:-0}#" $RESET_FILE
+        sed -i "s#{{POWER_EN_LOGIC}}#${POWER_EN_LOGIC:-1}#" $RESET_FILE
+    fi
+    chmod +x $RESET_FILE
+    ln -s $RESET_FILE /app/config/reset_lgw.sh 2>/dev/null
+
+}
+
+function discover_concentrator {
+
+    local INTERFACE=$1
+    local DESIGN=$2
+    local RADIO_NUM=$3
+
+    # Grab potential devices based on interface
+    if [[ "${INTERFACE}" == "AUTO" ]]; then
+        DEVICES=$( ls /dev/spidev* /dev/ttyACM* /dev/ttyUSB* 2> /dev/null )
+    elif [[ "${INTERFACE}" == "SPI" ]]; then
+        DEVICES=$( ls /dev/spidev* 2> /dev/null )
+    else
+        DEVICES=$( ls /dev/ttyACM* /dev/ttyUSB* 2> /dev/null )
+    fi
+
+    # Look for devices
+    FOUND=0
+    for DEVICE in $DEVICES; do
+        chip_id ${DESIGN,,} $DEVICE
+        if [[ $? -eq 1 ]]; then
+            FOUND=$(( $FOUND + 1 ))
+            if [[ ${FOUND} -eq $RADIO_NUM ]]; then
+                # We pass the OUTPUT to the caller
+                break
+            fi
+
+        fi
+    done
+
+    return $FOUND
+
+}
 
 function tts_autoprovision() {
 
@@ -176,10 +228,6 @@ function tts_autoprovision() {
 
 }
 
-# -----------------------------------------------------------------------------
-# Utils
-# -----------------------------------------------------------------------------
-
 function clean_certs_keys() {
     
     local CONTENT=$1
@@ -281,74 +329,73 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# LNS/CUPS configuration
+# Retrieve values from static config files
 # -----------------------------------------------------------------------------
 
-# CUPS protocol
-if [[ "$PROTOCOL" == "CUPS" ]]; then
-    if [[ ! -f ./cups.uri ]]; then 
-        echo "$CUPS_URI" > cups.uri
-    fi
-    if [[ ! -f ./cups.trust ]]; then 
-        if [[ "$CUPS_TRUST" == "" ]]; then
-            cp /app/cacert.pem cups.trust
-        else
-            clean_certs_keys "$CUPS_TRUST" > cups.trust
-        fi
-    fi
-    if [[ ! -f ./cups.crt ]]; then 
-        if [[ "$CUPS_CRT" != "" ]]; then
-            clean_certs_keys "$CUPS_CRT" > cups.crt
-        fi
-    fi
-    if [[ ! -f ./cups.key ]]; then 
-        if [[ ! -f ./cups.crt ]]; then 
-	        echo "Authorization: Bearer $CUPS_KEY" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > cups.key
-        else
-            clean_certs_keys "$CUPS_KEY" > cups.key
-        fi
-    fi
-fi
+if [[ -f ./station.conf ]]; then
 
-# LNS protocol
-if [[ "$PROTOCOL" == "LNS" ]]; then
-    if [[ ! -f ./tc.uri ]]; then 
-        echo "$TC_URI" > tc.uri
+    # Get device & interface
+    DEVICE=$(cat ./station.conf | jq '.[] | .device' | head -1 | sed 's/\("\|spi:\|usb:\)//g')
+    if [[ "${DEVICE}" == *"spi"* ]]; then 
+        INTERFACE="SPI"
+    else 
+        INTERFACE="USB"
     fi
-    if [[ ! -f ./tc.trust ]]; then 
-        if [[ "$TC_TRUST" == "" ]]; then
-            cp /app/cacert.pem tc.trust
-        else
-            clean_certs_keys "$TC_TRUST" > tc.trust
-        fi
+
+    # Guess generic model
+    if [[ `grep "SX1302_conf" ./station.conf` != "" ]]; then
+        MODEL=${MODEL:-"SX1302"}
+    elif [[ "${INTERFACE}" == "USB" ]]; then
+        MODEL=${MODEL:-"SX1308"}
+    else
+        MODEL=${MODEL:-"SX1301"}
     fi
-    if [[ ! -f ./tc.crt ]]; then 
-        if [[ "$TC_CRT" != "" ]]; then
-            clean_certs_keys "$TC_CRT" > tc.crt
-        fi
+
+    # Get Gateway EUI
+    GATEWAY_EUI=$(cat ./station.conf | jq '.station_conf.routerid' | sed 's/"//g')
+    if [[ "${GATEWAY_EUI}" != "" ]]; then
+        GATEWAY_EUI_SOURCE="file"
     fi
-    if [[ ! -f ./tc.key ]]; then 
-        if [[ ! -f ./tc.crt ]]; then
-        	echo "Authorization: Bearer $TC_KEY" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > tc.key
-        else
-            clean_certs_keys "$TC_KEY" > tc.key
-        fi
-    fi
+
 fi
 
 # -----------------------------------------------------------------------------
-# Identify concentrator
+# Auto-discover up-front
 # -----------------------------------------------------------------------------
+
+# If no MODEL defined we try to find the concentrator
+if [[ "${MODEL}" == "" ]] || [[ "${MODEL}" == "AUTO" ]]; then
+    
+    unset MODEL
+
+    create_reset 
+    discover_concentrator ${INTERFACE:-AUTO} ${DESIGN:-AUTO} ${RADIO_NUM:-1}
+    if [[ $? -ne 0 ]]; then
+        
+        DESIGN=${OUTPUT[0]}
+        DEVICE=${OUTPUT[1]}
+        CHIP_ID=${OUTPUT[2]}
+
+        if [[ "${DESIGN}" == "corecell" ]]; then MODEL="SX1302"; fi
+        if [[ "${DESIGN}" == "picocell" ]]; then MODEL="SX1308"; fi
+
+    else
+    
+        echo -e "${COLOR_ERROR}ERROR: MODEL variable not set and we couldn't find any concentrator!${COLOR_END}"
+	    idle
+
+    fi
+    
+fi
+
+# -----------------------------------------------------------------------------
+# Check MODEL
+# -----------------------------------------------------------------------------
+
 # MODEL can be:
 # * A developing gateway (mostly by RAKwireless), example: RAK7248
 # * A concentrator module (by RAKWireless, IMST, SeeedStudio,...), example: RAK5416
 # * A concentrator chip (Semtech's naming), example: SX1303
-
-# MODEL is the only required variable
-if [[ -z ${MODEL} ]]; then
-    echo -e "${COLOR_ERROR}ERROR: MODEL variable not set${COLOR_END}"
-	idle
-fi
 MODEL=${MODEL^^}
 
 # Get the concentrator based on MODEL
@@ -393,7 +440,7 @@ MODELS_WITH_USB="RAK7271 RAK7371 R11E-LORA8 R11E-LORA9 R11E-LR8 R11E-LR9"
 if [[ $MODELS_WITH_USB =~ (^|[[:space:]])$MODEL($|[[:space:]]) ]]; then
     INTERFACE="${INTERFACE:-"USB"}"
 elif [[ "${DEVICE}" == "AUTO" ]]; then
-    INTERFACE=${INTERFACE:-"ANY"}
+    INTERFACE=${INTERFACE:-"AUTO"}
 else
     INTERFACE=${INTERFACE:-"SPI"}
 fi
@@ -452,117 +499,78 @@ else
     GPIO_CHIP=${GPIO_CHIP:-gpiochip0}
 fi
 
-# -----------------------------------------------------------------------------
 # Create reset file
-# -----------------------------------------------------------------------------
-
-if [[ "${INTERFACE}" == "USB" ]]; then
-    echo "" > reset.sh
-else
-    if [[ $USE_LIBGPIOD -eq 0 ]]; then
-        cp /app/reset.sh.legacy reset.sh
-    else
-        cp /app/reset.sh.gpiod reset.sh
-    fi
-    sed -i "s#{{GPIO_CHIP}}#${GPIO_CHIP}#" reset.sh
-    sed -i "s#{{RESET_GPIO}}#${RESET_GPIO:-17}#" reset.sh
-    sed -i "s#{{POWER_EN_GPIO}}#${POWER_EN_GPIO:-0}#" reset.sh
-    sed -i "s#{{POWER_EN_LOGIC}}#${POWER_EN_LOGIC:-1}#" reset.sh
-fi
-chmod +x reset.sh
-ln -s reset.sh reset_lgw.sh 2>/dev/null
+create_reset
 
 # -----------------------------------------------------------------------------
-# Radio device discovery
+# Radio device auto-discovery
 # -----------------------------------------------------------------------------
 
 if [[ "${DEVICE}" == "AUTO" ]]; then
 
     unset DEVICE
 
-    # Grab potential devices based on interface
-    if [[ "${INTERFACE}" == "ANY" ]]; then
-        DEVICES=$( ls /dev/spidev* /dev/ttyACM* /dev/ttyUSB* 2>/dev/null )
-    elif [[ "${INTERFACE}" == "SPI" ]]; then
-        DEVICES=$( ls /dev/spidev* 2>/dev/null )
+    # Look for concentrator
+    discover_concentrator $INTERFACE $DESIGN ${RADIO_NUM:-1}
+    if [[ $? -ne 0 ]]; then
+
+        DESIGN=${OUTPUT[0]}
+        DEVICE=${OUTPUT[1]}
+        CHIP_ID=${OUTPUT[2]}
+
     else
-        DEVICES=$( ls /dev/ttyACM* /dev/ttyUSB* 2>/dev/null )
-    fi
 
-    # Look for devices
-    FOUND=0
-    RADIO_NUM=${RADIO_NUM:-1}
-    for DEV in $DEVICES; do
-        RESPONSE=$( chip_id $DESIGN $DEV )
-        if [[ "${RESPONSE}" != "" ]]; then
-            FOUND=$(( $FOUND + 1 ))
-            if [[ ${FOUND} -eq $RADIO_NUM ]]; then
-                DEVICE=$DEV
-                CHIP_ID=$RESPONSE
-                break
-            fi
-        fi
-    done
-
-    # Not found warning
-    if [[ ${FOUND} -eq 0 ]]; then
         echo -e "${COLOR_WARNING}ERROR: DEVICE set to auto discover but no concentrator found! (INTERFACE set to $INTERFACE) ${COLOR_END}"
+
     fi
 
 fi
 
-# Assign proper INTERFACE
-if [[ "${INTERFACE}" == "ANY" ]]; then
-    if [[ "${DEVICE}" == *"spi"* ]]; then 
-        INTERFACE="SPI"
-    else 
-        INTERFACE="USB"
-    fi
-fi
-
 # -----------------------------------------------------------------------------
-# Device (port) configuration
+# Radio device defaults
 # -----------------------------------------------------------------------------
 
-# Check port and interface
-if [[ "${MODE}" == "STATIC" ]]; then
-
-    DEVICE=$(cat /app/config/station.conf | jq '.[] | .device' | head -1 | sed 's/"//g')
-
-else
-    
+# If DEVICE not yet defined, use sensible defaults
+if [[ "${DEVICE}" == "" ]]; then
     if [[ "${INTERFACE}" == "SPI" ]]; then
-        
         DEVICE=${DEVICE:-"/dev/spidev0.0"}
-
-        # Set default SPI speed and clock source for SX1301 and SX1308 concentrators to 2MHz and radio_1
-        if [[ "${CONCENTRATOR}" == "SX1301" ]] || [[ "${CONCENTRATOR}" == "SX1308" ]]; then
-            SPI_SPEED=${SPI_SPEED:-2000000}
-            CLKSRC=${CLKSRC:-1}
-        fi
-
     else
-
         MODELS_WITHOUT_ACM="RAK833 RAK2247"
         if [[ $MODELS_WITHOUT_ACM =~ (^|[[:space:]])$MODEL($|[[:space:]]) ]]; then
             DEVICE=${DEVICE:-"/dev/ttyUSB0"}
         fi
         DEVICE=${DEVICE:-"/dev/ttyACM0"}
-
     fi
-
-fi
-
-# BasicStation not compatible with SX1301 USB concentrators
-if [[ "${CONCENTRATOR}" == "SX1301" ]] && [[ "$INTERFACE" == "USB" ]]; then
-    echo -e "${COLOR_ERROR}ERROR: USB interface is not available for SX1301 concentrators${COLOR_END}"
-    idle
 fi
 
 # Assert device
 if [[ ! -e $DEVICE ]]; then
     echo -e "${COLOR_ERROR}ERROR: $DEVICE does not exist${COLOR_END}"
     idle
+fi
+
+export LORAGW_SPI=$DEVICE
+
+# -----------------------------------------------------------------------------
+# Fix interface based on DEVICE
+# -----------------------------------------------------------------------------
+
+if [[ "${DEVICE}" == *"spi"* ]]; then 
+    INTERFACE="SPI"
+else 
+    INTERFACE="USB"
+fi
+
+# -----------------------------------------------------------------------------
+# Fix SPI speed based on CONCENTRATOR
+# -----------------------------------------------------------------------------
+
+# Set default SPI speed and clock source for SX1301 and SX1308 concentrators to 2MHz and radio_1
+if [[ "${INTERFACE}" == "SPI" ]]; then
+    if [[ "${CONCENTRATOR}" == "SX1301" ]] || [[ "${CONCENTRATOR}" == "SX1308" ]]; then
+        SPI_SPEED=${SPI_SPEED:-2000000}
+        CLKSRC=${CLKSRC:-1}
+    fi
 fi
 
 export LORAGW_SPI_SPEED=${SPI_SPEED:-8000000}
@@ -575,19 +583,23 @@ export LORAGW_SPI_SPEED=${SPI_SPEED:-8000000}
 GATEWAY_EUI_NIC=${GATEWAY_EUI_NIC:-"manual"}
 GATEWAY_EUI_SOURCE=${GATEWAY_EUI_SOURCE:-$GATEWAY_EUI_NIC}
 
-# If the is a station.conf, we always get the EUI from it
-if [[ -f ./station.conf ]]; then
-    GATEWAY_EUI=$(cat /app/config/station.conf | jq '.station_conf.routerid' | sed 's/"//g')
-fi
+# Check if we should get the GATEWAY_EUI from the chip
+if [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
 
-# Otherwise, check if we should get the GATEWAY_EUI from the chip
-if [[ "$GATEWAY_EUI" == "" ]]; then
-    if [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
-        GATEWAY_EUI=${CHIP_ID:-$( chip_id $DESIGN $DEVICE )}
+    # Check if it's already cached
+    if [[ "$CHIP_ID" != "" ]]; then
+        GATEWAY_EUI=${CHIP_ID}    
+    else
+        chip_id $DESIGN $DEVICE
+        if [[ $? -eq 1 ]]; then
+            CHIP_ID=${OUTPUT[2]}
+            GATEWAY_EUI=${CHIP_ID}
+        fi
     fi
+
 fi
 
-# Finally, try building it from a NIC MAC
+# If still no GATEWAY_EUI, try building it from a NIC MAC
 if [[ "$GATEWAY_EUI" == "" ]]; then
 
     if [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
@@ -692,15 +704,67 @@ echo -e ""
 
 # Link the corresponding configuration file
 if [[ ! -f ./station.conf ]]; then
-    cp /app/station.${DESIGN}.conf station.conf
-    sed -i "s#\"device\":\s*.*,#\"device\": \"${INTERFACE,,}:${DEVICE}\",#" station.conf
-    sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"${GATEWAY_EUI}\",#" station.conf
-    sed -i "s#\"clksrc\":\s*.*,#\"clksrc\": ${CLKSRC:-0},#" station.conf
+    cp /app/station.${DESIGN}.conf ./station.conf
+    sed -i "s#\"device\":\s*.*,#\"device\": \"${INTERFACE,,}:${DEVICE}\",#" ./station.conf
+    sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"${GATEWAY_EUI}\",#" ./station.conf
+    sed -i "s#\"clksrc\":\s*.*,#\"clksrc\": ${CLKSRC:-0},#" ./station.conf
 fi
 
 # If stdn variant (or any *n variant) we need at least one slave concentrator
 if [[ ! -f ./slave-0.conf ]]; then
-    echo "{}" > slave-0.conf
+    echo "{}" > ./slave-0.conf
+fi
+
+# CUPS protocol
+if [[ "$PROTOCOL" == "CUPS" ]]; then
+    if [[ ! -f ./cups.uri ]]; then 
+        echo "$CUPS_URI" > cups.uri
+    fi
+    if [[ ! -f ./cups.trust ]]; then 
+        if [[ "$CUPS_TRUST" == "" ]]; then
+            cp /app/cacert.pem cups.trust
+        else
+            clean_certs_keys "$CUPS_TRUST" > cups.trust
+        fi
+    fi
+    if [[ ! -f ./cups.crt ]]; then 
+        if [[ "$CUPS_CRT" != "" ]]; then
+            clean_certs_keys "$CUPS_CRT" > cups.crt
+        fi
+    fi
+    if [[ ! -f ./cups.key ]]; then 
+        if [[ ! -f ./cups.crt ]]; then 
+	        echo "Authorization: Bearer $CUPS_KEY" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > cups.key
+        else
+            clean_certs_keys "$CUPS_KEY" > cups.key
+        fi
+    fi
+fi
+
+# LNS protocol
+if [[ "$PROTOCOL" == "LNS" ]]; then
+    if [[ ! -f ./tc.uri ]]; then 
+        echo "$TC_URI" > tc.uri
+    fi
+    if [[ ! -f ./tc.trust ]]; then 
+        if [[ "$TC_TRUST" == "" ]]; then
+            cp /app/cacert.pem tc.trust
+        else
+            clean_certs_keys "$TC_TRUST" > tc.trust
+        fi
+    fi
+    if [[ ! -f ./tc.crt ]]; then 
+        if [[ "$TC_CRT" != "" ]]; then
+            clean_certs_keys "$TC_CRT" > tc.crt
+        fi
+    fi
+    if [[ ! -f ./tc.key ]]; then 
+        if [[ ! -f ./tc.crt ]]; then
+        	echo "Authorization: Bearer $TC_KEY" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > tc.key
+        else
+            clean_certs_keys "$TC_KEY" > tc.key
+        fi
+    fi
 fi
 
 # -----------------------------------------------------------------------------

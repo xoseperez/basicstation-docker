@@ -218,8 +218,8 @@ These variables you can set them under the `environment` tag in the `docker-comp
 
 Variable Name | Value | Description | Default
 ------------ | ------------- | ------------- | -------------
-**`MODEL`** | `STRING` | Concentrator model (see `Define your MODEL` section below) | `SX1301`
-**`INTERFACE`** | `SPI`, `USB` or `ANY` | Concentrator interface. Set to `ANY` to use with auto-discover feature. | Based on `MODEL` or `SPI`
+**`MODEL`** | `STRING` | Concentrator model (see `Define your MODEL` section below) or `AUTO` | If undefined or `AUTO` it will trigger auto-discover
+**`INTERFACE`** | `SPI`, `USB` or `AUTO` | Concentrator interface. Set to `AUTO` to use with auto-discover feature. | Based on `MODEL` or `SPI`
 **`DESIGN`** | `V2`, `PICOCELL` or `CORECELL` | Concentrator design version | A fair guess will be done based on `MODEL` and `INTERFACE`
 **`DEVICE`** | `STRING` | Where the concentrator is connected to. Set to `AUTO` for auto-discover.  | `/dev/spidev0.0` for SPI, `/dev/ttyACM0` for USB
 **`SPI_SPEED`** | `INT` | Speed of the SPI interface | 2000000 (2MHz) for SX1301 concentrators, 8000000 (8Mhz) for the rest
@@ -608,7 +608,9 @@ For a USB concentrator you would mount the USB port instead of the SPI port and 
 
 ### Auto-discover
 
-The auto-discover feature is capable of finding connected concentrators to SPI and USB ports as long as they are Corecell (SX1302 or SX1303-based). You can enable this feature by setting the `DEVICE` variable to `AUTO`.
+The auto-discover feature is capable of finding connected concentrators to SPI or USB ports as long as they are Corecell (SX1302 or SX1303-based). The auto-discover feature will try to find the `INTERFACE` and the `DEVICE` where this is connected to if these are undefined or set to `AUTO`. You can use the `RADIO_NUM` variable to select a sepecific find (first, second... ).
+
+The auto-discover feature will use defined `MODEL`, `INTERFACE` or `DEVICE` values to narrow the search (and therefore speeding up service boot).
 
 This feature walks the corresponding interfaces until it finds the required concentrator and then resets the `DEVICE` and `INTERFACE` variables accordingly. Doing so takes some time on boot (up to 3 seconds for each device it checks), if you want to speed up the boot process you can set the `DEVICE` explicitly after looking for it with the `find` utility (see `Find the concentrator` section below).
 
@@ -630,9 +632,27 @@ services:
       DEVICE: "AUTO"
 ```
 
+This other example, the auto-discover feature will search for SPI concentrators and select the second one it finds.
+
+```
+version: '2.0'
+
+services:
+
+  basicstation:
+    image: xoseperez/basicstation:latest
+    container_name: basicstation
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    environment:
+      INTERFACE: "SPI"
+      RADIO_NUM: 2
+```
+
 ### Find the concentrator
 
-The service comes with an utility that tries to find existing concentrators connected to the device. It works with CoreCell concentrators only.
+The service comes with an utility that tries to find existing concentrators connected to the device. Unlike the auto-discover feature this tool can be run without actually running the packet forwarder service. It works with CoreCell concentrators only.
 
 You can run the tool (with the service shut down) by: 
 
