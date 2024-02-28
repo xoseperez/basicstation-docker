@@ -12,7 +12,7 @@ function chip_id {
     local DEVICE=$2
     
     CHIP_ID_COMMAND="/app/design-${DESIGN}/bin/chip_id"
-    TIMEOUT=${TIMEOUT:-3}
+    [[ "$DEVICE" == *"ttyV"* ]] && TIMEOUT=10 || TIMEOUT=3
 
     if [[ -f $CHIP_ID_COMMAND ]]; then
         

@@ -219,9 +219,9 @@ These variables you can set them under the `environment` tag in the `docker-comp
 Variable Name | Value | Description | Default
 ------------ | ------------- | ------------- | -------------
 **`MODEL`** | `STRING` | Concentrator model (see `Define your MODEL` section below) or `AUTO` | If undefined or `AUTO` it will trigger auto-discover
-**`INTERFACE`** | `SPI`, `USB` or `AUTO` | Concentrator interface. Set to `AUTO` to use with auto-discover feature. | Based on `MODEL` or `SPI`
+**`INTERFACE`** | `SPI`, `USB`, `NET` or `AUTO` | Concentrator interface. Set to `AUTO` to use with auto-discover feature. | If `MODEL` is defined it will get the interface type from it if possible, defaults to `AUTO` if the auto-discover feature is enabled or `SPI` otherwise.
 **`DESIGN`** | `V2`, `PICOCELL` or `CORECELL` | Concentrator design version | A fair guess will be done based on `MODEL` and `INTERFACE`
-**`DEVICE`** | `STRING` | Where the concentrator is connected to. Set to `AUTO` for auto-discover.  | `/dev/spidev0.0` for SPI, `/dev/ttyACM0` for USB
+**`DEVICE`** | `STRING` or `AUTO` | Where the concentrator is connected to. Set to `AUTO` for auto-discover. | `/dev/spidev0.0` for SPI concentrators, `/dev/ttyUSB0` or `/dev/ttyACM0` for USB concentrators, the host IP port 3333 for `NET` connections
 **`SPI_SPEED`** | `INT` | Speed of the SPI interface | 2000000 (2MHz) for SX1301 concentrators, 8000000 (8Mhz) for the rest
 **`CLKSRC`** | `INT` | Radio index that provides clock to concentrator | 1 for SX1301 concentradors, 0 for the rest 
 **`USE_LIBGPIOD`** | `INT` | Use `libgpiod` (1) instead of default `sysfs` (0) to manage the GPIOs. The former is the recommended but not yet supported on all platforms. | 0 (1 for Raspberry Pi 5)
@@ -737,6 +737,64 @@ services:
 
 
 Feel free to introduce issues on this repo and contribute with solutions.
+
+### Connect to a concentrator remotely
+
+From version 2.8.0, you have the option to connect to a remote concentrator via a TCP link. This is useful to use the service with MacOS since Docker Desktop for MacOS does not let you passthrough USB devices. Therefore you can bypass the USB device as a TCP connection using `ser2net` and mount it back as a UART device inside the container.
+
+First step is to stream the USB device as a TCP connection using `ser2net`. An example configuration file is provided but you will have to change the port of your USB device accordingly:
+
+```
+connection: &con3333
+    accepter: tcp,0.0.0.0,3333
+    enable: on
+    options:
+      kickolduser: true
+    connector: serialdev,
+              /dev/ttyACM1,
+              115200n81,local
+```
+
+In the example above (`ser2net.yaml` file provided with this repo) port `/dev/ttyACM1` is mapped to `0.0.0.0:3333` using 115200bps, 8N1. 
+
+**Attention: any machine with network access to port 3333 will be able to access the USB device, ser2net does not provide any security features. A more secure approach would be to link the service to your host docker IP.**
+
+You can run it as `ser2net -c ser2net.yaml`. 
+
+Once the USB device is available as a TCP stream, we can instruct the UDP Packet Forwarder to use this connection. An example `docker-compose.yml` file can be as follows:
+
+```
+version: '2.0'
+
+services:
+
+  basicstation:
+    image: xoseperez/basicstation:latest
+    container_name: basicstation
+    restart: unless-stopped
+    environment:
+      MODEL: "RAK5146"
+      INTERFACE: "NET"
+      (...)
+```
+
+When the service boots you will see the information about the network device being used in the summary. By default it will try to reach port 3333/tcp at the host. You can also specify a different connection in the `DEVICE` variable:
+
+```
+version: '2.0'
+
+services:
+
+  basicstation:
+    image: xoseperez/basicstation:latest
+    container_name: basicstation
+    restart: unless-stopped
+    environment:
+      MODEL: "RAK5146"
+      INTERFACE: "NET"
+      DEVICE: "192.168.0.150:4321"
+      (...)
+```
 
 ## Parsers
 
