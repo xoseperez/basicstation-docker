@@ -30,7 +30,11 @@ COLOR_WARNING="\e[33m" # yellow
 COLOR_ERROR="\e[31m" # red
 COLOR_END="\e[0m"
 
-WIDTH=20
+WIDTH_DEVICE=0
+WIDTH_DESIGN=13
+WIDTH_ID=21
+
+FOUND=0
 
 function pad() {
     
@@ -46,30 +50,54 @@ function pad() {
 }
 
 # -----------------------------------------------------------------------------
-# Tests
+# Chip ID
 # -----------------------------------------------------------------------------
 
-function test_corecell {
+function test_device {
 
-    DEVICE=$1
+    local DEVICE=$1
+    local EUI=""
+    local DESIGN
     
-    pad $DEVICE $WIDTH " "
-    pad "Corecell" $WIDTH " "
+    pad $DEVICE $WIDTH_DEVICE " "
     
-    CHIP_ID_COMMAND="/app/design-corecell/bin/chip_id"
+    [[ "$DEVICE" == *"ttyV"* ]] && TIMEOUT=10 || TIMEOUT=3
 
-    local COM_TYPE=""
+    for DESIGN in corecell 2g4 picocell; do
+
+        CHIP_ID_COMMAND="/app/artifacts/${DESIGN}/chip_id"
+        if [[ -f $CHIP_ID_COMMAND ]]; then
+            
+            if [[ "$DESIGN" == "corecell" ]]; then
     if [[ "$DEVICE" == *"tty"* ]]; then COM_TYPE="-u"; fi
-    OUTPUT=$( timeout ${TIMEOUT:-3}s $CHIP_ID_COMMAND $COM_TYPE -d $DEVICE )
-    STATUS=$?
+                EUI=$( timeout ${TIMEOUT}s $CHIP_ID_COMMAND $COM_TYPE -d $DEVICE | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
+                [[ "$EUI" != "" ]] && break;
+            fi
     
-    if [[ $STATUS -eq 0 ]]; then
-        EUI=$( echo $OUTPUT | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
-        pad $EUI $WIDTH " "
-        FOUND=1
+            if [[ "$DESIGN" == "2g4" ]] && [[ "$DEVICE" == *"tty"* ]]; then 
+                EUI=$( timeout ${TIMEOUT}s $CHIP_ID_COMMAND -d $DEVICE | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
+                [[ "$EUI" != "" ]] && break;
     fi
 
+            if [[ "$DESIGN" == "picocell" ]] && [[ "$DEVICE" == *"tty"* ]]; then 
+                EUI=$( timeout ${TIMEOUT}s $CHIP_ID_COMMAND -d $DEVICE | tr [a-z] [A-Z] )
+                [[ "$EUI" != "" ]] && break;
+            fi
+            
+        fi
+    
+    done
+    
+    if [[ "${EUI}" != "" ]]; then
+        pad $DESIGN $WIDTH_DESIGN " "
+        pad $EUI $WIDTH_ID " "
+        FOUND=$(( $FOUND + 1 ))
     echo ""
+    else
+        echo -e -n "\r"
+        pad "" $WIDTH_DEVICE " "
+        echo -e -n "\r"
+    fi
 
 }
 
@@ -99,12 +127,9 @@ chmod +x reset_lgw.sh
 # Test all devices
 # -----------------------------------------------------------------------------
 
-pad "DEVICE" $WIDTH " "
-pad "DESIGN" $WIDTH " "
-pad "RESPONSE" $WIDTH " "; echo ""
-pad "" $WIDTH "-"
-pad "" $WIDTH "-"
-pad "" $WIDTH "-"; echo ""
+echo
+echo "Looking for devices, this might take some time..."
+echo 
 
 SCAN_USB=${SCAN_USB:-1}
 SCAN_SPI=${SCAN_SPI:-1}
@@ -124,6 +149,22 @@ else
 fi
 
 for DEVICE in $DEVICES; do
-    FOUND=0
-    [[ $FOUND -eq 0 ]] && test_corecell $DEVICE
+    WIDTH=$( echo "$DEVICE" | wc -m )
+    [[ $WIDTH -gt $WIDTH_DEVICE ]] && WIDTH_DEVICE=$WIDTH
 done
+WIDTH_DEVICE=$(( $WIDTH_DEVICE + 4 ))
+
+pad "DEVICE" $WIDTH_DEVICE " "
+pad "DESIGN" $WIDTH_DESIGN " "
+pad "RESPONSE" $WIDTH_ID " "; echo ""
+pad "" $WIDTH_DEVICE "-"
+pad "" $WIDTH_DESIGN "-"
+pad "" $WIDTH_ID "-"; echo ""
+
+for DEVICE in $DEVICES; do
+    test_device $DEVICE
+done
+
+echo
+echo "$FOUND device(s) found!"
+echo

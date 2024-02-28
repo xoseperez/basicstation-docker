@@ -49,10 +49,10 @@ function chip_id {
             OUTPUT=("corecell" $DEVICE $CHIP_ID)
             return 1
         fi
-        fi
+    fi
         
     #if [[ "$DESIGN" == "auto" ]] || [[ "$DESIGN" == "picocell" ]]; then
-    #    local CHIP_ID=$( timeout ${TIMEOUT}s /app/design-picocell/bin/chip_id | sed 's/^.*0x//' | tr [a-z] [A-Z] )
+    #    local CHIP_ID=$( timeout ${TIMEOUT}s /app/design-picocell/bin/chip_id -d $DEVICE | tr [a-z] [A-Z] )
     #    if [[ "${CHIP_ID}" != "" ]]; then
     #        OUTPUT=("picocell" $DEVICE $CHIP_ID)
     #        return 1
@@ -337,11 +337,7 @@ if [[ -f $CONFIG_FILE ]]; then
 
     # Get device & interface
     DEVICE=$(cat $CONFIG_FILE | jq '.[] | .device' | head -1 | sed 's/\("\|spi:\|usb:\)//g')
-    if [[ "${DEVICE}" == *"spi"* ]]; then 
-        INTERFACE="SPI"
-    else 
-        INTERFACE="USB"
-    fi
+    [[ "${DEVICE}" == *"spi"* ]] && INTERFACE="SPI" || INTERFACE="USB"
 
     # Guess generic model
     if [[ `grep "SX1302_conf" $CONFIG_FILE` != "" ]]; then
@@ -376,6 +372,7 @@ if [[ "${MODEL}" == "" ]] || [[ "${MODEL}" == "AUTO" ]]; then
         DESIGN=${OUTPUT[0]}
         DEVICE=${OUTPUT[1]}
         CHIP_ID=${OUTPUT[2]}
+        [[ "${DEVICE}" == *"spi"* ]] && INTERFACE="SPI" || INTERFACE="USB"
 
         if [[ "${DESIGN}" == "corecell" ]]; then MODEL="SX1302"; fi
         if [[ "${DESIGN}" == "picocell" ]]; then MODEL="SX1308"; fi
@@ -551,17 +548,10 @@ if [[ ! -e $DEVICE ]]; then
     idle
 fi
 
-export LORAGW_SPI=$DEVICE
-
-# -----------------------------------------------------------------------------
 # Fix interface based on DEVICE
-# -----------------------------------------------------------------------------
+[[ "${DEVICE}" == *"spi"* ]] && INTERFACE="SPI" || INTERFACE="USB"
 
-if [[ "${DEVICE}" == *"spi"* ]]; then 
-    INTERFACE="SPI"
-else 
-    INTERFACE="USB"
-fi
+export LORAGW_SPI=$DEVICE
 
 # -----------------------------------------------------------------------------
 # Fix SPI speed based on CONCENTRATOR

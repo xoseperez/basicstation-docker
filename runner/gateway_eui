@@ -22,10 +22,12 @@ function chip_id {
             return
         fi
         
-        #if [[ "$DESIGN" == "picocell" ]]; then
-        #    echo $( timeout ${TIMEOUT}s $CHIP_ID_COMMAND | sed 's/^.*0x//' | tr [a-z] [A-Z] )
-        #    return
-        #fi
+        if [[ "$DESIGN" == "picocell" ]]; then
+            if [[ "$DEVICE" == *"tty"* ]]; then
+                echo $( timeout ${TIMEOUT}s $CHIP_ID_COMMAND -d $DEVICE | tr [a-z] [A-Z] )
+                return
+            fi
+        fi
         
     fi
     
@@ -73,11 +75,12 @@ elif [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
     # Look for devices
     FOUND=0
     for DEVICE in $DEVICES; do
-        for DESIGN in corecell; do
+        for DESIGN in corecell picocell; do
             RESPONSE=$( chip_id $DESIGN $DEVICE )
             if [[ "${RESPONSE}" != "" ]]; then
                 echo "Gateway EUI: ${RESPONSE^^} (based on $DESIGN concentrator at $DEVICE)"
-                FOUND=1
+                FOUND=$(( $FOUND + 1 ))
+                break;
             fi
         done
     done
