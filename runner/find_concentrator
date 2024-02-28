@@ -70,12 +70,12 @@ function test_device {
             
             if [[ "$DESIGN" == "corecell" ]]; then
                 if [[ "$DEVICE" == *"tty"* ]]; then COM_TYPE="-u"; fi
-                EUI=$( timeout ${TIMEOUT}s $CHIP_ID_COMMAND $COM_TYPE -d $DEVICE | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
+                EUI=$( timeout ${TIMEOUT}s $CHIP_ID_COMMAND $COM_TYPE -d $DEVICE 2>/dev/null | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
                 [[ "$EUI" != "" ]] && break
             fi
-    
+            
             if [[ "$DESIGN" == "picocell" ]] && [[ "$DEVICE" == *"tty"* ]]; then 
-                EUI=$( timeout ${TIMEOUT}s $CHIP_ID_COMMAND -d $DEVICE | tr [a-z] [A-Z] )
+                EUI=$( timeout ${TIMEOUT}s $CHIP_ID_COMMAND -d $DEVICE 2>/dev/null | tr [a-z] [A-Z] )
                 [[ "$EUI" != "" ]] && break
             fi
             

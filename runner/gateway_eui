@@ -18,13 +18,13 @@ function chip_id {
         
         if [[ "$DESIGN" == "corecell" ]]; then
             if [[ "$DEVICE" == *"tty"* ]]; then COM_TYPE="-u"; fi
-            echo $( timeout ${TIMEOUT}s $CHIP_ID_COMMAND $COM_TYPE -d $DEVICE | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
+            echo $( timeout ${TIMEOUT}s $CHIP_ID_COMMAND $COM_TYPE -d $DEVICE 2>/dev/null | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
             return
         fi
         
         if [[ "$DESIGN" == "picocell" ]]; then
             if [[ "$DEVICE" == *"tty"* ]]; then
-                echo $( timeout ${TIMEOUT}s $CHIP_ID_COMMAND -d $DEVICE | tr [a-z] [A-Z] )
+                echo $( timeout ${TIMEOUT}s $CHIP_ID_COMMAND -d $DEVICE 2>/dev/null | tr [a-z] [A-Z] )
                 return
             fi
         fi
