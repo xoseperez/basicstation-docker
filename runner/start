@@ -256,7 +256,7 @@ function clean_certs_keys() {
 # Move into configuration folder
 mkdir -p config
 pushd config >> /dev/null
-CONFIG_FILE=./station.json
+CONFIG_FILE=./station.conf
 
 # -----------------------------------------------------------------------------
 # Server configuration
