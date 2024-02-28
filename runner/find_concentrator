@@ -65,23 +65,18 @@ function test_device {
 
     for DESIGN in corecell 2g4 picocell; do
 
-        CHIP_ID_COMMAND="/app/artifacts/${DESIGN}/chip_id"
+        CHIP_ID_COMMAND="/app/design-${DESIGN}/bin/chip_id"
         if [[ -f $CHIP_ID_COMMAND ]]; then
             
             if [[ "$DESIGN" == "corecell" ]]; then
-    if [[ "$DEVICE" == *"tty"* ]]; then COM_TYPE="-u"; fi
+                if [[ "$DEVICE" == *"tty"* ]]; then COM_TYPE="-u"; fi
                 EUI=$( timeout ${TIMEOUT}s $CHIP_ID_COMMAND $COM_TYPE -d $DEVICE | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
-                [[ "$EUI" != "" ]] && break;
+                [[ "$EUI" != "" ]] && break
             fi
     
-            if [[ "$DESIGN" == "2g4" ]] && [[ "$DEVICE" == *"tty"* ]]; then 
-                EUI=$( timeout ${TIMEOUT}s $CHIP_ID_COMMAND -d $DEVICE | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
-                [[ "$EUI" != "" ]] && break;
-    fi
-
             if [[ "$DESIGN" == "picocell" ]] && [[ "$DEVICE" == *"tty"* ]]; then 
                 EUI=$( timeout ${TIMEOUT}s $CHIP_ID_COMMAND -d $DEVICE | tr [a-z] [A-Z] )
-                [[ "$EUI" != "" ]] && break;
+                [[ "$EUI" != "" ]] && break
             fi
             
         fi
@@ -124,21 +119,27 @@ sed -i "s#{{POWER_EN_LOGIC}}#${POWER_EN_LOGIC:-1}#" reset_lgw.sh
 chmod +x reset_lgw.sh
 
 # -----------------------------------------------------------------------------
-# Test all devices
+# Network device
 # -----------------------------------------------------------------------------
 
-echo
-echo "Looking for devices, this might take some time..."
-echo 
+if [[ "${INTERFACE}" == "NET" ]]; then
+    NETLINK=${DEVICE:-$( /sbin/ip route|awk '/default/ { print $3 ":3333" }' )}
+    DEVICE="/dev/ttyV0"
+    socat pty,link=$DEVICE,waitslave tcp:$NETLINK &
+fi
+
+# -----------------------------------------------------------------------------
+# Test all devices
+# -----------------------------------------------------------------------------
 
 SCAN_USB=${SCAN_USB:-1}
 SCAN_SPI=${SCAN_SPI:-1}
 
 if [[ $SCAN_USB -eq 1 ]]; then
     if [[ $SCAN_SPI -eq 1 ]]; then
-        DEVICES=$( ls /dev/spidev* /dev/ttyACM* /dev/ttyUSB* 2> /dev/null )
+        DEVICES=$( ls /dev/spidev* /dev/ttyACM* /dev/ttyUSB* /dev/ttyV* 2> /dev/null )
     else
-        DEVICES=$( ls /dev/ttyACM* /dev/ttyUSB* 2> /dev/null )
+        DEVICES=$( ls /dev/ttyACM* /dev/ttyUSB* /dev/ttyV* 2> /dev/null )
     fi
 else
     if [[ $SCAN_SPI -eq 1 ]]; then
@@ -147,6 +148,15 @@ else
         DEVICES=""
     fi
 fi
+
+if [[ "${DEVICES}" == "" ]]; then
+    echo "No available interfaces. Quitting."
+    exit
+fi
+
+echo
+echo "Looking for devices, this might take some time..."
+echo 
 
 for DEVICE in $DEVICES; do
     WIDTH=$( echo "$DEVICE" | wc -m )

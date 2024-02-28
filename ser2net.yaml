@@ -1,0 +1,9 @@
+connection: &con3333
+    accepter: tcp,0.0.0.0,3333
+    enable: on
+    options:
+      kickolduser: true
+    connector: serialdev,
+              /dev/ttyACM0,
+              115200n81,local
+ 

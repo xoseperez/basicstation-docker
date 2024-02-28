@@ -36,6 +36,16 @@ function chip_id {
 }
 
 # -----------------------------------------------------------------------------
+# Network device
+# -----------------------------------------------------------------------------
+
+if [[ "${INTERFACE}" == "NET" ]]; then
+    NETLINK=${DEVICE:-$( /sbin/ip route|awk '/default/ { print $3 ":3333" }' )}
+    DEVICE="/dev/ttyV0"
+    socat pty,link=$DEVICE,waitslave tcp:$NETLINK &
+fi
+
+# -----------------------------------------------------------------------------
 # Create reset file
 # -----------------------------------------------------------------------------
 
@@ -70,7 +80,7 @@ if [[ -f /app/config/station.conf ]]; then
 elif [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
     
     # Get all possible devices
-    DEVICES=$( ls /dev/spidev* /dev/ttyACM* /dev/ttyUSB* 2> /dev/null )
+    DEVICES=$( ls /dev/spidev* /dev/ttyACM* /dev/ttyUSB* /dev/ttyV* 2> /dev/null )
 
     # Look for devices
     FOUND=0

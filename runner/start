@@ -93,11 +93,11 @@ function discover_concentrator {
 
     # Grab potential devices based on interface
     if [[ "${INTERFACE}" == "AUTO" ]]; then
-        DEVICES=$( ls /dev/spidev* /dev/ttyACM* /dev/ttyUSB* 2> /dev/null )
+        DEVICES=$( ls /dev/spidev* /dev/ttyACM* /dev/ttyUSB* /dev/ttyV* 2> /dev/null )
     elif [[ "${INTERFACE}" == "SPI" ]]; then
         DEVICES=$( ls /dev/spidev* 2> /dev/null )
     else
-        DEVICES=$( ls /dev/ttyACM* /dev/ttyUSB* 2> /dev/null )
+        DEVICES=$( ls /dev/ttyACM* /dev/ttyUSB* /dev/ttyV* 2> /dev/null )
     fi
 
     # Look for devices
@@ -257,6 +257,17 @@ function clean_certs_keys() {
 mkdir -p config
 pushd config >> /dev/null
 CONFIG_FILE=./station.conf
+
+# -----------------------------------------------------------------------------
+# Network device
+# -----------------------------------------------------------------------------
+
+if [[ "${INTERFACE}" == "NET" ]]; then
+    NETLINK=${DEVICE:-$( /sbin/ip route|awk '/default/ { print $3 ":3333" }' )}
+    INTERFACE="USB"
+    DEVICE="/dev/ttyV0"
+    socat pty,link=$DEVICE,waitslave tcp:$NETLINK &
+fi
 
 # -----------------------------------------------------------------------------
 # Server configuration
@@ -664,6 +675,9 @@ echo -e "${COLOR_INFO}----------------------------------------------------------
 echo -e "${COLOR_INFO}Model:         ${MODEL}${COLOR_END}"
 echo -e "${COLOR_INFO}Concentrator:  ${CONCENTRATOR}${COLOR_END}"
 echo -e "${COLOR_INFO}Design:        ${DESIGN^^}${COLOR_END}"
+if [[ "$NETLINK" != "" ]]; then
+echo -e "${COLOR_INFO}Network link:  ${NETLINK}${COLOR_END}"
+fi
 echo -e "${COLOR_INFO}Interface:     ${INTERFACE}${COLOR_END}"
 echo -e "${COLOR_INFO}Radio Device:  ${DEVICE}${COLOR_END}"
 if [[ "$CHIP_ID" != "" ]]; then

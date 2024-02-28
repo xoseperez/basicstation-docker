@@ -100,6 +100,6 @@ cp sx1302_hal/util_chip_id/chip_id basicstation/build-corecell-${VARIANT}/bin/
 # Building chip_id for picocell
 # -----------------------------------------------------------------------------
 
-#print_header "Building chip_id for Picocell"
-#clone_patch_and_make https://github.com/Lora-net/picoGW_hal V0.2.3
-#cp picoGW_hal/util_chip_id/util_chip_id basicstation/build-linuxpico-${VARIANT}/bin/chip_id
+print_header "Building chip_id for Picocell"
+clone_patch_and_make https://github.com/Lora-net/picoGW_hal V0.2.3
+cp picoGW_hal/util_chip_id/util_chip_id basicstation/build-linuxpico-${VARIANT}/bin/chip_id
