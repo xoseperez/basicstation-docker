@@ -3,11 +3,11 @@
 ## 2.8.0 (Unreleased)
 
 * Auto-discover concentrator for corecell
-* Option to get the EUI from a corecell chip ID
+* Option to get the EUI from a corecell or picocell chip ID
 * Refactor gateway_eui and find_concentrator utilities
 * Deprecation notices for `GATEWAY_EUI_NIC`, `GW_RESET_GPIO`, `GW_POWER_EN_GPIO` and `GW_POWER_EN_LOGIC`
 * Support for remote concentrators via ser2net
-* Support for MacOS (using ser2net)
+* Support for MacOS host (using ser2net)
 
 ## 2.7.0 (2024-02-05)
 
