@@ -100,9 +100,6 @@ services:
       # Check https://github.com/xoseperez/basicstation/issues/4#issuecomment-1230138180
       #TLS_SNI: false
 
-      # Force use CUPS protocol (regardless of TC_KEY existance below)
-      #USE_CUPS: 0
-
       # Using LNS protocol: define a custom LNS server
       #TC_URI: "wss://lns.example.com:8887"
 
