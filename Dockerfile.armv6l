@@ -51,9 +51,10 @@ RUN install_packages jq vim gpiod socat
 WORKDIR /app
 
 # Copy fles from builder and repo
-COPY --from=builder /app/basicstation/build-rpi-${VARIANT} ./design-v2
-COPY --from=builder /app/basicstation/build-corecell-${VARIANT} ./design-corecell
-COPY --from=builder /app/basicstation/build-linuxpico-${VARIANT} ./design-picocell
+RUN mkdir ./artifacts
+COPY --from=builder /app/basicstation/build-rpi-${VARIANT}/bin ./artifacts/v2
+COPY --from=builder /app/basicstation/build-corecell-${VARIANT}/bin ./artifacts/corecell
+COPY --from=builder /app/basicstation/build-linuxpico-${VARIANT}/bin ./artifacts/picocell
 COPY runner/* ./
 RUN chmod +x start gateway_eui find_concentrator
 

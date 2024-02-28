@@ -63,9 +63,9 @@ function test_device {
     
     [[ "$DEVICE" == *"ttyV"* ]] && TIMEOUT=10 || TIMEOUT=3
 
-    for DESIGN in corecell 2g4 picocell; do
+    for DESIGN in corecell picocell; do
 
-        CHIP_ID_COMMAND="/app/design-${DESIGN}/bin/chip_id"
+        CHIP_ID_COMMAND="/app/artifacts/${DESIGN}/chip_id"
         if [[ -f $CHIP_ID_COMMAND ]]; then
             
             if [[ "$DESIGN" == "corecell" ]]; then

@@ -44,7 +44,7 @@ function chip_id {
 
     if [[ "$DESIGN" == "auto" ]] || [[ "$DESIGN" == "corecell" ]]; then
         if [[ "$DEVICE" == *"tty"* ]]; then COM_TYPE="-u"; fi
-        local CHIP_ID=$( timeout ${TIMEOUT}s /app/design-corecell/bin/chip_id $COM_TYPE -d $DEVICE | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
+        local CHIP_ID=$( timeout ${TIMEOUT}s /app/artifacts/corecell/chip_id $COM_TYPE -d $DEVICE | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
         if [[ "${CHIP_ID}" != "" ]]; then
             OUTPUT=("corecell" $DEVICE $CHIP_ID)
             return 1
@@ -52,7 +52,7 @@ function chip_id {
     fi
         
     #if [[ "$DESIGN" == "auto" ]] || [[ "$DESIGN" == "picocell" ]]; then
-    #    local CHIP_ID=$( timeout ${TIMEOUT}s /app/design-picocell/bin/chip_id -d $DEVICE | tr [a-z] [A-Z] )
+    #    local CHIP_ID=$( timeout ${TIMEOUT}s /app/artifacts/picocell/chip_id -d $DEVICE | tr [a-z] [A-Z] )
     #    if [[ "${CHIP_ID}" != "" ]]; then
     #        OUTPUT=("picocell" $DEVICE $CHIP_ID)
     #        return 1
@@ -777,4 +777,4 @@ fi
 # Start packet forwarder
 # -----------------------------------------------------------------------------
 
-STATION_RADIOINIT=/app/config/reset.sh /app/design-${DESIGN}/bin/station -f
+STATION_RADIOINIT=/app/config/reset.sh /app/artifacts/${DESIGN}/station -f

@@ -280,7 +280,6 @@ Based on the `MODEL` and the `INTERFACE` (SPI or USB), the service will try to g
 * V2 design is used with SX1301 and SX1308 concentrators with SPI interface.
 * PicoCell design defines SX1308-based concentrators with USB interface.
 * CoreCell design is in use with SX1302 and SX1303 concentrators, both SPI and USB interface.
-* 2G4 design is used for SX1820 concentrators in the 2.4GHz band (worldwide available). This service is not compatible with these concentrators.
 
 
 ### Get the EUI of the Gateway

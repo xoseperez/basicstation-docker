@@ -11,7 +11,7 @@ function chip_id {
     local DESIGN=$1
     local DEVICE=$2
     
-    CHIP_ID_COMMAND="/app/design-${DESIGN}/bin/chip_id"
+    CHIP_ID_COMMAND="/app/artifacts/${DESIGN}/chip_id"
     [[ "$DEVICE" == *"ttyV"* ]] && TIMEOUT=10 || TIMEOUT=3
 
     if [[ -f $CHIP_ID_COMMAND ]]; then
@@ -98,6 +98,10 @@ elif [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
     if [[ $FOUND -eq 0 ]]; then
         echo "No concentrator found, GATEWAY_EUI from concentrator is not possible"
     fi
+
+elif [[ "$GATEWAY_EUI" != "" ]]; then
+
+    echo "Gateway EUI: ${GATEWAY_EUI^^} (based on configuration)"
 
 else
 
