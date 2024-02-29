@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.8.0 (Unreleased)
+## 2.8.0 (2024-02-29)
 
 * Auto-discover concentrator for corecell
 * Option to get the EUI from a corecell or picocell chip ID
