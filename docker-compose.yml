@@ -46,15 +46,15 @@ services:
       #DESIGN: "PICOCELL"
       #DESIGN: "CORECELL"
 
-      # The interface the concentrator uses, either "SPI", "USB" or "AUTO". 
+      # The interface the concentrator uses, either "SPI", "USB", "NET" or "AUTO". 
       # Use "AUTO" coupled with device auto-discover feature below. Defaults to "SPI".
       #INTERFACE: "AUTO"
       #INTERFACE: "NET"
 
       # If you have the concentrator connected to a different port than the default one 
-      # ("/dev/spidev0.0" for SPI or "/dev/ttyACM0" for USB) you can define here.
-      # Set it to "AUTO" for auto-discover (works only with Corecell concentrators).
-      #DEVICE: "/dev/spidev0.1"
+      # ("/dev/spidev0.0" for SPI, "/dev/ttyACM0" for USB or "<hostip>:3333" for NET) you can define here.
+      # Set it to "AUTO" for auto-discover (works only with local Corecell concentrators).
+      #DEVICE: "/dev/spidev0.0"
       #DEVICE: "/dev/ttyACM0"
       #DEVICE: "192.168.1.86:3333"
       #DEVICE: "AUTO"
@@ -76,7 +76,7 @@ services:
 
       # Each gateway is identified by its Gateway EUI (8 bytes in hex format)
       # The procedure to defined that EUI is as follows:
-      # 1) It will use the EUI in the station.conf file provided if any
+      # 1) It will use the EUI in the configuration files provided if any
       # 2) It will use the concentrator Chip ID if GATEWAY_EUI_SOURCE set to "chip" (will work only for Corecell concentrators)
       # 3) It will use the GATEWAY_EUI variable below if defined
       # 4) It will use the MAC address of the network interface identified by GATEWAY_EUI_SOURCE
@@ -94,12 +94,16 @@ services:
 
       # Tenant name if using The Things Cloud
       # This will create the TC_URI and CUPS_URI URLs for the corresponding server
-      #TTS_TENANT: "xoseperez"
+      #TTS_TENANT: "ttn"
 
       # Server name indication (SNI) check, defaults to true.
       # Use it only to connect to private LNS/CUPS servers with self-signed certificates
       # Check https://github.com/xoseperez/basicstation/issues/4#issuecomment-1230138180
       #TLS_SNI: false
+
+      # ------------------------------------------------
+      # LNS Protocol
+      # ------------------------------------------------
 
       # Using LNS protocol: define a custom LNS server
       #TC_URI: "wss://lns.example.com:8887"

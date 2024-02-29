@@ -40,7 +40,7 @@ function chip_id {
     local DESIGN=$1
     local DEVICE=$2
     
-    TIMEOUT=${TIMEOUT:-3}
+    [[ "$DEVICE" == *"ttyV"* ]] && TIMEOUT=10 || TIMEOUT=3
 
     if [[ "$DESIGN" == "auto" ]] || [[ "$DESIGN" == "corecell" ]]; then
         if [[ "$DEVICE" == *"tty"* ]]; then COM_TYPE="-u"; fi
@@ -63,7 +63,7 @@ function chip_id {
     
 }
 
-function create_reset {
+function create_reset_file {
 
     local RESET_FILE=/app/config/reset.sh
     
@@ -376,7 +376,7 @@ if [[ "${MODEL}" == "" ]] || [[ "${MODEL}" == "AUTO" ]]; then
     
     unset MODEL
 
-    create_reset 
+    create_reset_file 
     discover_concentrator ${INTERFACE:-AUTO} ${DESIGN:-AUTO} ${RADIO_NUM:-1}
     if [[ $? -ne 0 ]]; then
         
@@ -510,7 +510,7 @@ else
 fi
 
 # Create reset file
-create_reset
+create_reset_file
 
 # -----------------------------------------------------------------------------
 # Radio device auto-discovery
@@ -559,7 +559,7 @@ if [[ ! -e $DEVICE ]]; then
     idle
 fi
 
-# Fix interface based on DEVICE
+# Fix INTERFACE based on DEVICE
 [[ "${DEVICE}" == *"spi"* ]] && INTERFACE="SPI" || INTERFACE="USB"
 
 export LORAGW_SPI=$DEVICE

@@ -166,7 +166,7 @@ WIDTH_DEVICE=$(( $WIDTH_DEVICE + 4 ))
 
 pad "DEVICE" $WIDTH_DEVICE " "
 pad "DESIGN" $WIDTH_DESIGN " "
-pad "RESPONSE" $WIDTH_ID " "; echo ""
+pad "ID" $WIDTH_ID " "; echo ""
 pad "" $WIDTH_DEVICE "-"
 pad "" $WIDTH_DESIGN "-"
 pad "" $WIDTH_ID "-"; echo ""
