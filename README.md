@@ -253,8 +253,8 @@ Variable Name | Value | Description | Default
 **`TTS_USERNAME`** | `STRING` | Name of your user on the TTS instance you want to register the gateway | Paste your username
 **`TTS_PERSONAL_KEY`** | `STRING` | Unique key to create the gateway and its key | Paste personal API key from your TTS instance (check section about autoprovision below)
 **`TTS_FREQUENCY_PLAN_ID`** | `STRING` | The Things Stack frequency plan (https://www.thethingsindustries.com/docs/reference/frequency-plans/) | "EU_863_870_TTN"
-**`GW_RESET_PIN`** | **Deprecated** | Use GW_RESET_GPIO instead |
-**`RESET_PIN`** | **Deprecated** | Use GW_RESET_GPIO instead |
+**`GW_RESET_PIN`** | **Deprecated** | Use RESET_GPIO instead |
+**`RESET_PIN`** | **Deprecated** | Use RESET_GPIO instead |
 **`LORAGW_SPI`** | **Deprecated** | Use DEVICE instead |
 **`TTN_REGION`** | **Deprecated** | Use TTS_REGION instead |
 **`GATEWAY_EUI_NIC`** | **Deprecated** | Use GATEWAY_EUI_SOURCE instead |
@@ -683,12 +683,10 @@ docker run --privileged --rm -e SCAN_SPI=0 xoseperez/basicstation find_concentra
 The output will be a list of concentrators with the port they are connected to and the EUI:
 
 ```
-DEVICE             DESIGN             RESPONSE           
+DEVICE             DESIGN             ID           
 ---------------------------------------------------------
-/dev/spidev0.0     Corecell           0016C001FF1E5008   
-/dev/spidev0.1     Corecell           
-/dev/ttyUSB0       Corecell           
-/dev/ttyACM0       Corecell           0016C001FF1BA2BE 
+/dev/spidev0.0     corecell           0016C001FF1E5008   
+/dev/ttyACM0       corecell           0016C001FF1BA2BE 
 ```
 
 ### Raspberry Pi 5
