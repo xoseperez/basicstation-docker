@@ -50,7 +50,7 @@ Main features:
 * Compatible with The Things Stack (Comunity Edition / TTNv3) or Chirpstack LNS amongst others.
 * CUPS & LNS protocol configuration supported
 * Gateway autoprovision for TTS servers (TTI or TTN)
-* Almost one click deploy and at the same time highly configurable.
+* Almost one click deploy with auto-discover features and at the same time highly configurable.
 
 Based on Semtech's [Basics™ Station](https://github.com/lorabasics/basicstation/) code.
 
@@ -68,11 +68,12 @@ This project has been tested with The Things Stack Community Edition (TTSCE or T
 As long as the host can run docker containers, the Basics™ Station service can run on:
 
 * AMD64: most PCs out there
-* ARMv8: Raspberry Pi 3/4, 400, Compute Module 3/4, Zero 2 W,...
+* ARMv8: Raspberry Pi 3/4/5, 400, Compute Module 3/4, Zero 2 W,...
 * ARMv7: Raspberry Pi 2,...
 * ARMv6: Raspberry Pi 1, Zero W, Compute Module 1,...
 
-> **NOTE**: you will need an OS in the host machine, for some SBC like a Raspberry Pi that means an SD card with an OS (like Rasperry Pi OS) flashed on it.
+> **NOTE**: you will need an OS in the host machine, for some SBC like a Raspberry Pi that means and SD card with an OS (like Rasperry Pi OS) flashed on it.
+
 
 #### LoRa Concentrators
 
@@ -128,18 +129,15 @@ If you are going to run this project directly using docker (not using Balena) th
 ```
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
-sudo groupadd docker
-sudo usermod -aG docker $USER
+sudo usermod -aG docker ${USER}
 newgrp docker
-sudo systemctl enable docker.service
-sudo systemctl enable containerd.service
+sudo systemctl enable docker
 ```
 
 Once done, you should be able to check the instalation is alright by testing:
 
 ```
-docker version
-docker compose version
+docker --version
 ```
 
 Note than on previous versions of docker, compose was a 3rd party utility you had to install manually (`sudo pip3 install docker-compose`).
@@ -167,6 +165,30 @@ services:
 ```
 
 Modify the environment variables to match your setup. You will need a gateway key (`TC_KEY` variable above) to connect it to your LoRaWAN Network Server (LNS). If you want to do it beforehand you will need the Gateway EUI. Check the `Get the EUI of the Gateway` section below to know how. Otherwise, check the logs messages when the service starts to know the Gateway EUI to use.
+
+Once you have it configured deploy the service via:
+
+```
+docker compose up
+```
+
+It will show you the service log as it boots and starts receiving packages. You can `Ctrl+C` to stop it. To run it in the background (once you check everything works OK) just do:
+
+```
+docker compose up -d
+```
+
+Since the `restart` property in the `docker-compose.yml` file is set to `unless-stopped` the machine will start the container every time it reboots. To stop the container just type (while in the same folder):
+
+```
+docker compose down
+```
+
+or
+
+```
+docker stop basicstation
+```
 
 ### Build the image (not required)
 
