@@ -10,16 +10,16 @@ GPIOSET="gpioset -m time -u 100000 $GPIO_CHIP"
 # Enable gateway
 if [[ $POWER_EN_GPIO -ne 0 ]]; then
     echo "Concentrator enabled through $GPIO_CHIP:$POWER_EN_GPIO (using libgpiod)"
-    ${GPIOSET} ${POWER_EN_GPIO}=${POWER_EN_LOGIC}
+    ${GPIOSET} ${POWER_EN_GPIO}=${POWER_EN_LOGIC} 2>/dev/null
 fi
 
 # Reset gateway
 for GPIO in ${RESET_GPIO//,/ }; do
     if [[ $GPIO -ne 0 ]]; then
         echo "Concentrator reset through $GPIO_CHIP:$GPIO (using libgpiod)"
-        ${GPIOSET} ${GPIO}=0
-        ${GPIOSET} ${GPIO}=1
-        ${GPIOSET} ${GPIO}=0
+        ${GPIOSET} ${GPIO}=0 2>/dev/null
+        ${GPIOSET} ${GPIO}=1 2>/dev/null
+        ${GPIOSET} ${GPIO}=0 2>/dev/null
     fi
 done
 
