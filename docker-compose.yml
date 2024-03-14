@@ -98,7 +98,7 @@ services:
 
       # Server name indication (SNI) check, defaults to true.
       # Use it only to connect to private LNS/CUPS servers with self-signed certificates
-      # Check https://github.com/xoseperez/basicstation/issues/4#issuecomment-1230138180
+      # Check https://github.com/xoseperez/basicstation-docker/issues/4#issuecomment-1230138180
       #TLS_SNI: false
 
       # ------------------------------------------------
