@@ -651,6 +651,24 @@ if [[ -z ${GATEWAY_EUI} ]] ; then
 fi
 
 # -----------------------------------------------------------------------------
+# Whitelists
+# -----------------------------------------------------------------------------
+
+IFS=', ' read -r -a WHITELIST_NETIDS_ARRAY <<< "${WHITELIST_NETIDS:-} "
+WHITELIST_NETIDS=""
+for NETID in "${WHITELIST_NETIDS_ARRAY[@]}"; do
+    WHITELIST_NETIDS+=$( printf "0x%06X " "$NETID" )
+done
+WHITELIST_NETIDS=$( echo "${WHITELIST_NETIDS}" | xargs )
+
+IFS=', ' read -r -a WHITELIST_OUIS_ARRAY <<< "${WHITELIST_OUIS:-} "
+WHITELIST_OUIS=""
+for OUI in "${WHITELIST_OUIS_ARRAY[@]}"; do
+    WHITELIST_OUIS+=$( printf "0x%06X " "$OUI" )
+done
+WHITELIST_OUIS=$( echo "${WHITELIST_OUIS}" | xargs )
+
+# -----------------------------------------------------------------------------
 # Debug
 # -----------------------------------------------------------------------------
 
@@ -677,6 +695,12 @@ echo -e "${COLOR_INFO}LNS Server:    ${TC_URI}${COLOR_END}"
 fi
 echo -e "${COLOR_INFO}Gateway EUI:   ${GATEWAY_EUI}${COLOR_END}"
 echo -e "${COLOR_INFO}EUI Source:    ${GATEWAY_EUI_SOURCE}${COLOR_END}"
+if [[ -n "${WHITELIST_NETIDS}" ]]; then
+echo -e "${COLOR_INFO}NetIDs:        ${WHITELIST_NETIDS// /,}${COLOR_END}"
+fi
+if [[ -n "${WHITELIST_OUIS}" ]]; then
+echo -e "${COLOR_INFO}OUIs:          ${WHITELIST_OUIS// /,}${COLOR_END}"
+fi
 
 echo -e ""
 
@@ -720,10 +744,20 @@ echo -e ""
 
 # Link the corresponding configuration file
 if [[ ! -f "$CONFIG_FILE" ]]; then
+    
     cp "/app/station.${DESIGN}.conf" "$CONFIG_FILE"
+    
     sed -i "s#\"device\":\s*.*,#\"device\": \"${INTERFACE,,}:${DEVICE}\",#" "$CONFIG_FILE"
     sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"${GATEWAY_EUI}\",#" "$CONFIG_FILE"
     sed -i "s#\"clksrc\":\s*.*,#\"clksrc\": ${CLKSRC:-0},#" "$CONFIG_FILE"
+
+    if [[ -n "${WHITELIST_NETIDS}" ]]; then
+        sed -i "s#\"whitelist_netids\":\s*.*,#\"whitelist_netids\": [\"${WHITELIST_NETIDS// /\",\"}\"],#" "$CONFIG_FILE"
+    fi
+    if [[ -n "${WHITELIST_OUIS}" ]]; then
+        sed -i "s#\"whitelist_ouis\":\s*.*,#\"whitelist_ouis\": [\"${WHITELIST_OUIS// /\",\"}\"],#" "$CONFIG_FILE"
+    fi
+    
 fi
 
 # If stdn variant (or any *n variant) we need at least one slave concentrator

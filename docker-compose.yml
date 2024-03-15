@@ -85,7 +85,20 @@ services:
       # For options 4 to 6 you want to use network mode host to get the same EUI accross container reboots
       #GATEWAY_EUI_SOURCE: "enx00e04c68160f"
       #GATEWAY_EUI_SOURCE: "chip"
-      #GATEWAY_EUI: "00E04CFFFE68160F"
+      #GATEWAY_EUI: "0016C001FF1BA2BE"
+
+      # If the WHITELIST_NETIDS list is not empty, only uplinks from the listed NetID will be allowed.
+      # The list can be comma or space separated. NetIDs are 3 bytes long and can be in decimal or hex (starting with 0x).
+      #WHITELIST_NETIDS: 0x000013,0xC00071
+      
+      # If the WHITELIST_OUIS list is not empty, only join requests from devices by the listed OUI will be allowed.
+      # The OUI of the device is represented by the first 3 bytes of the DevEUI.
+      # The list can be comma or space separated. OUIs are 3 bytes long and can be in decimal or hex (starting with 0x).
+      #WHITELIST_OUIS: 0x75B3D5
+
+      # ------------------------------------------------
+      # TTI/TTN specific
+      # ------------------------------------------------
 
       # The default LNS server is the European TTN server. 
       # If you still want to use TTN but a different region you can set it this way,
