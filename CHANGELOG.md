@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.8.1 (Unreleased)
+## 2.8.1 (2024-03-15)
 
 * Support for auto-discover for Picocell concentrators
 * General clean up of the code
