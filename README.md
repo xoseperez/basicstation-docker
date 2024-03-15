@@ -16,7 +16,7 @@ This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward pro
     - [Via Balena Deploy](#via-balena-deploy)
     - [Via Balena-CLI](#via-balena-cli)
 - [Configure the Gateway](#configure-the-gateway)
-    - [Basics Station Service Variables](#basics-station-service-variables)
+    - [Basics™ Station Service Variables](#basics-station-service-variables)
     - [Define your MODEL & DESIGN](#define-your-model--design)
     - [Get the EUI of the Gateway](#get-the-eui-of-the-gateway)
     - [CUPS and LNS protocols](#cups-and-lns-protocols)
@@ -237,7 +237,7 @@ If you are a balena CLI expert, feel free to use balena CLI.
 ## Configure the Gateway
 
 
-### Basics Station Service Variables
+### Basics™ Station Service Variables
 
 These variables you can set them under the `environment` tag in the `docker-compose.yml` file or using an environment file (with the `env_file` tag). If you are using Balena you can also set them in the `Device Variables` tab for the device (or globally for the whole application). Only `MODEL` and `TC_KEY` are mandatory.
 
@@ -373,7 +373,7 @@ You will also have to configure the gateway in The Things Stack CE (also known a
 3. Create an API key for the CUPS protocol (only if using CUPS protocol)
    
    * Under the gateway page, select the **General settings** menu on the left.
-   * Paste the key created on the previous step to the **LoRa Basics Station LNS Authentication Key** field.
+   * Paste the key created on the previous step to the **LoRa Basics™ Station LNS Authentication Key** field.
    * Now, go back to create a new key by selecting the **API keys** menu on the left again.
    * Click **Add API key** button.
    * Select **Grant individual rights** and then check these rights:
@@ -879,7 +879,7 @@ Parsers that used to be available under the `tools` folder have been moved to th
 
 ## Attribution
 
-- This is an adaptation of the [Semtech Basics Station repository](https://github.com/lorabasics/basicstation). Read the [documentation](https://doc.sm.tc/station).
+- This is an adaptation of the [Semtech Basics™ Station repository](https://github.com/lorabasics/basicstation). Read the [documentation](https://doc.sm.tc/station).
 - This is in part working thanks of the work of Jose Marcelino from RAK Wireless, Xose Pérez from Allwize & RAK Wireless and Marc Pous from balena.io. Original work can be found here: https://github.com/mpous/basicstation.
 - This is in part based on excellent work done by Rahul Thakoor from the Balena.io Hardware Hackers team.
 
