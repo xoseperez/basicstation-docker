@@ -9,37 +9,37 @@ POWER_EN_GPIO="{{POWER_EN_GPIO}}"
 POWER_EN_LOGIC="{{POWER_EN_LOGIC}}"
 
 # Enable gateway
-if [[ $POWER_EN_GPIO -ne 0 ]]; then
-    echo "Concentrator enabled through GPIO$POWER_EN_GPIO (using sysfs)"
-    if [[ -d /sys/class/gpio/gpio$POWER_EN_GPIO ]]; then
-        echo $POWER_EN_GPIO > /sys/class/gpio/unexport; WAIT_GPIO
+if [[ ${POWER_EN_GPIO} -ne 0 ]]; then
+    echo "Concentrator enabled through GPIO${POWER_EN_GPIO} (using sysfs)"
+    if [[ -d /sys/class/gpio/gpio${POWER_EN_GPIO} ]]; then
+        echo ${POWER_EN_GPIO} > /sys/class/gpio/unexport; WAIT_GPIO
     fi
-    echo $POWER_EN_GPIO > /sys/class/gpio/export 2>/dev/null; WAIT_GPIO
-    if [[ -d /sys/class/gpio/gpio$POWER_EN_GPIO ]]; then
-        echo out > /sys/class/gpio/gpio$POWER_EN_GPIO/direction; WAIT_GPIO
-        echo $POWER_EN_LOGIC > /sys/class/gpio/gpio$POWER_EN_GPIO/value; WAIT_GPIO
-        echo $POWER_EN_GPIO > /sys/class/gpio/unexport; WAIT_GPIO
+    echo ${POWER_EN_GPIO} > /sys/class/gpio/export 2>/dev/null; WAIT_GPIO
+    if [[ -d /sys/class/gpio/gpio${POWER_EN_GPIO} ]]; then
+        echo out > /sys/class/gpio/gpio${POWER_EN_GPIO}/direction; WAIT_GPIO
+        echo ${POWER_EN_LOGIC} > /sys/class/gpio/gpio${POWER_EN_GPIO}/value; WAIT_GPIO
+        echo ${POWER_EN_GPIO} > /sys/class/gpio/unexport; WAIT_GPIO
     else
-        echo "Warning: /sys/class/gpio/gpio$POWER_EN_GPIO does not exist"
+        echo "Warning: /sys/class/gpio/gpio${POWER_EN_GPIO} does not exist"
     fi
 fi
 
 # Reset gateway
 for GPIO in ${RESET_GPIO//,/ }; do
-    if [[ $GPIO -ne 0 ]]; then
-        echo "Concentrator reset through GPIO$GPIO (using sysfs)"
-        if [[ -d /sys/class/gpio/gpio$GPIO ]]; then
-            echo $GPIO > /sys/class/gpio/unexport; WAIT_GPIO
+    if [[ ${GPIO} -ne 0 ]]; then
+        echo "Concentrator reset through GPIO${GPIO} (using sysfs)"
+        if [[ -d /sys/class/gpio/gpio${GPIO} ]]; then
+            echo "${GPIO}" > /sys/class/gpio/unexport; WAIT_GPIO
         fi
-        echo $GPIO > /sys/class/gpio/export 2>/dev/null; WAIT_GPIO
-        if [[ -d /sys/class/gpio/gpio$GPIO ]]; then
-            echo out > /sys/class/gpio/gpio$GPIO/direction; WAIT_GPIO
-            echo 0 > /sys/class/gpio/gpio$GPIO/value; WAIT_GPIO
-            echo 1 > /sys/class/gpio/gpio$GPIO/value; WAIT_GPIO
-            echo 0 > /sys/class/gpio/gpio$GPIO/value; WAIT_GPIO
-            echo $GPIO > /sys/class/gpio/unexport; WAIT_GPIO
+        echo "${GPIO}" > /sys/class/gpio/export 2>/dev/null; WAIT_GPIO
+        if [[ -d /sys/class/gpio/gpio${GPIO} ]]; then
+            echo out > "/sys/class/gpio/gpio${GPIO}/direction"; WAIT_GPIO
+            echo 0 > "/sys/class/gpio/gpio${GPIO}/value"; WAIT_GPIO
+            echo 1 > "/sys/class/gpio/gpio${GPIO}/value"; WAIT_GPIO
+            echo 0 > "/sys/class/gpio/gpio${GPIO}/value"; WAIT_GPIO
+            echo "${GPIO}" > /sys/class/gpio/unexport; WAIT_GPIO
         else
-            echo "Warning: /sys/class/gpio/gpio$GPIO does not exist"
+            echo "Warning: /sys/class/gpio/gpio${GPIO} does not exist"
         fi
     fi
 done

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash 
 
-cd $(dirname $0)
+cd "$( dirname "$0" )" || exit
 
 # -----------------------------------------------------------------------------
 # Chip ID
@@ -10,28 +10,32 @@ function chip_id {
 
     local DESIGN=$1
     local DEVICE=$2
+    local CHIP_ID_COMMAND
     
-    CHIP_ID_COMMAND="/app/artifacts/${DESIGN}/chip_id"
     [[ "$DEVICE" == *"ttyV"* ]] && TIMEOUT=10 || TIMEOUT=3
 
+    CHIP_ID_COMMAND="/app/artifacts/${DESIGN}/chip_id"
     if [[ -f $CHIP_ID_COMMAND ]]; then
         
         if [[ "$DESIGN" == "corecell" ]]; then
-            if [[ "$DEVICE" == *"tty"* ]]; then COM_TYPE="-u"; fi
-            echo $( timeout ${TIMEOUT}s $CHIP_ID_COMMAND $COM_TYPE -d $DEVICE 2>/dev/null | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
-            return
+            [[ "$DEVICE" == *"tty"* ]] && COM_TYPE="-u"
+            GATEWAY_EUI=$( timeout "${TIMEOUT}s" "$CHIP_ID_COMMAND" "$COM_TYPE" -d "$DEVICE" 2>/dev/null | grep 'EUI' | sed 's/^.*0x//' | tr "[:lower:]" "[:upper:]" )
+            [[ -n "${GATEWAY_EUI}" ]] && return 1
         fi
         
-        if [[ "$DESIGN" == "picocell" ]]; then
-            if [[ "$DEVICE" == *"tty"* ]]; then
-                echo $( timeout ${TIMEOUT}s $CHIP_ID_COMMAND -d $DEVICE 2>/dev/null | tr [a-z] [A-Z] )
-                return
-            fi
+        if [[ "$DESIGN" == "2g4" ]] && [[ "$DEVICE" == *"tty"* ]]; then 
+            GATEWAY_EUI=$( timeout "${TIMEOUT}s" "$CHIP_ID_COMMAND" -d "$DEVICE" 2>/dev/null | grep 'EUI' | sed 's/^.*0x//' | tr "[:lower:]" "[:upper:]" )
+            [[ -n "${GATEWAY_EUI}" ]] && return 1
+        fi
+        
+        if [[ "$DESIGN" == "picocell" ]] && [[ "$DEVICE" == *"tty"* ]]; then 
+            GATEWAY_EUI=$( timeout "${TIMEOUT}s" "$CHIP_ID_COMMAND" -d "$DEVICE" 2>/dev/null | tr "[:lower:]" "[:upper:]" )
+            [[ -n "${GATEWAY_EUI}" ]] && return 1
         fi
         
     fi
     
-    echo ""
+    return 0
     
 }
 
@@ -42,7 +46,7 @@ function chip_id {
 if [[ "${INTERFACE}" == "NET" ]]; then
     NETLINK=${DEVICE:-$( /sbin/ip route|awk '/default/ { print $3 ":3333" }' )}
     DEVICE="/dev/ttyV0"
-    socat pty,link=$DEVICE,waitslave tcp:$NETLINK &
+    socat pty,link=$DEVICE,waitslave "tcp:$NETLINK" &
 fi
 
 # -----------------------------------------------------------------------------
@@ -50,7 +54,10 @@ fi
 # -----------------------------------------------------------------------------
 
 # Raspberry Pi requires using libgpiod with gpiochip4
-if [[ `cat /proc/cpuinfo | grep "Raspberry Pi 5"` != "" ]]; then
+if [[ $( grep -c "Raspberry Pi 5" /proc/cpuinfo ) -eq 0  ]]; then
+    USE_LIBGPIOD=${USE_LIBGPIOD:-0}
+    GPIO_CHIP=${GPIO_CHIP:-gpiochip0}
+else
     USE_LIBGPIOD=${USE_LIBGPIOD:-1}
     GPIO_CHIP=${GPIO_CHIP:-gpiochip4}
 fi
@@ -73,7 +80,7 @@ chmod +x reset_lgw.sh
 
 if [[ -f /app/config/station.conf ]]; then
 
-    GATEWAY_EUI=$(cat /app/config/station.conf | jq '.station_conf.routerid' | sed 's/"//g')
+    GATEWAY_EUI=$( jq '.station_conf.routerid' /app/config/station.conf | sed 's/"//g' )
 
     echo "Gateway EUI: ${GATEWAY_EUI^^} (read from station.conf)"
 
@@ -85,11 +92,11 @@ elif [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
     # Look for devices
     FOUND=0
     for DEVICE in $DEVICES; do
-        for DESIGN in corecell picocell; do
-            RESPONSE=$( chip_id $DESIGN $DEVICE )
-            if [[ "${RESPONSE}" != "" ]]; then
-                echo "Gateway EUI: ${RESPONSE^^} (based on $DESIGN concentrator at $DEVICE)"
-                FOUND=$(( $FOUND + 1 ))
+        for DESIGN in corecell 2g4 picocell; do
+            chip_id "$DESIGN" "$DEVICE"
+            if [[ $? -ne 0 ]] ; then
+                echo "Gateway EUI: ${GATEWAY_EUI^^} (based on $DESIGN concentrator at $DEVICE)"
+                FOUND=$(( FOUND + 1 ))
                 break;
             fi
         done
@@ -99,33 +106,34 @@ elif [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
         echo "No concentrator found, GATEWAY_EUI from concentrator is not possible"
     fi
 
-elif [[ "$GATEWAY_EUI" != "" ]]; then
+elif [[ -n "$GATEWAY_EUI" ]]; then
 
-    echo "Gateway EUI: ${GATEWAY_EUI^^} (based on configuration)"
+    echo "Gateway EUI: ${GATEWAY_EUI^^} (based on environment variable)"
 
 else
 
-    GATEWAY_EUI_SOURCE=${GATEWAY_EUI_SOURCE:-"eth0"}
-    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
-        GATEWAY_EUI_SOURCE="eth0"
+    # Unset it but keep it global
+    GATEWAY_EUI_SOURCE=""
+
+    # Try usual interfaces
+    for INET in eth0 wlan0 usb0 eth1; do
+        if [[ $( grep -c "^\s*${INET}:" /proc/net/dev ) -eq 1 ]]; then
+            GATEWAY_EUI_SOURCE=$INET
+            break
     fi
-    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
-        GATEWAY_EUI_SOURCE="wlan0"
-    fi
-    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
-        GATEWAY_EUI_SOURCE="usb0"
-    fi
-    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
-        # Last chance: get the most used NIC based on received bytes
-        GATEWAY_EUI_SOURCE=$(cat /proc/net/dev | tail -n+3 | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g')
-    fi
-    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
-        echo -e "\033[91mERROR: No network interface found. Cannot set gateway EUI.\033[0m"
+    done
+    
+    # If none of the above, get the most used NIC based on received bytes
+    if [[ -z $GATEWAY_EUI_SOURCE ]]; then
+        GATEWAY_EUI_SOURCE=$( tail -n+3 < /proc/net/dev | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g' )
     fi
 
-    GATEWAY_EUI=$(ip link show $GATEWAY_EUI_SOURCE | awk '/ether/ {print $2}' | awk -F\: '{print $1$2$3"FFFE"$4$5$6}')
-
+    # Get the Gateway EUI from the source
+    if [[ -n $GATEWAY_EUI_SOURCE ]]; then
+        GATEWAY_EUI=$( ip link show "$GATEWAY_EUI_SOURCE" | awk '/ether/ {print $2}' | awk -F: '{print $1$2$3"FFFE"$4$5$6}' )
     echo "Gateway EUI: ${GATEWAY_EUI^^} (based on interface ${GATEWAY_EUI_SOURCE})"
+    else
+        echo -e "${COLOR_ERROR}ERROR: No network interface found. Cannot set gateway EUI.${COLOR_END}"
+    fi
 
 fi
-

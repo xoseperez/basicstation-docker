@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.8.1 (Unreleased)
+
+* Support for auto-discover for Picocell concentrators
+* General clean up of the code
+
 ## 2.8.0 (2024-02-29)
 
 * Auto-discover concentrator for corecell

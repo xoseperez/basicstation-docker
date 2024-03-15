@@ -2,7 +2,7 @@
 
 set -e
 
-cd $(dirname $0)
+cd "$( dirname "$0" )" || exit
 
 ARCH=${ARCH:-armv7hf}
 REMOTE_TAG=${REMOTE_TAG:-"v2.0.6"}
@@ -13,8 +13,6 @@ VARIANT=${VARIANT:-std}
 # -----------------------------------------------------------------------------
 
 COLOR_INFO="\e[32m" # green
-COLOR_WARNING="\e[33m" # yellow
-COLOR_ERROR="\e[31m" # red
 COLOR_END="\e[0m"
 
 # -----------------------------------------------------------------------------
@@ -25,23 +23,24 @@ clone_and_patch() {
 
     URL=$1
     TAG=$2
-    FOLDER=$( echo ${URL##*/} | sed 's/\.git//' )
+    FOLDER=${URL##*/}
+    FOLDER=${FOLDER//\.git/}
 
     # Clone
-    if [[ ! -d $FOLDER ]]; then
-        git clone -b ${TAG} $URL $FOLDER
-        pushd $FOLDER >> /dev/null
+    if [[ ! -d "$FOLDER" ]]; then
+        git clone -b "${TAG}" "${URL}" "$FOLDER"
+        pushd "$FOLDER" >> /dev/null
     else
-        pushd $FOLDER >> /dev/null
+        pushd "$FOLDER" >> /dev/null
         git checkout -- .
         git clean -d -x -f
-        git checkout ${TAG}
+        git checkout "${TAG}"
     fi
 
     # Apply patches
-    if [ -f ../patches/$FOLDER.$TAG.patch ]; then
+    if [ -f "../patches/$FOLDER.$TAG.patch" ]; then
         echo -e "${COLOR_INFO}Applying $FOLDER.$TAG.patch ...${COLOR_END}"
-        git apply ../patches/$FOLDER.$TAG.patch
+        git apply "../patches/$FOLDER.$TAG.patch"
     fi
 
     popd >> /dev/null
@@ -53,11 +52,12 @@ clone_patch_and_make() {
 
     URL=$1
     TAG=$2
-    FOLDER=$( echo ${URL##*/} | sed 's/\.git//' )
+    FOLDER=${URL##*/}
+    FOLDER=${FOLDER//\.git/}
 
-    clone_and_patch $URL $TAG
+    clone_and_patch "$URL" "$TAG"
     
-    pushd $FOLDER >> /dev/null
+    pushd "$FOLDER" >> /dev/null
     make clean all
     popd >> /dev/null
 
@@ -65,7 +65,7 @@ clone_patch_and_make() {
 
 print_header() {
 
-    TITLE=$1
+    TITLE="$1"
     echo -e "${COLOR_INFO}-------------------------------------------------------${COLOR_END}"
     echo -e "${COLOR_INFO}$TITLE${COLOR_END}"
     echo -e "${COLOR_INFO}-------------------------------------------------------${COLOR_END}"
@@ -80,11 +80,11 @@ clone_and_patch https://github.com/lorabasics/basicstation ${REMOTE_TAG}
 pushd basicstation >> /dev/null
 
 print_header "Building BasicStation for v2"
-make platform=rpi variant=${VARIANT} arch=${ARCH}
+make platform=rpi variant="${VARIANT}" arch="${ARCH}"
 print_header "Building BasicStation for Corecell"
-make platform=corecell variant=${VARIANT} arch=${ARCH}
+make platform=corecell variant="${VARIANT}" arch="${ARCH}"
 print_header "Building BasicStation for Picocell"
-make platform=linuxpico variant=${VARIANT} arch=${ARCH}
+make platform=linuxpico variant="${VARIANT}" arch="${ARCH}"
 
 popd > /dev/null
 
@@ -94,7 +94,7 @@ popd > /dev/null
 
 print_header "Building chip_id for Corecell"
 clone_patch_and_make https://github.com/Lora-net/sx1302_hal.git V2.1.0
-cp sx1302_hal/util_chip_id/chip_id basicstation/build-corecell-${VARIANT}/bin/
+cp sx1302_hal/util_chip_id/chip_id "basicstation/build-corecell-${VARIANT}/bin/"
 
 # -----------------------------------------------------------------------------
 # Building chip_id for picocell
@@ -102,4 +102,4 @@ cp sx1302_hal/util_chip_id/chip_id basicstation/build-corecell-${VARIANT}/bin/
 
 print_header "Building chip_id for Picocell"
 clone_patch_and_make https://github.com/Lora-net/picoGW_hal V0.2.3
-cp picoGW_hal/util_chip_id/util_chip_id basicstation/build-linuxpico-${VARIANT}/bin/chip_id
+cp picoGW_hal/util_chip_id/util_chip_id "basicstation/build-linuxpico-${VARIANT}/bin/chip_id"

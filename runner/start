@@ -12,76 +12,95 @@ COLOR_ERROR="\e[31m" # red
 COLOR_END="\e[0m"
 
 # -----------------------------------------------------------------------------
-# Balena.io specific functions
+# Load Balena specific methods
 # -----------------------------------------------------------------------------
 
-# Load Balena methods
-if [ "$BALENA_DEVICE_UUID" != "" ]; then
-    source ./balena.sh
-fi
-
-function idle() {
-    echo -e "${COLOR_INFO}GATEWAY_EUI: ${GATEWAY_EUI}${COLOR_END}"
-   [[ "$BALENA_DEVICE_UUID" != "" ]] && balena-idle || sleep 2; exit 1
-}
-
-function restart_if_balena() {
-   [[ "$BALENA_DEVICE_UUID" != "" ]] && \
-   echo -e "${COLOR_INFO}Service will restart now${COLOR_END}" && \
-   balena-idle 
-}
+# shellcheck source=/dev/null
+[[ -n "$BALENA_DEVICE_UUID" ]] && source ./balena.sh
 
 # -----------------------------------------------------------------------------
 # Utils
 # -----------------------------------------------------------------------------
 
-function chip_id {
+function idle() {
 
-    local DESIGN=$1
-    local DEVICE=$2
+    # Report GATEWAY_EUI if already defined
+    [[ -n "${GATEWAY_EUI}" ]] && echo -e "${COLOR_INFO}GATEWAY_EUI: ${GATEWAY_EUI}${COLOR_END}"
     
-    [[ "$DEVICE" == *"ttyV"* ]] && TIMEOUT=10 || TIMEOUT=3
-
-    if [[ "$DESIGN" == "auto" ]] || [[ "$DESIGN" == "corecell" ]]; then
-        if [[ "$DEVICE" == *"tty"* ]]; then COM_TYPE="-u"; fi
-        local CHIP_ID=$( timeout ${TIMEOUT}s /app/artifacts/corecell/chip_id $COM_TYPE -d $DEVICE | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
-        if [[ "${CHIP_ID}" != "" ]]; then
-            OUTPUT=("corecell" $DEVICE $CHIP_ID)
-            return 1
-        fi
+    # Halt if Balena, exit after 5 seconds otherwise
+    if [[ -n "$BALENA_DEVICE_UUID" ]]; then 
+   balena-idle 
+    else
+        sleep 5
+        exit 1
     fi
-        
-    #if [[ "$DESIGN" == "auto" ]] || [[ "$DESIGN" == "picocell" ]]; then
-    #    local CHIP_ID=$( timeout ${TIMEOUT}s /app/artifacts/picocell/chip_id -d $DEVICE | tr [a-z] [A-Z] )
-    #    if [[ "${CHIP_ID}" != "" ]]; then
-    #        OUTPUT=("picocell" $DEVICE $CHIP_ID)
-    #        return 1
-    #    fi
-    #fi
-        
-    return 0
-    
+
+}
+
+function restart_if_balena() {
+   [[ -n "$BALENA_DEVICE_UUID" ]] && \
+   echo -e "${COLOR_INFO}Service will restart now${COLOR_END}" && \
+   balena-idle 
 }
 
 function create_reset_file {
 
     local RESET_FILE=/app/config/reset.sh
     
-    if [[ "${INTERFACE}" == "USB" ]]; then
-        echo "" > $RESET_FILE
+    # Raspberry Pi requires using libgpiod with gpiochip4
+    if [[ $( grep -c "Raspberry Pi 5" /proc/cpuinfo ) -eq 0  ]]; then
+        USE_LIBGPIOD=${USE_LIBGPIOD:-0}
+        GPIO_CHIP=${GPIO_CHIP:-gpiochip0}
     else
-        if [[ $USE_LIBGPIOD -eq 0 ]]; then
-            cp /app/reset.sh.legacy $RESET_FILE
-        else
-            cp /app/reset.sh.gpiod $RESET_FILE
-        fi
-        sed -i "s#{{GPIO_CHIP}}#${GPIO_CHIP}#" $RESET_FILE
-        sed -i "s#{{RESET_GPIO}}#${RESET_GPIO:-17}#" $RESET_FILE
-        sed -i "s#{{POWER_EN_GPIO}}#${POWER_EN_GPIO:-0}#" $RESET_FILE
-        sed -i "s#{{POWER_EN_LOGIC}}#${POWER_EN_LOGIC:-1}#" $RESET_FILE
+        USE_LIBGPIOD=${USE_LIBGPIOD:-1}
+        GPIO_CHIP=${GPIO_CHIP:-gpiochip4}
     fi
-    chmod +x $RESET_FILE
-    ln -s $RESET_FILE /app/config/reset_lgw.sh 2>/dev/null
+
+    if [[ "${INTERFACE}" == "USB" ]]; then
+        echo "" > ${RESET_FILE}
+    else
+        if [[ ${USE_LIBGPIOD} -eq 0 ]]; then
+            cp /app/reset.sh.legacy ${RESET_FILE}
+        else
+            cp /app/reset.sh.gpiod ${RESET_FILE}
+        fi
+        sed -i "s#{{GPIO_CHIP}}#${GPIO_CHIP}#" ${RESET_FILE}
+        sed -i "s#{{RESET_GPIO}}#${RESET_GPIO:-17}#" ${RESET_FILE}
+        sed -i "s#{{POWER_EN_GPIO}}#${POWER_EN_GPIO:-0}#" ${RESET_FILE}
+        sed -i "s#{{POWER_EN_LOGIC}}#${POWER_EN_LOGIC:-1}#" ${RESET_FILE}
+    fi
+    chmod +x "${RESET_FILE}"
+    ln -s "${RESET_FILE}" /app/config/reset_lgw.sh 2>/dev/null
+
+}
+
+function chip_id {
+
+    local DESIGN=$1
+    local DEVICE=$2
+    local CHIP_ID
+    
+    [[ "$DEVICE" == *"ttyV"* ]] && TIMEOUT=10 || TIMEOUT=3
+
+    if [[ "$DESIGN" == "auto" ]] || [[ "$DESIGN" == "corecell" ]]; then
+        [[ "$DEVICE" == *"tty"* ]] && COM_TYPE="-u"
+        CHIP_ID=$( timeout "${TIMEOUT}s" /app/artifacts/corecell/chip_id "$COM_TYPE" -d "$DEVICE" | grep 'EUI' | sed 's/^.*0x//' | tr "[:lower:]" "[:upper:]" )
+        if [[ -n ${CHIP_ID} ]]; then
+            RESPONSE=( "corecell" "$DEVICE" "$CHIP_ID" )
+            return 1
+        fi
+    fi
+        
+    if [[ "$DESIGN" == "auto" ]] || [[ "$DESIGN" == "picocell" ]]; then
+        CHIP_ID=$( timeout "${TIMEOUT}s" /app/artifacts/picocell/chip_id -d "$DEVICE" | tr "[:lower:]" "[:upper:]" )
+        if [[ -n ${CHIP_ID} ]]; then
+            RESPONSE=( "picocell" "$DEVICE" "$CHIP_ID" )
+            sleep 5
+            return 1
+        fi
+    fi
+        
+    return 0
 
 }
 
@@ -103,18 +122,26 @@ function discover_concentrator {
     # Look for devices
     FOUND=0
     for DEVICE in $DEVICES; do
-        chip_id ${DESIGN,,} $DEVICE
+        chip_id "${DESIGN,,}" "${DEVICE}"
         if [[ $? -eq 1 ]]; then
-            FOUND=$(( $FOUND + 1 ))
-            if [[ ${FOUND} -eq $RADIO_NUM ]]; then
-                # We pass the OUTPUT to the caller
+            FOUND=$(( FOUND + 1 ))
+            if [[ ${FOUND} -eq ${RADIO_NUM} ]]; then
+                # We pass the RESPONSE to the caller
                 break
             fi
-
         fi
     done
 
     return $FOUND
+
+}
+
+function create_network_link {
+
+    NETLINK=${DEVICE:-$( /sbin/ip route|awk '/default/ { print $3 ":3333" }' )}
+    INTERFACE="USB"
+    DEVICE="/dev/ttyV0"
+    socat pty,link=$DEVICE,waitslave "tcp:$NETLINK" &
 
 }
 
@@ -145,25 +172,26 @@ function tts_autoprovision() {
 
     RAW=$(curl -s --location \
         --header 'Accept: application/json' \
-        --header 'Authorization: Bearer '$TTS_PERSONAL_KEY'' \
+        --header 'Authorization: Bearer '"${TTS_PERSONAL_KEY}"'' \
         --header 'Content-Type: application/json' \
         --request POST \
         --data-raw '{
             "gateway": {
             "ids": {
-                "gateway_id": "'$GATEWAY_ID'",
-                "eui": "'$GATEWAY_EUI'"
+                "gateway_id": "'"${GATEWAY_ID}"'",
+                "eui": "'"${GATEWAY_EUI}"'"
             },
-            "name": "'$GATEWAY_NAME'",
-            "gateway_server_address": "'$SERVER'",
-            "frequency_plan_id": "'$TTS_FREQUENCY_PLAN_ID'"
+            "name": "'"${GATEWAY_NAME}"'",
+            "gateway_server_address": "'"${SERVER}"'",
+            "frequency_plan_id": "'"${TTS_FREQUENCY_PLAN_ID}"'"
             }
         }' \
-        'https://'$SERVER'/api/v3/users/'$TTS_USERNAME'/gateways' 2>/dev/null)
+        'https://'"${SERVER}"'/api/v3/users/'"${TTS_USERNAME}"'/gateways' 2>/dev/null)
     
-    #echo $RAW | jq
-    local CODE=$(echo $RAW | jq --raw-output '.code' 2>/dev/null)
-    local MESSAGE=$(echo $RAW | jq --raw-output '.message_format' 2>/dev/null)
+    local CODE
+    local MESSAGE
+    CODE=$( echo "${RAW}" | jq --raw-output '.code' 2>/dev/null )
+    MESSAGE=$( echo "${RAW}" | jq --raw-output '.message_format' 2>/dev/null )
 
     # ToDo: find more error codes when provision a gateway via API.   
     if [[ "$CODE" == "null" ]]; then
@@ -180,49 +208,49 @@ function tts_autoprovision() {
     fi
 
     # List api keys
-    local IDS=$(curl -s --location \
+    local IDS
+    IDS=$(curl -s --location \
         --header 'Accept: application/json' \
-        --header 'Authorization: Bearer '$TTS_PERSONAL_KEY'' \
+        --header 'Authorization: Bearer '"${TTS_PERSONAL_KEY}"'' \
         --header 'Content-Type: application/json' \
         --request GET \
-        'https://'$SERVER'/api/v3/gateways/'$GATEWAY_ID'/api-keys' | jq '.api_keys[] | select(.name == "'$API_KEY_NAME'") | .id' 2>/dev/null)
+        'https://'"${SERVER}"'/api/v3/gateways/'"${GATEWAY_ID}"'/api-keys' | jq '.api_keys[] | select(.name == "'"${API_KEY_NAME}"'") | .id' 2>/dev/null)
     
     # Delete previous API keys
-    for ID in ${IDS[@]}; do
-        ID=$(echo $ID | tr -d '"')
+    for ID in $IDS; do
         curl -s --location \
             --header 'Accept: application/json' \
-            --header 'Authorization: Bearer '$TTS_PERSONAL_KEY'' \
+            --header 'Authorization: Bearer '"${TTS_PERSONAL_KEY}"'' \
             --header 'Content-Type: application/json' \
             --request PUT \
             --data-raw '{
-                "name":"'$API_KEY_NAME'",
+                "name":"'"${API_KEY_NAME}"'",
                 "rights":[],
                 "expires_at":null
             }' \
-            'https://'$SERVER'/api/v3/gateways/'$GATEWAY_ID'/api-keys/'$ID >/dev/null
+            'https://'"${SERVER}"'/api/v3/gateways/'"${GATEWAY_ID}"'/api-keys/'"${ID//\"/}" >/dev/null
     done
 
     # Create new api key
     RAW=$(curl -s --location \
         --header 'Accept: application/json' \
-        --header 'Authorization: Bearer '$TTS_PERSONAL_KEY'' \
+        --header 'Authorization: Bearer '"${TTS_PERSONAL_KEY}"'' \
         --header 'Content-Type: application/json' \
         --request POST \
         --data-raw '{
-            "name":"'$API_KEY_NAME'",
+            "name":"'"${API_KEY_NAME}"'",
             "rights":["RIGHT_GATEWAY_LINK"],
             "expires_at":null
         }' \
-        'https://'$SERVER'/api/v3/gateways/'$GATEWAY_ID'/api-keys' 2>/dev/null)
+        'https://'"${SERVER}"'/api/v3/gateways/'"${GATEWAY_ID}"'/api-keys' 2>/dev/null)
 
-    #echo $RAW | jq
-    local KEY=$(echo $RAW | jq --raw-output '.key' 2>/dev/null)
+    local KEY
+    KEY=$( echo "$RAW" | jq --raw-output '.key' 2>/dev/null )
 
     if [[ "$KEY" != "null" ]]; then
         TC_KEY=$KEY
         echo "TC_KEY successfully generated"
-        [[ "$BALENA_DEVICE_UUID" != "" ]] && balena_set_variable "TC_KEY" "$TC_KEY"
+        [[ -n "$BALENA_DEVICE_UUID" ]] && balena_set_variable "TC_KEY" "$TC_KEY"
         restart_if_balena
     fi
 
@@ -234,16 +262,17 @@ function clean_certs_keys() {
 
     if [[ "$CONTENT" == *-----* ]]; then
     
-        CONTENT=$( echo "$CONTENT" | sed 's/-----/-/g' )
+        CONTENT=${CONTENT//-----/-}
         readarray -d '-' -t PARTS <<< "$CONTENT"
         local HEADER=${PARTS[1]}
-        local KEY=$( echo "${PARTS[2]}" | tr '\n' ' ' | sed 's/\s//g' )
+        local KEY
+        KEY=$( echo "${PARTS[2]}" | tr '\n' ' ' | sed 's/\s//g' )
         local FOOTER=${PARTS[3]}
         echo -e "-----$HEADER-----\n$KEY\n-----$FOOTER-----"
 
     else
         
-        echo $CONTENT
+        echo "$CONTENT"
     
     fi
         
@@ -255,19 +284,14 @@ function clean_certs_keys() {
 
 # Move into configuration folder
 mkdir -p config
-pushd config >> /dev/null
+cd config || exit 1
 CONFIG_FILE=./station.conf
 
 # -----------------------------------------------------------------------------
 # Network device
 # -----------------------------------------------------------------------------
 
-if [[ "${INTERFACE}" == "NET" ]]; then
-    NETLINK=${DEVICE:-$( /sbin/ip route|awk '/default/ { print $3 ":3333" }' )}
-    INTERFACE="USB"
-    DEVICE="/dev/ttyV0"
-    socat pty,link=$DEVICE,waitslave tcp:$NETLINK &
-fi
+[[ "${INTERFACE}" == "NET" ]] && create_network_link
 
 # -----------------------------------------------------------------------------
 # Server configuration
@@ -347,11 +371,11 @@ fi
 if [[ -f $CONFIG_FILE ]]; then
 
     # Get device & interface
-    DEVICE=$(cat $CONFIG_FILE | jq '.[] | .device' | head -1 | sed 's/\("\|spi:\|usb:\)//g')
+    DEVICE=$( jq '.[] | .device' "$CONFIG_FILE" | head -1 | sed 's/\("\|spi:\|usb:\)//g' )
     [[ "${DEVICE}" == *"spi"* ]] && INTERFACE="SPI" || INTERFACE="USB"
 
     # Guess generic model
-    if [[ `grep "SX1302_conf" $CONFIG_FILE` != "" ]]; then
+    if [[ $( grep -c "SX1302_conf" "$CONFIG_FILE" ) -ne 0 ]]; then
         MODEL=${MODEL:-"SX1302"}
     elif [[ "${INTERFACE}" == "USB" ]]; then
         MODEL=${MODEL:-"SX1308"}
@@ -360,10 +384,8 @@ if [[ -f $CONFIG_FILE ]]; then
     fi
 
     # Get Gateway EUI
-    GATEWAY_EUI=$(cat $CONFIG_FILE | jq '.station_conf.routerid' | sed 's/"//g')
-    if [[ "${GATEWAY_EUI}" != "" ]]; then
-        GATEWAY_EUI_SOURCE="file"
-    fi
+    GATEWAY_EUI=$( jq '.station_conf.routerid' "$CONFIG_FILE" | sed 's/"//g' )
+    [[ -n "${GATEWAY_EUI}" ]] && GATEWAY_EUI_SOURCE="file"
 
 fi
 
@@ -372,21 +394,21 @@ fi
 # -----------------------------------------------------------------------------
 
 # If no MODEL defined we try to find the concentrator
-if [[ "${MODEL}" == "" ]] || [[ "${MODEL}" == "AUTO" ]]; then
+if [[ -z "${MODEL}" ]] || [[ "${MODEL}" == "AUTO" ]]; then
     
     unset MODEL
 
     create_reset_file 
-    discover_concentrator ${INTERFACE:-AUTO} ${DESIGN:-AUTO} ${RADIO_NUM:-1}
+    discover_concentrator "${INTERFACE:-AUTO}" "${DESIGN:-AUTO}" "${RADIO_NUM:-1}"
     if [[ $? -ne 0 ]]; then
         
-        DESIGN=${OUTPUT[0]}
-        DEVICE=${OUTPUT[1]}
-        CHIP_ID=${OUTPUT[2]}
-        [[ "${DEVICE}" == *"spi"* ]] && INTERFACE="SPI" || INTERFACE="USB"
-
-        if [[ "${DESIGN}" == "corecell" ]]; then MODEL="SX1302"; fi
-        if [[ "${DESIGN}" == "picocell" ]]; then MODEL="SX1308"; fi
+        DESIGN=${RESPONSE[0]}
+        DEVICE=${RESPONSE[1]}
+        CHIP_ID=${RESPONSE[2]}
+        
+        [[ "${DEVICE}" == *"spi"*    ]] && INTERFACE="SPI" || INTERFACE="USB"
+        [[ "${DESIGN}" == "corecell" ]] && MODEL="SX1302"
+        [[ "${DESIGN}" == "picocell" ]] && MODEL="SX1308"
 
     else
     
@@ -432,8 +454,8 @@ declare -A MODEL_MAP=(
 )
 
 CONCENTRATOR=${MODEL_MAP[$MODEL]}
-if [[ "${CONCENTRATOR}" == "" ]]; then
-    echo -e "${COLOR_ERROR}ERROR: Unknown MODEL value ($MODEL). Valid values are: ${!MODEL_MAP[@]}${COLOR_END}"
+if [[ -z "${CONCENTRATOR}" ]]; then
+    echo -e "${COLOR_ERROR}ERROR: Unknown MODEL value ($MODEL). Valid values are: ${MODEL_MAP[*]}${COLOR_END}"
 	idle
 fi
 
@@ -500,15 +522,6 @@ fi
 POWER_EN_GPIO=${POWER_EN_GPIO:-0}
 POWER_EN_LOGIC=${POWER_EN_LOGIC:-1}
 
-# Raspberry Pi requires using libgpiod with gpiochip4
-if [[ `cat /proc/cpuinfo | grep "Raspberry Pi 5"` != "" ]]; then
-    USE_LIBGPIOD=${USE_LIBGPIOD:-1}
-    GPIO_CHIP=${GPIO_CHIP:-gpiochip4}
-else
-    USE_LIBGPIOD=${USE_LIBGPIOD:-0}
-    GPIO_CHIP=${GPIO_CHIP:-gpiochip0}
-fi
-
 # Create reset file
 create_reset_file
 
@@ -516,17 +529,17 @@ create_reset_file
 # Radio device auto-discovery
 # -----------------------------------------------------------------------------
 
-if [[ "${DEVICE}" == "AUTO" ]]; then
+if [[ -z "${DEVICE}" ]] || [[ "${DEVICE}" == "AUTO" ]]; then
 
     unset DEVICE
 
     # Look for concentrator
-    discover_concentrator $INTERFACE $DESIGN ${RADIO_NUM:-1}
+    discover_concentrator "${INTERFACE:-AUTO}" "${DESIGN:-AUTO}" "${RADIO_NUM:-1}"
     if [[ $? -ne 0 ]]; then
 
-        DESIGN=${OUTPUT[0]}
-        DEVICE=${OUTPUT[1]}
-        CHIP_ID=${OUTPUT[2]}
+        DESIGN=${RESPONSE[0]}
+        DEVICE=${RESPONSE[1]}
+        CHIP_ID=${RESPONSE[2]}
 
     else
 
@@ -541,7 +554,7 @@ fi
 # -----------------------------------------------------------------------------
 
 # If DEVICE not yet defined, use sensible defaults
-if [[ "${DEVICE}" == "" ]]; then
+if [[ -z "${DEVICE}" ]]; then
     if [[ "${INTERFACE}" == "SPI" ]]; then
         DEVICE=${DEVICE:-"/dev/spidev0.0"}
     else
@@ -569,11 +582,9 @@ export LORAGW_SPI=$DEVICE
 # -----------------------------------------------------------------------------
 
 # Set default SPI speed and clock source for SX1301 and SX1308 concentrators to 2MHz and radio_1
-if [[ "${INTERFACE}" == "SPI" ]]; then
-    if [[ "${CONCENTRATOR}" == "SX1301" ]] || [[ "${CONCENTRATOR}" == "SX1308" ]]; then
-        SPI_SPEED=${SPI_SPEED:-2000000}
-        CLKSRC=${CLKSRC:-1}
-    fi
+if [[ "${CONCENTRATOR}" == "SX1301" ]] || [[ "${CONCENTRATOR}" == "SX1308" ]]; then
+    SPI_SPEED=${SPI_SPEED:-2000000}
+    CLKSRC=${CLKSRC:-1}
 fi
 
 export LORAGW_SPI_SPEED=${SPI_SPEED:-8000000}
@@ -590,12 +601,12 @@ GATEWAY_EUI_SOURCE=${GATEWAY_EUI_SOURCE:-$GATEWAY_EUI_NIC}
 if [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
 
     # Check if it's already cached
-    if [[ "$CHIP_ID" != "" ]]; then
+    if [[ -n "${CHIP_ID}" ]]; then
         GATEWAY_EUI=${CHIP_ID}    
     else
-        chip_id $DESIGN $DEVICE
+        chip_id "$DESIGN" "$DEVICE"
         if [[ $? -eq 1 ]]; then
-            CHIP_ID=${OUTPUT[2]}
+            CHIP_ID=${RESPONSE[2]}
             GATEWAY_EUI=${CHIP_ID}
         fi
     fi
@@ -603,32 +614,30 @@ if [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
 fi
 
 # If still no GATEWAY_EUI, try building it from a NIC MAC
-if [[ "$GATEWAY_EUI" == "" ]]; then
+if [[ -z "${GATEWAY_EUI}" ]]; then
 
-    if [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
-        GATEWAY_EUI_SOURCE="eth0"
-    fi
+    # Unset it but keep it global
+    GATEWAY_EUI_SOURCE=""
 
-    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
-        GATEWAY_EUI_SOURCE="eth0"
+    # Try usual interfaces
+    for INET in eth0 wlan0 usb0 eth1; do
+        if [[ $( grep -c "^\s*${INET}:" /proc/net/dev ) -eq 1 ]]; then
+            GATEWAY_EUI_SOURCE=$INET
+            break
     fi
-    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
-        GATEWAY_EUI_SOURCE="wlan0"
+    done
+
+    # If none of the above, get the most used NIC based on received bytes
+    if [[ -z $GATEWAY_EUI_SOURCE ]]; then
+        GATEWAY_EUI_SOURCE=$( tail -n+3 < /proc/net/dev | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g' )
     fi
-    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
-        GATEWAY_EUI_SOURCE="usb0"
-    fi
-    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
-        GATEWAY_EUI_SOURCE="eth1"
-    fi
-    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
-        # Last chance: get the most used NIC based on received bytes
-        GATEWAY_EUI_SOURCE=$(cat /proc/net/dev | tail -n+3 | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g')
-    fi
-    if [[ `grep "$GATEWAY_EUI_SOURCE" /proc/net/dev` == "" ]]; then
+    
+    # Get the Gateway EUI from the source
+    if [[ -n $GATEWAY_EUI_SOURCE ]]; then
+        GATEWAY_EUI=$( ip link show "$GATEWAY_EUI_SOURCE" | awk '/ether/ {print $2}' | awk -F: '{print $1$2$3"FFFE"$4$5$6}' )
+    else
         echo -e "${COLOR_ERROR}ERROR: No network interface found. Cannot set gateway EUI.${COLOR_END}"
     fi
-    GATEWAY_EUI=$(ip link show $GATEWAY_EUI_SOURCE | awk '/ether/ {print $2}' | awk -F\: '{print $1$2$3"FFFE"$4$5$6}')
 
 fi
 
@@ -652,6 +661,7 @@ echo -e ""
 echo -e "${COLOR_WARNING}Based on:${COLOR_END}"
 echo -e "${COLOR_WARNING} * basicstation v2.0.6${COLOR_END}"
 echo -e "${COLOR_WARNING} * sx1302_hal v2.1.0${COLOR_END}"
+echo -e "${COLOR_WARNING} * picoGW_hal v0.2.3${COLOR_END}"
 echo -e "${COLOR_WARNING}------------------------------------------------------------------${COLOR_END}"
 
 echo -e ""
@@ -675,12 +685,12 @@ echo -e "${COLOR_INFO}----------------------------------------------------------
 echo -e "${COLOR_INFO}Model:         ${MODEL}${COLOR_END}"
 echo -e "${COLOR_INFO}Concentrator:  ${CONCENTRATOR}${COLOR_END}"
 echo -e "${COLOR_INFO}Design:        ${DESIGN^^}${COLOR_END}"
-if [[ "$NETLINK" != "" ]]; then
+if [[ -n "${NETLINK}" ]]; then
 echo -e "${COLOR_INFO}Network link:  ${NETLINK}${COLOR_END}"
 fi
 echo -e "${COLOR_INFO}Interface:     ${INTERFACE}${COLOR_END}"
 echo -e "${COLOR_INFO}Radio Device:  ${DEVICE}${COLOR_END}"
-if [[ "$CHIP_ID" != "" ]]; then
+if [[ -n "${CHIP_ID}" ]]; then
 echo -e "${COLOR_INFO}Chip ID:       ${CHIP_ID}${COLOR_END}"
 fi
 
@@ -702,18 +712,18 @@ echo -e ""
 # Push to Balena
 # -----------------------------------------------------------------------------
 
-[[ "$BALENA_DEVICE_UUID" != "" ]] && balena_set_label "EUI" "$GATEWAY_EUI"
+[[ -n "$BALENA_DEVICE_UUID" ]] && balena_set_label "EUI" "$GATEWAY_EUI"
 
 # -----------------------------------------------------------------------------
 # Generate dynamic configuration files
 # -----------------------------------------------------------------------------
 
 # Link the corresponding configuration file
-if [[ ! -f $CONFIG_FILE ]]; then
-    cp /app/station.${DESIGN}.conf $CONFIG_FILE
-    sed -i "s#\"device\":\s*.*,#\"device\": \"${INTERFACE,,}:${DEVICE}\",#" $CONFIG_FILE
-    sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"${GATEWAY_EUI}\",#" $CONFIG_FILE
-    sed -i "s#\"clksrc\":\s*.*,#\"clksrc\": ${CLKSRC:-0},#" $CONFIG_FILE
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    cp "/app/station.${DESIGN}.conf" "$CONFIG_FILE"
+    sed -i "s#\"device\":\s*.*,#\"device\": \"${INTERFACE,,}:${DEVICE}\",#" "$CONFIG_FILE"
+    sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"${GATEWAY_EUI}\",#" "$CONFIG_FILE"
+    sed -i "s#\"clksrc\":\s*.*,#\"clksrc\": ${CLKSRC:-0},#" "$CONFIG_FILE"
 fi
 
 # If stdn variant (or any *n variant) we need at least one slave concentrator
@@ -727,14 +737,14 @@ if [[ "$PROTOCOL" == "CUPS" ]]; then
         echo "$CUPS_URI" > cups.uri
     fi
     if [[ ! -f ./cups.trust ]]; then 
-        if [[ "$CUPS_TRUST" == "" ]]; then
+        if [[ -z "$CUPS_TRUST" ]]; then
             cp /app/cacert.pem cups.trust
         else
             clean_certs_keys "$CUPS_TRUST" > cups.trust
         fi
     fi
     if [[ ! -f ./cups.crt ]]; then 
-        if [[ "$CUPS_CRT" != "" ]]; then
+        if [[ -n "$CUPS_CRT" ]]; then
             clean_certs_keys "$CUPS_CRT" > cups.crt
         fi
     fi
@@ -753,14 +763,14 @@ if [[ "$PROTOCOL" == "LNS" ]]; then
         echo "$TC_URI" > tc.uri
     fi
     if [[ ! -f ./tc.trust ]]; then 
-        if [[ "$TC_TRUST" == "" ]]; then
+        if [[ -z "$TC_TRUST" ]]; then
             cp /app/cacert.pem tc.trust
         else
             clean_certs_keys "$TC_TRUST" > tc.trust
         fi
     fi
     if [[ ! -f ./tc.crt ]]; then 
-        if [[ "$TC_CRT" != "" ]]; then
+        if [[ -n "$TC_CRT" ]]; then
             clean_certs_keys "$TC_CRT" > tc.crt
         fi
     fi
@@ -777,4 +787,4 @@ fi
 # Start packet forwarder
 # -----------------------------------------------------------------------------
 
-STATION_RADIOINIT=/app/config/reset.sh /app/artifacts/${DESIGN}/station -f
+STATION_RADIOINIT=/app/config/reset.sh /app/artifacts/"${DESIGN}"/station -f

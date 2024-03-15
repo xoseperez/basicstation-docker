@@ -284,7 +284,9 @@ Variable Name | Value | Description | Default
 **`GW_POWER_EN_GPIO`** | **Deprecated** | Use POWER_EN_GPIO instead |
 **`GW_POWER_EN_LOGIC`** | **Deprecated** | Use POWER_EN_LOGIC instead |
 
-> At least `MODEL` and `USE_CUPS=1` or `CUPS_KEY` or `TC_KEY` must be defined (if using TTN).
+> No device-related setting is mandatory but `MODEL` and `DEVICE` must be defined for better performance. The service can auto-discover the concentrator but this feature takes some time on boot to walk through all the possible devices, designs and interfaces. Mind that not all concentrator types support auto-discover, defining a `MODEL` and `DEVICE` is mandatory for SX1301-concentrators.
+
+> BasicStation does require a minimum configuration to connect to the server: URL, CA certificate, client certificate and or client key, either for LNS or CUPS protocols. These are set with the `TC_*` and `CUPS_*` variables. Check the examples below.
 
 > When using CUPS (setting `USE_CUPS` to 1 or defining the `CUPS_KEY` variable), LNS configuration is retrieved from the CUPS server, so you don't have to set the `TC_*` variables.
 
@@ -570,10 +572,12 @@ Then bring up the service and it will populate several config files in this fold
 * `slave-N.conf`: Specific configuration file for each radio. They must exist, even if all settings are inherited from the `station.conf` file. In that case, the slave file will only contain an empty object: `{}`.
 * `tc.uri`: File containing the URL of the LNS.
 * `tc.trust`: File containing the certificate of the LNS server.
-* `tc.key`: File containing the key of the gateway to connect to the LNS server.
+* `tc.cert`: File containing the certificate for the client.
+* `tc.key`: File containing the certificate key of the gateway to connect to the LNS server or the API key.
 * `cups.uri`: File containing the URL of the CUPS.
 * `cups.trust`: File containing the certificate of the CUPS server.
-* `cups.key`: File containing the key of the gateway to connect to the CUPS server.
+* `cups.cert`: File containing the certificate for the client.
+* `cups.key`: File containing the client certificate key of the gateway to connect to the CUPS server or the API key.
 
 **NOTE**: remember that, when using CUPS, `tc.uri`, `tc.trust` and `tc.key` are retrieved automatically from the CUPS server.
 
@@ -632,11 +636,14 @@ For a USB concentrator you would mount the USB port instead of the SPI port and 
 
 ### Auto-discover
 
-The auto-discover feature is capable of finding connected concentrators to SPI or USB ports as long as they are Corecell (SX1302 or SX1303-based). The auto-discover feature will try to find the `INTERFACE` and the `DEVICE` where this is connected to if these are undefined or set to `AUTO`. You can use the `RADIO_NUM` variable to select a sepecific find (first, second... ).
+The auto-discover feature is capable of finding connected concentrators to SPI and USB ports as long as they are Corecell or Picocell ones (SX1302, SX1303 and SX1308-based). 
 
-The auto-discover feature will use defined `MODEL`, `INTERFACE` or `DEVICE` values to narrow the search (and therefore speeding up service boot).
+This feature walks the corresponding interfaces until it finds the required concentrator and then resets the `DEVICE` and `INTERFACE` variables accordingly. Doing so takes some time on boot (up to 3 seconds for each device it checks), if you want to speed up the boot process you can set the `DEVICE` explicitly after looking for it with the `find_concentrator` utility (see `Find the concentrator` section below).
 
-This feature walks the corresponding interfaces until it finds the required concentrator and then resets the `DEVICE` and `INTERFACE` variables accordingly. Doing so takes some time on boot (up to 3 seconds for each device it checks), if you want to speed up the boot process you can set the `DEVICE` explicitly after looking for it with the `find` utility (see `Find the concentrator` section below).
+Auto-discovery is triggered in different situations:
+
+* No `MODEL` defined or set to `AUTO`: It will search for a concentrator on all interfaces. Interfaces to check can be narrow by using the `INTERFACE` setting. Also the concentrator type to search for can be specified using the `DESIGN` setting (`corecell`, `picocell` or `2g4` are supported).
+* `MODEL` defined but no `DEVICE` or set to `AUTO`:  It will search for the specific concentrator type (based on `MODEL`) on all interfaces. Interfaces to check can be narrow by using the `INTERFACE` setting. 
 
 The following example will start a Corecell concentrator (RAK5146 is based on SX1303) on whatever first interface it finds it (SPI or USB).
 

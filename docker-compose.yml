@@ -53,7 +53,7 @@ services:
 
       # If you have the concentrator connected to a different port than the default one 
       # ("/dev/spidev0.0" for SPI, "/dev/ttyACM0" for USB or "<hostip>:3333" for NET) you can define here.
-      # Set it to "AUTO" for auto-discover (works only with local Corecell concentrators).
+      # Set it to "AUTO" for auto-discover (works only with Corecell and Picocell concentrators).
       #DEVICE: "/dev/spidev0.0"
       #DEVICE: "/dev/ttyACM0"
       #DEVICE: "192.168.1.86:3333"

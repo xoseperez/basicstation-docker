@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-cd $(dirname $0)
-
 # -----------------------------------------------------------------------------
 #
 # Tries to detect existing concentrators, run by:
@@ -21,14 +19,11 @@ cd $(dirname $0)
 #
 # -----------------------------------------------------------------------------
 
+cd "$( dirname "$0" )" || exit
+
 # -----------------------------------------------------------------------------
 # Colors
 # -----------------------------------------------------------------------------
-
-COLOR_INFO="\e[32m" # green
-COLOR_WARNING="\e[33m" # yellow
-COLOR_ERROR="\e[31m" # red
-COLOR_END="\e[0m"
 
 WIDTH_DEVICE=0
 WIDTH_DESIGN=13
@@ -42,10 +37,12 @@ function pad() {
     LENGTH=$2
     FILL=$3
     
-    START=$( echo $TEXT | wc -c )
-    COUNT=$(( $LENGTH - $START ))
-    printf "$TEXT"
-    for (( i = 0; i < "$COUNT"; ++i )); do printf "$FILL"; done
+    START=${#TEXT}
+    COUNT=$(( LENGTH - START - 1 ))
+    printf "%s" "$TEXT"
+    for (( i = 0; i < "$COUNT"; ++i )); do 
+        printf "%s" "$FILL"
+    done
 
 }
 
@@ -56,37 +53,42 @@ function pad() {
 function test_device {
 
     local DEVICE=$1
-    local EUI=""
+    local GATEWAY_EUI=""
     local DESIGN
     
-    pad $DEVICE $WIDTH_DEVICE " "
+    pad "$DEVICE" $WIDTH_DEVICE " "
     
     [[ "$DEVICE" == *"ttyV"* ]] && TIMEOUT=10 || TIMEOUT=3
 
-    for DESIGN in corecell picocell; do
+    for DESIGN in corecell 2g4 picocell; do
 
         CHIP_ID_COMMAND="/app/artifacts/${DESIGN}/chip_id"
         if [[ -f $CHIP_ID_COMMAND ]]; then
             
             if [[ "$DESIGN" == "corecell" ]]; then
-                if [[ "$DEVICE" == *"tty"* ]]; then COM_TYPE="-u"; fi
-                EUI=$( timeout ${TIMEOUT}s $CHIP_ID_COMMAND $COM_TYPE -d $DEVICE 2>/dev/null | grep 'EUI' | sed 's/^.*0x//' | tr [a-z] [A-Z] )
-                [[ "$EUI" != "" ]] && break
+                [[ "$DEVICE" == *"tty"* ]] && COM_TYPE="-u"
+                GATEWAY_EUI=$( timeout "${TIMEOUT}s" "$CHIP_ID_COMMAND" "$COM_TYPE" -d "$DEVICE" 2>/dev/null | grep 'EUI' | sed 's/^.*0x//' | tr "[:lower:]" "[:upper:]" )
+                [[ -n "${GATEWAY_EUI}" ]] && break
+            fi
+            
+            if [[ "$DESIGN" == "2g4" ]] && [[ "$DEVICE" == *"tty"* ]]; then 
+                GATEWAY_EUI=$( timeout "${TIMEOUT}s" "$CHIP_ID_COMMAND" -d "$DEVICE" 2>/dev/null | grep 'EUI' | sed 's/^.*0x//' | tr "[:lower:]" "[:upper:]" )
+                [[ -n "${GATEWAY_EUI}" ]] && break
             fi
             
             if [[ "$DESIGN" == "picocell" ]] && [[ "$DEVICE" == *"tty"* ]]; then 
-                EUI=$( timeout ${TIMEOUT}s $CHIP_ID_COMMAND -d $DEVICE 2>/dev/null | tr [a-z] [A-Z] )
-                [[ "$EUI" != "" ]] && break
+                GATEWAY_EUI=$( timeout "${TIMEOUT}s" "$CHIP_ID_COMMAND" -d "$DEVICE" 2>/dev/null | tr "[:lower:]" "[:upper:]" )
+                [[ -n "${GATEWAY_EUI}" ]] && break
             fi
             
         fi
     
     done
     
-    if [[ "${EUI}" != "" ]]; then
-        pad $DESIGN $WIDTH_DESIGN " "
-        pad $EUI $WIDTH_ID " "
-        FOUND=$(( $FOUND + 1 ))
+    if [[ -n "${GATEWAY_EUI}" ]]; then
+        pad "$DESIGN" $WIDTH_DESIGN " "
+        pad "$GATEWAY_EUI" $WIDTH_ID " "
+        FOUND=$(( FOUND + 1 ))
     echo ""
     else
         echo -e -n "\r"
@@ -101,7 +103,10 @@ function test_device {
 # -----------------------------------------------------------------------------
 
 # Raspberry Pi requires using libgpiod with gpiochip4
-if [[ `cat /proc/cpuinfo | grep "Raspberry Pi 5"` != "" ]]; then
+if [[ $( grep -c "Raspberry Pi 5" /proc/cpuinfo ) -eq 0  ]]; then
+    USE_LIBGPIOD=${USE_LIBGPIOD:-0}
+    GPIO_CHIP=${GPIO_CHIP:-gpiochip0}
+else
     USE_LIBGPIOD=${USE_LIBGPIOD:-1}
     GPIO_CHIP=${GPIO_CHIP:-gpiochip4}
 fi
@@ -125,7 +130,7 @@ chmod +x reset_lgw.sh
 if [[ "${INTERFACE}" == "NET" ]]; then
     NETLINK=${DEVICE:-$( /sbin/ip route|awk '/default/ { print $3 ":3333" }' )}
     DEVICE="/dev/ttyV0"
-    socat pty,link=$DEVICE,waitslave tcp:$NETLINK &
+    socat pty,link=$DEVICE,waitslave "tcp:$NETLINK" &
 fi
 
 # -----------------------------------------------------------------------------
@@ -149,7 +154,7 @@ else
     fi
 fi
 
-if [[ "${DEVICES}" == "" ]]; then
+if [[ -z "${DEVICES}" ]]; then
     echo "No available interfaces. Quitting."
     exit
 fi
@@ -159,10 +164,9 @@ echo "Looking for devices, this might take some time..."
 echo 
 
 for DEVICE in $DEVICES; do
-    WIDTH=$( echo "$DEVICE" | wc -m )
-    [[ $WIDTH -gt $WIDTH_DEVICE ]] && WIDTH_DEVICE=$WIDTH
+    [[ ${#DEVICE} -gt $WIDTH_DEVICE ]] && WIDTH_DEVICE=${#DEVICE}
 done
-WIDTH_DEVICE=$(( $WIDTH_DEVICE + 4 ))
+WIDTH_DEVICE=$(( WIDTH_DEVICE + 5 ))
 
 pad "DEVICE" $WIDTH_DEVICE " "
 pad "DESIGN" $WIDTH_DESIGN " "
@@ -172,7 +176,7 @@ pad "" $WIDTH_DESIGN "-"
 pad "" $WIDTH_ID "-"; echo ""
 
 for DEVICE in $DEVICES; do
-    test_device $DEVICE
+    test_device "$DEVICE"
 done
 
 echo
