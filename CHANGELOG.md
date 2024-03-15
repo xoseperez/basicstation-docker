@@ -4,6 +4,7 @@
 
 * Support for auto-discover for Picocell concentrators
 * General clean up of the code
+* Option to filter uplinks and join requests using whitelists
 
 ## 2.8.0 (2024-02-29)
 

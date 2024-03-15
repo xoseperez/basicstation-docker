@@ -30,11 +30,13 @@ This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward pro
     - [Auto-discover](#auto-discover)
     - [Find the concentrator](#find-the-concentrator)
     - [Raspberry Pi 5](#raspberry-pi-5)
+    - [Whitelisting](#whitelisting)
 - [Troubleshoothing](#troubleshoothing)
     - [Connect to a concentrator remotely](#connect-to-a-concentrator-remotely)
 - [Parsers](#parsers)
 - [Attribution](#attribution)
 - [License](#license)
+
 
 ## Introduction
 
@@ -46,7 +48,7 @@ Main features:
 * Support for SX1301 SPI concentrators.
 * Support for SX1302 and SX1303 SPI and USB (CoreCell) concentrators.
 * Support for SX1308 SPI and SX1308 USB (PicoCell) concentrators.
-* Support for multiple concentrators on the same device (using one basicstation service).
+* Support for multiple concentrators on the same device (using one Basics™ Station for Docker service).
 * Compatible with The Things Stack (Comunity Edition / TTNv3) or Chirpstack LNS amongst others.
 * CUPS & LNS protocol configuration supported
 * Gateway autoprovision for TTS servers (TTI or TTN)
@@ -56,8 +58,6 @@ Based on Semtech's [Basics™ Station](https://github.com/lorabasics/basicstatio
 
 This project is available on Docker Hub (https://hub.docker.com/r/xoseperez/basicstation) and GitHub (https://github.com/xoseperez/basicstation-docker).
 
-This project is an evolution of the BasicStation implementation for Docker @mpous and I have been working on. You can still find it here: https://github.com/mpous/basicstation.
-
 This project has been tested with The Things Stack Community Edition (TTSCE or TTNv3).
 
 
@@ -65,7 +65,7 @@ This project has been tested with The Things Stack Community Edition (TTSCE or T
 
 ### Hardware
 
-As long as the host can run docker containers, the Basics™ Station service can run on:
+As long as the host can run docker containers, the Basics™ Station for Docker service can run on:
 
 * AMD64: most PCs out there
 * ARMv8: Raspberry Pi 3/4/5, 400, Compute Module 3/4, Zero 2 W,...
@@ -98,7 +98,7 @@ Tested LoRa concentrators:
 
 > **NOTE**: Other concentrators might also work. If you manage to make this work with a different setup, report back :)
 
-> **NOTE**: The basicstation project is not compatible with SX1301 USB LoRa concentrators. This means that you won't be able to use it with a RAK2247-USB.
+> **NOTE**: The Basics™ Station project is not compatible with SX1301 USB LoRa concentrators. This means that you won't be able to use it with a RAK2247-USB.
 
 > **NOTE**: SPI concentrators in MiniPCIe form factor will require a special Hat or adapter to connect them to the SPI interface in the SBC. USB concentrators in MiniPCIe form factor will require a USB adapter to connect them to a USB2/3 socket on the PC or SBC. Other form factors might also require an adaptor for the target host.
 
@@ -146,7 +146,7 @@ Note than on previous versions of docker, compose was a 3rd party utility you ha
 
 ### Via docker-compose
 
-You can use the `docker-compose.yml` file below to configure and run your instance of Basics™ Station connected to TTNv3:
+You can use the `docker-compose.yml` file below to configure and run your instance of Basics™ Station for Docker connected to TTNv3:
 
 ```
 version: '2.0'
@@ -278,6 +278,8 @@ Variable Name | Value | Description | Default
 **`GW_RESET_PIN`** | **Deprecated** | Use RESET_GPIO instead |
 **`RESET_PIN`** | **Deprecated** | Use RESET_GPIO instead |
 **`LORAGW_SPI`** | **Deprecated** | Use DEVICE instead |
+**`WHITELIST_NETIDS`** | `STRING` | List of NetIDs to whitelist, filters uplinks | *empty*
+**`WHITELIST_OUIS`** | `STRING` | List of OUIs to whitelist, filters join requests | *empty*
 **`TTN_REGION`** | **Deprecated** | Use TTS_REGION instead |
 **`GATEWAY_EUI_NIC`** | **Deprecated** | Use GATEWAY_EUI_SOURCE instead |
 **`GW_RESET_GPIO`** | **Deprecated** | Use RESET_GPIO instead |
@@ -286,11 +288,11 @@ Variable Name | Value | Description | Default
 
 > No device-related setting is mandatory but `MODEL` and `DEVICE` must be defined for better performance. The service can auto-discover the concentrator but this feature takes some time on boot to walk through all the possible devices, designs and interfaces. Mind that not all concentrator types support auto-discover, defining a `MODEL` and `DEVICE` is mandatory for SX1301-concentrators.
 
-> BasicStation does require a minimum configuration to connect to the server: URL, CA certificate, client certificate and or client key, either for LNS or CUPS protocols. These are set with the `TC_*` and `CUPS_*` variables. Check the examples below.
+> Basics™ Station does require a minimum configuration to connect to the server: URL, CA certificate, client certificate and or client key, either for LNS or CUPS protocols. These are set with the `TC_*` and `CUPS_*` variables. Check the examples below.
 
 > When using CUPS (setting `USE_CUPS` to 1 or defining the `CUPS_KEY` variable), LNS configuration is retrieved from the CUPS server, so you don't have to set the `TC_*` variables.
 
-> If you have more than one concentrator on the same device, you can set the BasicStation service to use both at the same time. Check `Advanced configuration` section below to know more. You can also bring up two instances of BasicStation on the same device to control two different concentrators. In this case you will want to assign different `DEVICE`, `GATEWAY_EUI` and `TC_KEY` values to each instance.
+> If you have more than one concentrator on the same device, you can set the Basics™ Station for Docker service to use both at the same time. Check `Advanced configuration` section below to know more. You can also bring up two instances of Basics™ Station on the same device to control two different concentrators. In this case you will want to assign different `DEVICE`, `GATEWAY_EUI` and `TC_KEY` values to each instance.
 
 ### Define your MODEL & DESIGN
 
@@ -336,9 +338,9 @@ If using balenaCloud the ```EUI``` will be visible as a TAG on the device dashbo
 
 Basics™ Station defines two different protocols: LNS and CUPS. For most cases you can use just the LNS protocol.
 
-[LNS](https://doc.sm.tc/station/tcproto.html) stands for LoraWAN Network Server. The gateway will contact the LNS using the LNS protocol over WSS to get the actual endpoint and start exchanging uplink and downlink messages. To configure the BasicStation service in LNS mode you will have to provide the `TC_KEY` at least. `TC_URI` and `TC_TRUST` are set to use TTN by default (using the `TTS_REGION` variable to identify the cluster). If you are not using TTN you will have to set `TC_URI` and (probably) `TC_TRUST` as well.
+[LNS](https://doc.sm.tc/station/tcproto.html) stands for LoraWAN Network Server. The gateway will contact the LNS using the LNS protocol over WSS to get the actual endpoint and start exchanging uplink and downlink messages. To configure the Basics™ Station for Docker service in LNS mode you will have to provide the `TC_KEY` at least. `TC_URI` and `TC_TRUST` are set to use TTN by default (using the `TTS_REGION` variable to identify the cluster). If you are not using TTN you will have to set `TC_URI` and (probably) `TC_TRUST` as well.
 
-[CUPS](https://doc.sm.tc/station/cupsproto.html) stands for Configuration and Update Server. When CUPS is configured the gateway contacts the CUPS server using HTTPS at boot and regularly to query for configuration changes (new LNS URI, for instance) and firmware updates. The server responds with the URI for the LNS and the required keys to connect to it using the LNS protocol. To configure the BasicStation service in CUPS mode you will have to either define `USE_CUPS` to 1 or provide the `CUPS_KEY`. `CUPS_URI` and `CUPS_TRUST` are set to use TTN by default (using the `TTS_REGION` variable to identify the cluster). If you are not using TTN you will have to set `CUPS_URI` and (probably) `CUPS_TRUST` as well.
+[CUPS](https://doc.sm.tc/station/cupsproto.html) stands for Configuration and Update Server. When CUPS is configured the gateway contacts the CUPS server using HTTPS at boot and regularly to query for configuration changes (new LNS URI, for instance) and firmware updates. The server responds with the URI for the LNS and the required keys to connect to it using the LNS protocol. To configure the Basics™ Station for Docker service in CUPS mode you will have to either define `USE_CUPS` to 1 or provide the `CUPS_KEY`. `CUPS_URI` and `CUPS_TRUST` are set to use TTN by default (using the `TTS_REGION` variable to identify the cluster). If you are not using TTN you will have to set `CUPS_URI` and (probably) `CUPS_TRUST` as well.
 
 
 ### Configure your gateway with The Things Stack CE (TTNv3)
@@ -428,9 +430,9 @@ You first have to have a Chirpstack v4 servie running with proper certificates. 
 
 Next, once you log into ChirpStack and create a gateway you have to generate the TLS certificates for the gateway. This option (inside the gateway configuration) will provide the following output: CA certificate, TLS certificate and TLS key. 
 
-Copy each of the values to the corresponding environment variable in your basicstation `docker-compose.yml` file. The mapping should be:
+Copy each of the values to the corresponding environment variable in your Basics™ Station for Docker `docker-compose.yml` file. The mapping should be:
 
-|ChirpStack|BasicStation|
+|ChirpStack|Basics™ Station for Docker|
 |---|---|
 |CA certificate|TC_TRUST|
 |TLS certificate|TC_CRT|
@@ -489,9 +491,9 @@ services:
 
 To connect your gateway to AWS LNS (AWS IoT Core for LoRaWAN) you first need the EUI for the gateway. You can get it by bringing up the container once. Once you have the EUI you need to create the gateway on the AWS IoT Core for LoRaWAN dashboard and create the certificates for the device. Download the certificate files, you will need to copy their contents to the `docker-compose.yml` file. Check the example below.
 
-Copy each of the values to the corresponding environment variable in your basicstation `docker-compose.yml` file. The mapping should be:
+Copy each of the values to the corresponding environment variable in your Basics™ Station for Docker `docker-compose.yml` file. The mapping should be:
 
-|AWS LNS|BasicStation|
+|AWS LNS|Basics™ Station for Docker|
 |---|---|
 |The https URL provided in the dashboard|CUPS_URI|
 |Contents of the `cups.trust` file|CUPS_TRUST|
@@ -544,7 +546,7 @@ EyZeqpnOcKTCZOUsFma6DRvfWN2VzKdcc2cptQBA8Ux8ZeP6U5DAlg==
 
 ### Advanced configuration
 
-In some special cases you might want to specify the radio configuration in detail (frequencies, power, ...). This will also be the case when you want to use more than one concentrator on the same gateway, using the same BasicStation service. You can do that by mounting the `config` folder on your host machine and providing custom files, like a specific `station.conf` file.
+In some special cases you might want to specify the radio configuration in detail (frequencies, power, ...). This will also be the case when you want to use more than one concentrator on the same gateway, using the same Basics™ Station for Docker service. You can do that by mounting the `config` folder on your host machine and providing custom files, like a specific `station.conf` file.
 
 You can start by modifying the `docker-compose.yml` file to mount that folder locally:
 
@@ -583,7 +585,7 @@ Then bring up the service and it will populate several config files in this fold
 
 **NOTE**: files in the config folder take precedence over variables, so if you mount a `config` folder with a `station.conf` file, the `DEVICE` or `GATEWAY_EUI` variables will not be used. If you want to change any of them, you will have to modify the file manually or delete it so it will be recreated form the variables again.
 
-Example slave configuration for a device using 2 radios for antenna divertisy (sectorial antennas, for instance). Note that you can mix different type of radios (SX1202/SX1203 or USB/SPI) as long as you don't mix SX1301 with SX1302/3 radios (they use different basicstation binaries).
+Example slave configuration for a device using 2 radios for antenna divertisy (sectorial antennas, for instance). Note that you can mix different type of radios (SX1202/SX1203 or USB/SPI) as long as you don't mix SX1301 with SX1302/3 radios (they use different binaries).
 
 ```
 $ cat config/slave-0.conf 
@@ -740,6 +742,52 @@ services:
       GPIO_CHIP: "gpiochip4"
 ```
 
+### Whitelisting
+
+From version 2.8.1, the service supports message filtering via white lists. There are two whitelists: by NetID and by OUI.
+
+To filter only devices belonging to your network you can add the NetID of your LNS to the `WHITELIST_NETIDS` setting. More than one NetID can be added (comman or space separated). They can also be added in decimal (TTN is 19) or hexadecimal with leading `0x` (TTN is 0x000013). If `WHITELIST_NETIDS` is nt set or empty, no filtering happens. 
+
+The example below filters out all messages from devices not belonging to TTN/TTI:
+
+```
+version: '2.0'
+
+services:
+
+  basicstation:
+    image: xoseperez/basicstation
+    container_name: basicstation
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    environment:
+      MODEL: "RAK5146"
+      GATEWAY_EUI: "E45F01FFFE517BA8"
+      WHITELIST_NETIDS: "0x000013"
+      TC_KEY: "..."
+```
+
+The NetID is identified by the device address (DevAddr). But if the device has not yet joined the network it does not have a DevAddr. If you want to filter join requests from unknown devices you can do so filtering by OUI. OUI, or Organizational Unique Identifier, are the first 3 bytes of the DevEUI and identfies the manufacturer. To accept join requests from certain devices you can add the OUI of their manufacturer to the `WHITELIST_OUIS` variable like in the eample below:
+
+```
+version: '2.0'
+
+services:
+
+  basicstation:
+    image: xoseperez/basicstation
+    container_name: basicstation
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    environment:
+      MODEL: "RAK5146"
+      GATEWAY_EUI: "E45F01FFFE517BA8"
+      WHITELIST_OUIS: "0xA81758","0xA91555"
+      TC_KEY: "..."
+```
+
 ## Troubleshoothing
 
 * It's possible that on the TTN Console the gateway appears as Not connected if it's not receiving any LoRa message. Sometimes the websockets connection among the LoRa Gateway and the server can get broken. However a new LoRa package will re-open the websocket between the Gateway and TTN or TTI.
@@ -790,7 +838,7 @@ In the example above (`ser2net.yaml` file provided with this repo) port `/dev/tt
 
 You can run it as `ser2net -c ser2net.yaml`. 
 
-Once the USB device is available as a TCP stream, we can instruct the UDP Packet Forwarder to use this connection. An example `docker-compose.yml` file can be as follows:
+Once the USB device is available as a TCP stream, we can instruct Basics™ Station for Docker to use this connection. An example `docker-compose.yml` file can be as follows:
 
 ```
 version: '2.0'
