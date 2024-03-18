@@ -8,7 +8,7 @@ WORKDIR /app
 COPY builder/build ./
 COPY builder/patches ./patches
 RUN chmod +x build
-RUN ARCH=${ARCH} REMOTE_TAG=${REMOTE_TAG} VARIANT=${VARIANT} ./build
+RUN ARCH=%%BALENA_ARCH%% REMOTE_TAG=${REMOTE_TAG} VARIANT=${VARIANT} ./build
 
 # Runner image
 FROM balenalib/%%BALENA_ARCH%%-debian:buster-run as runner
