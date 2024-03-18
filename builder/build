@@ -73,10 +73,22 @@ print_header() {
 }
 
 # -----------------------------------------------------------------------------
+# Build settings
+# -----------------------------------------------------------------------------
+
+echo -e "${COLOR_INFO}-------------------------------------------------------${COLOR_END}"
+echo -e "${COLOR_INFO}Build settings:${COLOR_END}"
+echo -e "${COLOR_INFO}  BASICSTATION VERSION: ${REMOTE_TAG}${COLOR_END}"
+echo -e "${COLOR_INFO}  VARIANT:              ${VARIANT}${COLOR_END}"
+echo -e "${COLOR_INFO}  ARCHITECTURE:         ${ARCH}${COLOR_END}"
+echo -e "${COLOR_INFO}-------------------------------------------------------${COLOR_END}"
+echo
+
+# -----------------------------------------------------------------------------
 # Building basicstation
 # -----------------------------------------------------------------------------
 
-clone_and_patch https://github.com/lorabasics/basicstation ${REMOTE_TAG}
+clone_and_patch https://github.com/lorabasics/basicstation "${REMOTE_TAG}"
 pushd basicstation >> /dev/null
 
 print_header "Building BasicStation for v2"

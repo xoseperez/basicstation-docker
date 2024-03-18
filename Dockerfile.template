@@ -1,5 +1,12 @@
+ARG ARCH=%%BALENA_ARCH%%
+ARG REMOTE_TAG=v2.0.6
+ARG VARIANT=std
+
 # Builder image
-FROM balenalib/%%BALENA_ARCH%%-debian:buster-build as builder
+FROM balenalib/${ARCH}-debian:buster-build as builder
+ARG ARCH
+ARG REMOTE_TAG
+ARG VARIANT
 
 # Switch to working directory for our app
 WORKDIR /app
@@ -8,10 +15,10 @@ WORKDIR /app
 COPY builder/build ./
 COPY builder/patches ./patches
 RUN chmod +x build
-RUN ARCH=%%BALENA_ARCH%% REMOTE_TAG=${REMOTE_TAG} VARIANT=${VARIANT} ./build
+RUN ARCH=${ARCH} REMOTE_TAG=${REMOTE_TAG} VARIANT=${VARIANT} ./build
 
 # Runner image
-FROM balenalib/%%BALENA_ARCH%%-debian:buster-run as runner
+FROM balenalib/${ARCH}-debian:buster-run as runner
 ARG ARCH
 ARG TAG
 ARG VERSION
@@ -23,13 +30,10 @@ ARG VARIANT
 LABEL maintainer="Xose Pérez <xose.perez@gmail.com>"
 LABEL authors="Jose Marcelino, Marc Pous, Xose Pérez and Semtech"
 LABEL org.label-schema.schema-version="1.0"
-LABEL org.label-schema.build-date=${BUILD_DATE}
 LABEL org.label-schema.name="LoRaWAN Basics™ Station"
-LABEL org.label-schema.version="${VERSION} based on ${REMOTE_TAG}-${VARIANT}"
 LABEL org.label-schema.description="LoRaWAN gateway with Basics™ Station Packet Forward protocol"
 LABEL org.label-schema.vcs-type="Git"
 LABEL org.label-schema.vcs-url="https://github.com/xoseperez/basicstation-docker"
-LABEL org.label-schema.vcs-ref=${TAG}
 LABEL org.label-schema.arch=${ARCH}
 LABEL org.label-schema.license="BSD License 2.0"
 LABEL io.balena.features.balena-api="1"
