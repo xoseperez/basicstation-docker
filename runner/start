@@ -147,8 +147,6 @@ function create_network_link {
 
 function tts_autoprovision() {
 
-    echo "Gateway provisioning using provided TTS_PERSONAL_KEY"
-
     # Autoprovision variables needed
     TTS_USERNAME=${TTS_USERNAME:-"none"}
     GATEWAY_PREFIX=${GATEWAY_PREFIX:-"eui"}
@@ -169,6 +167,8 @@ function tts_autoprovision() {
 
     local API_KEY_NAME="autoprovision-lns-key"
     local RAW
+    local CODE
+    local MESSAGE
 
     RAW=$(curl -s --location \
         --header 'Accept: application/json' \
@@ -188,23 +188,17 @@ function tts_autoprovision() {
         }' \
         'https://'"${SERVER}"'/api/v3/users/'"${TTS_USERNAME}"'/gateways' 2>/dev/null)
     
-    local CODE
-    local MESSAGE
     CODE=$( echo "${RAW}" | jq --raw-output '.code' 2>/dev/null )
-    MESSAGE=$( echo "${RAW}" | jq --raw-output '.message_format' 2>/dev/null )
+    MESSAGE=$( echo "${RAW}" | jq --raw-output '.message' 2>/dev/null )
 
     # ToDo: find more error codes when provision a gateway via API.   
     if [[ "$CODE" == "null" ]]; then
-        echo "No errors autoprovisioning the gateway!"
-    elif [[ "$CODE" == 6 ]]; then
-        echo -e "${COLOR_WARNING}WARNING: The gateway $GATEWAY_ID is already registered (by you or someone else)${COLOR_END}"
-        #idle
-    elif [[ "$CODE" == 9 ]]; then
-        echo -e "${COLOR_WARNING}WARNING: The gateway had already been autoprovisioned${COLOR_END}"
-        #idle
+        echo -e "${COLOR_INFO}Gateway autoprovisioned successfully!${COLOR_END}"
+    elif [[ "$CODE" == 6 ]] || [[ "$CODE" == 9 ]]; then
+        echo -e "${COLOR_WARNING}WARNING: The gateway was already provisioned.${COLOR_END}"
     else
-        echo -e "${COLOR_ERROR}ERROR: The gateway had an error when autoprovisioned: $MESSAGE ($CODE)${COLOR_END}\n"
-        idle
+        echo -e "${COLOR_ERROR}ERROR: Autoprovisioning error $MESSAGE ($CODE).${COLOR_END}\n"
+        return
     fi
 
     # List api keys
@@ -249,10 +243,12 @@ function tts_autoprovision() {
 
     if [[ "$KEY" != "null" ]]; then
         TC_KEY=$KEY
-        echo "TC_KEY successfully generated"
+        echo -e "${COLOR_INFO}TC_KEY successfully generated${COLOR_END}"
         [[ -n "$BALENA_DEVICE_UUID" ]] && balena_set_variable "TC_KEY" "$TC_KEY"
         restart_if_balena
     fi
+
+    echo
 
 }
 
@@ -455,7 +451,7 @@ declare -A MODEL_MAP=(
 
 CONCENTRATOR=${MODEL_MAP[$MODEL]}
 if [[ -z "${CONCENTRATOR}" ]]; then
-    echo -e "${COLOR_ERROR}ERROR: Unknown MODEL value ($MODEL). Valid values are: ${MODEL_MAP[*]}${COLOR_END}"
+    echo -e "${COLOR_ERROR}ERROR: Unknown MODEL value ($MODEL). Valid values are: ${!MODEL_MAP[*]}${COLOR_END}"
 	idle
 fi
 
