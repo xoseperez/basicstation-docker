@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION=2.8.1
+VERSION=2.8.2
 
 # -----------------------------------------------------------------------------
 # Colors
@@ -290,6 +290,20 @@ CONFIG_FILE=./station.conf
 [[ "${INTERFACE}" == "NET" ]] && create_network_link
 
 # -----------------------------------------------------------------------------
+# Secrets
+# -----------------------------------------------------------------------------
+
+[[ -n "${TC_URI_FILE}" ]] && [[ -f "${TC_URI_FILE}" ]] && TC_URI=$( cat "${TC_URI_FILE}" )
+[[ -n "${TC_TRUST_FILE}" ]] && [[ -f "${TC_TRUST_FILE}" ]] && TC_TRUST=$( cat "${TC_TRUST_FILE}" )
+[[ -n "${TC_CRT_FILE}" ]] && [[ -f "${TC_CRT_FILE}" ]] && TC_CRT=$( cat "${TC_CRT_FILE}" )
+[[ -n "${TC_KEY_FILE}" ]] && [[ -f "${TC_KEY_FILE}" ]] && TC_KEY=$( cat "${TC_KEY_FILE}" )
+
+[[ -n "${CUPS_URI_FILE}" ]] && [[ -f "${CUPS_URI_FILE}" ]] && CUPS_URI=$( cat "${CUPS_URI_FILE}" )
+[[ -n "${CUPS_TRUST_FILE}" ]] && [[ -f "${CUPS_TRUST_FILE}" ]] && CUPS_TRUST=$( cat "${CUPS_TRUST_FILE}" )
+[[ -n "${CUPS_CRT_FILE}" ]] && [[ -f "${CUPS_CRT_FILE}" ]] && CUPS_CRT=$( cat "${CUPS_CRT_FILE}" )
+[[ -n "${CUPS_KEY_FILE}" ]] && [[ -f "${CUPS_KEY_FILE}" ]] && CUPS_KEY=$( cat "${CUPS_KEY_FILE}" )
+
+# -----------------------------------------------------------------------------
 # Server configuration
 # -----------------------------------------------------------------------------
 
@@ -320,7 +334,7 @@ USE_CUPS=${USE_CUPS:-2} # undefined by default
 PROTOCOL=""
 
 # Configuration mode
-if [[ -f $CONFIG_FILE ]]; then 
+if [[ -f ${CONFIG_FILE} ]]; then 
     MODE="STATIC"
     if [[ $USE_CUPS -eq 1 ]]; then
         PROTOCOL="CUPS"
@@ -329,13 +343,13 @@ if [[ -f $CONFIG_FILE ]]; then
         echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS${COLOR_END}"
     elif [[ -f ./tc.key ]]; then
         PROTOCOL="LNS"
-    elif [[ "$TTS_PERSONAL_KEY" != "" ]] && [[ "$TTS_USERNAME" != "" ]]; then
+    elif [[ -n "${TTS_PERSONAL_KEY}" ]] && [[ -n "${TTS_USERNAME}" ]]; then
         tts_autoprovision
-        if [[ "$TC_KEY" != "" ]]; then 
+        if [[ -n "${TC_KEY}" ]]; then 
             PROTOCOL="LNS"
         fi
     fi
-    if [[ "$PROTOCOL" == "" ]]; then
+    if [[ -z "${PROTOCOL}" ]]; then
         echo -e "${COLOR_ERROR}ERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a valid cups.key or tc.key files or TTS_PERSONAL_KEY and TTS_USERNAME variable${COLOR_END}"
         idle
     fi
@@ -343,18 +357,18 @@ else
     MODE="DYNAMIC"
     if [[ $USE_CUPS -eq 1 ]]; then
         PROTOCOL="CUPS"
-    elif [[ "$CUPS_KEY" != "" ]] && [[ $USE_CUPS -ne 0 ]]; then
+    elif [[ -n "${CUPS_KEY}" ]] && [[ ${USE_CUPS} -ne 0 ]]; then
         PROTOCOL="CUPS"
         echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS${COLOR_END}"
-    elif [[ "$TC_KEY" != "" ]]; then 
+    elif [[ -n "${TC_KEY}" ]]; then 
         PROTOCOL="LNS"
-    elif [[ "$TTS_PERSONAL_KEY" != "" ]] && [[ "$TTS_USERNAME" != "" ]]; then
+    elif [[ -n "${TTS_PERSONAL_KEY}" ]] && [[ -n "${TTS_USERNAME}" ]]; then
         tts_autoprovision
-        if [[ "$TC_KEY" != "" ]]; then 
+        if [[ -n "${TC_KEY}" ]]; then 
             PROTOCOL="LNS"
         fi
     fi
-    if [[ "$PROTOCOL" == "" ]]; then
+    if [[ -z "${PROTOCOL}" ]]; then
         echo -e "${COLOR_ERROR}ERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define valid TC_KEY, CUPS_KEY or TTS_PERSONAL_KEY and TTS_USERNAME${COLOR_END}"
         idle
     fi
@@ -364,14 +378,14 @@ fi
 # Retrieve values from static config files
 # -----------------------------------------------------------------------------
 
-if [[ -f $CONFIG_FILE ]]; then
+if [[ -f ${CONFIG_FILE} ]]; then
 
     # Get device & interface
-    DEVICE=$( jq '.[] | .device' "$CONFIG_FILE" | head -1 | sed 's/\("\|spi:\|usb:\)//g' )
+    DEVICE=$( jq '.[] | .device' "${CONFIG_FILE}" | head -1 | sed 's/\("\|spi:\|usb:\)//g' )
     [[ "${DEVICE}" == *"spi"* ]] && INTERFACE="SPI" || INTERFACE="USB"
 
     # Guess generic model
-    if [[ $( grep -c "SX1302_conf" "$CONFIG_FILE" ) -ne 0 ]]; then
+    if [[ $( grep -c "SX1302_conf" "${CONFIG_FILE}" ) -ne 0 ]]; then
         MODEL=${MODEL:-"SX1302"}
     elif [[ "${INTERFACE}" == "USB" ]]; then
         MODEL=${MODEL:-"SX1308"}
@@ -380,7 +394,7 @@ if [[ -f $CONFIG_FILE ]]; then
     fi
 
     # Get Gateway EUI
-    GATEWAY_EUI=$( jq '.station_conf.routerid' "$CONFIG_FILE" | sed 's/"//g' )
+    GATEWAY_EUI=$( jq '.station_conf.routerid' "${CONFIG_FILE}" | sed 's/"//g' )
     [[ -n "${GATEWAY_EUI}" ]] && GATEWAY_EUI_SOURCE="file"
 
 fi
@@ -739,19 +753,19 @@ echo -e ""
 # -----------------------------------------------------------------------------
 
 # Link the corresponding configuration file
-if [[ ! -f "$CONFIG_FILE" ]]; then
+if [[ ! -f "${CONFIG_FILE}" ]]; then
     
-    cp "/app/station.${DESIGN}.conf" "$CONFIG_FILE"
+    cp "/app/station.${DESIGN}.conf" "${CONFIG_FILE}"
     
-    sed -i "s#\"device\":\s*.*,#\"device\": \"${INTERFACE,,}:${DEVICE}\",#" "$CONFIG_FILE"
-    sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"${GATEWAY_EUI}\",#" "$CONFIG_FILE"
-    sed -i "s#\"clksrc\":\s*.*,#\"clksrc\": ${CLKSRC:-0},#" "$CONFIG_FILE"
+    sed -i "s#\"device\":\s*.*,#\"device\": \"${INTERFACE,,}:${DEVICE}\",#" "${CONFIG_FILE}"
+    sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"${GATEWAY_EUI}\",#" "${CONFIG_FILE}"
+    sed -i "s#\"clksrc\":\s*.*,#\"clksrc\": ${CLKSRC:-0},#" "${CONFIG_FILE}"
 
     if [[ -n "${WHITELIST_NETIDS}" ]]; then
-        sed -i "s#\"whitelist_netids\":\s*.*,#\"whitelist_netids\": [\"${WHITELIST_NETIDS// /\",\"}\"],#" "$CONFIG_FILE"
+        sed -i "s#\"whitelist_netids\":\s*.*,#\"whitelist_netids\": [\"${WHITELIST_NETIDS// /\",\"}\"],#" "${CONFIG_FILE}"
     fi
     if [[ -n "${WHITELIST_OUIS}" ]]; then
-        sed -i "s#\"whitelist_ouis\":\s*.*,#\"whitelist_ouis\": [\"${WHITELIST_OUIS// /\",\"}\"],#" "$CONFIG_FILE"
+        sed -i "s#\"whitelist_ouis\":\s*.*,#\"whitelist_ouis\": [\"${WHITELIST_OUIS// /\",\"}\"],#" "${CONFIG_FILE}"
     fi
     
 fi
@@ -762,25 +776,25 @@ if [[ ! -f ./slave-0.conf ]]; then
 fi
 
 # CUPS protocol
-if [[ "$PROTOCOL" == "CUPS" ]]; then
+if [[ "${PROTOCOL}" == "CUPS" ]]; then
     if [[ ! -f ./cups.uri ]]; then 
-        echo "$CUPS_URI" > cups.uri
+        echo "${CUPS_URI}" > cups.uri
     fi
     if [[ ! -f ./cups.trust ]]; then 
-        if [[ -z "$CUPS_TRUST" ]]; then
+        if [[ -z "${CUPS_TRUST}" ]]; then
             cp /app/cacert.pem cups.trust
         else
-            clean_certs_keys "$CUPS_TRUST" > cups.trust
+            clean_certs_keys "${CUPS_TRUST}" > cups.trust
         fi
     fi
     if [[ ! -f ./cups.crt ]]; then 
-        if [[ -n "$CUPS_CRT" ]]; then
-            clean_certs_keys "$CUPS_CRT" > cups.crt
+        if [[ -n "${CUPS_CRT}" ]]; then
+            clean_certs_keys "${CUPS_CRT}" > cups.crt
         fi
     fi
     if [[ ! -f ./cups.key ]]; then 
         if [[ ! -f ./cups.crt ]]; then 
-	        echo "Authorization: Bearer $CUPS_KEY" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > cups.key
+	        echo "Authorization: Bearer ${CUPS_KEY}" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > cups.key
         else
             clean_certs_keys "$CUPS_KEY" > cups.key
         fi

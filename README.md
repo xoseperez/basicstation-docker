@@ -606,6 +606,7 @@ $ cat config/slave-1.conf
 
 When running from an existing `config` folder the service log will show `Mode: STATIC` otherwise it will show `Mode: DYNAMIC`.
 
+
 ### Running with less privileges
 
 You might have seen that on the examples above we are running docker in privileged mode and using host network. This is the simplest, more straight-forward way, but there are ways to run it without these. Let's see how.
@@ -635,6 +636,62 @@ services:
 ```
 
 For a USB concentrator you would mount the USB port instead of the SPI port and you won't need to share the `/dev/gpiochip0` device.
+
+
+### Using secrets
+
+A more secure way to provide the different certificates to the service is using [docker secrets](https://docs.docker.com/compose/use-secrets/). Using secrets has a number of benefits over environment variables. Data is only accessible to the service where the secrets has been added to and the actual content is hidden from logs and container inspection.
+
+You can start by modifying the `docker-compose.yml` file to define and use secret files within the basicstation container:
+
+```
+version: '2.0'
+
+services:
+
+  basicstation:
+    image: xoseperez/basicstation:latest
+    container_name: basicstation
+    restart: unless-stopped
+    secrets:
+      - tc_uri
+      - tc_trust
+      - tc_crt
+      - tc_key
+    devices:
+      - /dev/spidev0.0
+      - /dev/gpiochip0
+    environment:
+      MODEL: "RAK5146"
+      GATEWAY_EUI: "E45F01FFFE517BA8"
+      TC_URI_FILE: /run/secrets/tc_uri
+      TC_TRUST_FILE: /run/secrets/tc_trust
+      TC_CRT_FILE: /run/secrets/tc_crt
+      TC_KEY_FILE: /run/secrets/tc_key
+
+secrets:
+  tc_uri:
+    file: tc_uri
+  tc_trust:
+    file: tc_trust
+  tc_crt:
+    file: tc_crt
+  tc_key:
+    file: tc_key
+
+```
+
+The service accepts the following secrets, basically the same names as the corresponding environment variable with "_FILE" at the end (this is a common convention). 
+
+* TC_URI_FILE
+* TC_TRUST_FILE
+* TC_CRT_FILE
+* TC_KEY_FILE
+* CUPS_URI_FILE
+* CUPS_TRUST_FILE
+* CUPS_CRT_FILE
+* CUPS_KEY_FILE
+
 
 ### Auto-discover
 
