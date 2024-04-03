@@ -293,15 +293,15 @@ CONFIG_FILE=./station.conf
 # Secrets
 # -----------------------------------------------------------------------------
 
-[[ -n "${TC_URI_FILE}" ]] && [[ -f "${TC_URI_FILE}" ]] && TC_URI=$( cat "${TC_URI_FILE}" )
-[[ -n "${TC_TRUST_FILE}" ]] && [[ -f "${TC_TRUST_FILE}" ]] && TC_TRUST=$( cat "${TC_TRUST_FILE}" )
-[[ -n "${TC_CRT_FILE}" ]] && [[ -f "${TC_CRT_FILE}" ]] && TC_CRT=$( cat "${TC_CRT_FILE}" )
-[[ -n "${TC_KEY_FILE}" ]] && [[ -f "${TC_KEY_FILE}" ]] && TC_KEY=$( cat "${TC_KEY_FILE}" )
+[[ -f "/run/secrets/tc.uri"     ]] &&     TC_URI=$( < /run/secrets/tc.uri     )
+[[ -f "/run/secrets/tc.trust"   ]] &&   TC_TRUST=$( < /run/secrets/tc.trust   )
+[[ -f "/run/secrets/tc.crt"     ]] &&     TC_CRT=$( < /run/secrets/tc.crt     )
+[[ -f "/run/secrets/tc.key"     ]] &&     TC_KEY=$( < /run/secrets/tc.key     )
 
-[[ -n "${CUPS_URI_FILE}" ]] && [[ -f "${CUPS_URI_FILE}" ]] && CUPS_URI=$( cat "${CUPS_URI_FILE}" )
-[[ -n "${CUPS_TRUST_FILE}" ]] && [[ -f "${CUPS_TRUST_FILE}" ]] && CUPS_TRUST=$( cat "${CUPS_TRUST_FILE}" )
-[[ -n "${CUPS_CRT_FILE}" ]] && [[ -f "${CUPS_CRT_FILE}" ]] && CUPS_CRT=$( cat "${CUPS_CRT_FILE}" )
-[[ -n "${CUPS_KEY_FILE}" ]] && [[ -f "${CUPS_KEY_FILE}" ]] && CUPS_KEY=$( cat "${CUPS_KEY_FILE}" )
+[[ -f "/run/secrets/cups.uri"   ]] &&   CUPS_URI=$( < /run/secrets/cups.uri   )
+[[ -f "/run/secrets/cups.trust" ]] && CUPS_TRUST=$( < /run/secrets/cups.trust )
+[[ -f "/run/secrets/cups.crt"   ]] &&   CUPS_CRT=$( < /run/secrets/cups.crt   )
+[[ -f "/run/secrets/cups.key"   ]] &&   CUPS_KEY=$( < /run/secrets/cups.key   )
 
 # -----------------------------------------------------------------------------
 # Server configuration

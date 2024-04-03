@@ -654,43 +654,30 @@ services:
     container_name: basicstation
     restart: unless-stopped
     secrets:
-      - tc_uri
-      - tc_trust
-      - tc_crt
-      - tc_key
+      - tc.key
     devices:
       - /dev/spidev0.0
       - /dev/gpiochip0
     environment:
       MODEL: "RAK5146"
       GATEWAY_EUI: "E45F01FFFE517BA8"
-      TC_URI_FILE: /run/secrets/tc_uri
-      TC_TRUST_FILE: /run/secrets/tc_trust
-      TC_CRT_FILE: /run/secrets/tc_crt
-      TC_KEY_FILE: /run/secrets/tc_key
 
 secrets:
-  tc_uri:
-    file: tc_uri
-  tc_trust:
-    file: tc_trust
-  tc_crt:
-    file: tc_crt
-  tc_key:
-    file: tc_key
+  tc.key:
+    file: ./tc.key
 
 ```
 
-The service accepts the following secrets, basically the same names as the corresponding environment variable with "_FILE" at the end (this is a common convention). 
+The service accepts the following secrets **named exactly** as the basicstation configuration files:
 
-* TC_URI_FILE
-* TC_TRUST_FILE
-* TC_CRT_FILE
-* TC_KEY_FILE
-* CUPS_URI_FILE
-* CUPS_TRUST_FILE
-* CUPS_CRT_FILE
-* CUPS_KEY_FILE
+* tc.uri
+* tc.trust
+* tc.crt
+* tc.key
+* cups.uri
+* cups.trust
+* cups.crt
+* cups.key
 
 
 ### Auto-discover
