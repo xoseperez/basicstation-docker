@@ -29,14 +29,14 @@ services:
     #  - ./config:/app/config
 
     #secrets:
-    #  - tc_uri
-    #  - tc_trust
-    #  - tc_crt
-    #  - tc_key
-    #  - cups_uri
-    #  - cups_trust
-    #  - cups_crt
-    #  - cups_key
+    #  - tc.uri
+    #  - tc.trust
+    #  - tc.crt
+    #  - tc.key
+    #  - cups.uri
+    #  - cups.trust
+    #  - cups.crt
+    #  - cups.key
        
     #environment:
 
@@ -130,22 +130,22 @@ services:
 
       # Using LNS protocol: define a custom LNS server
       #TC_URI: "wss://lns.example.com:8887"
-      #TC_URI_FILE: /run/secrets/tc_uri
+      #TC_URI_FILE: /run/secrets/tc.uri
 
       # Using LNS protocol: if you use a server other than TTN, you will have to provide the certificate for that server.
       #TC_TRUST: "-----BEGIN CERTIFICATE-----MIIDJDCCAgygAwIBAgIUdoPom8rI1/IYR7dG6JyxDGSUGBQwDQYJKoZIhvcNAQELBQAwGDE...."
-      #TC_TRUST_FILE: /run/secrets/tc_trust
+      #TC_TRUST_FILE: /run/secrets/tc.trust
 
       # Some servers will require you to include the client certificate:
       #TC_CRT: "-----BEGIN CERTIFICATE-----MIICUzCCATugAwIBAgIUM3K60JYw9eRjxXly27wVD0w6QF0wDQYJKoZIhvcNAQELBQAwGDEWMBQG...."
-      #TC_CRT_FILE: /run/secrets/tc_crt
+      #TC_CRT_FILE: /run/secrets/tc.crt
 
       # Finally, you need to provide the key for the gateway, 
       # this can either be the client key for the client certificate above or
       # the API key provided by the LNS (if no client certificate)
       #TC_KEY: "NNSXS.O27GW2MQK..."
       #TC_KEY: "-----BEGIN PRIVATE KEY-----MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgDO/pLoHo5zF4Rcok7HYT3cG2...."
-      #TC_KEY_FILE: /run/secrets/tc_key
+      #TC_KEY_FILE: /run/secrets/tc.key
 
       # ------------------------------------------------
       # CUPS Protocol
@@ -156,22 +156,22 @@ services:
 
       # Define a custom CUPS server
       #CUPS_URI: "https://lns.example.com:443"
-      #CUPS_URI_FILE: /run/secrets/cups_uri
+      #CUPS_URI_FILE: /run/secrets/cups.uri
 
       # If you use a server other than TTN, you will have to provide the trusted CA certificate for that server
       #CUPS_TRUST: "-----BEGIN CERTIFICATE----- MIIDSjCCAjKgAwIBAgIQRK+wgNajJ7qJMDmGLvhAazANBgkqhkiG9w0BAQUFADA......"
-      #CUPS_TRUST_FILE: /run/secrets/cups_trust
+      #CUPS_TRUST_FILE: /run/secrets/cups.trust
 
       # Some servers will require you to include the client certificate:
       #CUPS_CRT: "-----BEGIN CERTIFICATE-----MIICUzCCATugAwIBAgIUKGWM6utODCeqLXjXV1Nb4BhEHoYwDQYJKoZIhvcNAQE...."
-      #CUPS_CRT_FILE: /run/secrets/cups_crt
+      #CUPS_CRT_FILE: /run/secrets/cups.crt
 
       # Finally, you need to provide the key for the gateway, 
       # this can either be the client key for the client certificate above or
       # the API key provided by the LNS (if no client certificate)
       #CUPS_KEY: "NNSXS.SLOC764GN3....."
       #CUPS_KEY: "-----BEGIN PRIVATE KEY-----MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgX9+0oaCXacjlG13nU5y....."
-      #CUPS_KEY_FILE: /run/secrets/cups_key
+      #CUPS_KEY_FILE: /run/secrets/cups.key
 
       # ------------------------------------------------
       # The Things Industries - Autoprovision
@@ -201,20 +201,20 @@ services:
       #TTS_FREQUENCY_PLAN_ID: "EU_863_870_TTN"
 
 #secrets:
-#  tc_uri:
-#    file: tc_uri
-#  tc_trust:
-#    file: tc_trust
-#  tc_crt:
-#    file: tc_crt
-#  tc_key:
-#    file: tc_key
-#  cups_uri:
-#    file: cups_uri
-#  cups_trust:
-#    file: cups_trust
-#  cups_crt:
-#    file: cups_crt
-#  cups_key:
-#    file: cups_key
+#  tc.uri:
+#    file: tc.uri
+#  tc.trust:
+#    file: tc.trust
+#  tc.crt:
+#    file: tc.crt
+#  tc.key:
+#    file: tc.key
+#  cups.uri:
+#    file: cups.uri
+#  cups.trust:
+#    file: cups.trust
+#  cups.crt:
+#    file: cups.crt
+#  cups.key:
+#    file: cups.key
   
