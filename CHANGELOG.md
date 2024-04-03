@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.8.2 (Unreleased)
+
+* Option to provide certs and keys using docker secrets
+
 ## 2.8.1 (2024-03-15)
 
 * Support for auto-discover for Picocell concentrators
