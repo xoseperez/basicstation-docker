@@ -1,9 +1,11 @@
 # Changelog
 
-## 2.8.3 (Unreleased)
+## 2.8.3 (2024-04-16)
 
-* Support or RAK5166 and RAK5167 boards
+* Support for RAKwireless RAK5166 and RAK5167 M.2 concentrators
+* Support for Dragino PG1302 MiniPCIe concentrator
 * Remove support for ARMv6 arch
+* Move base images to bookworm releases
 
 ## 2.8.2 (2024-04-03)
 

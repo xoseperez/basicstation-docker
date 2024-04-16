@@ -3,7 +3,7 @@ ARG REMOTE_TAG=v2.0.6
 ARG VARIANT=std
 
 # Builder image
-FROM balenalib/${ARCH}-debian:buster-build as builder
+FROM balenalib/${ARCH}-debian:bookworm-build as builder
 ARG ARCH
 ARG REMOTE_TAG
 ARG VARIANT
@@ -18,7 +18,7 @@ RUN chmod +x build
 RUN ARCH=${ARCH} REMOTE_TAG=${REMOTE_TAG} VARIANT=${VARIANT} ./build
 
 # Runner image
-FROM balenalib/${ARCH}-debian:buster-run as runner
+FROM balenalib/${ARCH}-debian:bookworm-run as runner
 ARG ARCH
 ARG TAG
 ARG VERSION
