@@ -31,4 +31,4 @@ data:
     - raspberrypicm4-ioboard
     - raspberrypi5
     - generic
-version: 2.8.2
+version: 2.8.3

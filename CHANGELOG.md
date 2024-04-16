@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.8.3 (Unreleased)
+
+* Support or RAK5166 and RAK5167 boards
+
 ## 2.8.2 (2024-04-03)
 
 * Option to provide certs and keys using docker secrets
