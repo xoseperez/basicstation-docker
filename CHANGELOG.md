@@ -3,6 +3,7 @@
 ## 2.8.3 (Unreleased)
 
 * Support or RAK5166 and RAK5167 boards
+* Remove support for ARMv6 arch
 
 ## 2.8.2 (2024-04-03)
 

@@ -44,7 +44,7 @@ Deploy a LoRaWAN gateway running the Basics™ Station Semtech Packet Forward pr
 
 Main features:
 
-* Support for AMD64 (x86_64), ARMv8, ARMv7 and ARMv6 architectures.
+* Support for AMD64 (x86_64), ARMv8 and ARMv7 architectures.
 * Support for SX1301 SPI concentrators.
 * Support for SX1302 and SX1303 SPI and USB (CoreCell) concentrators.
 * Support for SX1308 SPI and SX1308 USB (PicoCell) concentrators.
@@ -70,7 +70,6 @@ As long as the host can run docker containers, the Basics™ Station for Docker 
 * AMD64: most PCs out there
 * ARMv8: Raspberry Pi 3/4/5, 400, Compute Module 3/4, Zero 2 W,...
 * ARMv7: Raspberry Pi 2,...
-* ARMv6: Raspberry Pi 1, Zero W, Compute Module 1,...
 
 > **NOTE**: you will need an OS in the host machine, for some SBC like a Raspberry Pi that means and SD card with an OS (like Rasperry Pi OS) flashed on it.
 
@@ -84,12 +83,12 @@ Tested LoRa concentrators:
   * [RAK833 Concentrator](https://store.rakwireless.com/products/rak833-gateway-module)
   * [RAK2245 Pi Hat](https://store.rakwireless.com/products/rak2245-pi-hat)
   * [RAK2247 Concentrator](https://store.rakwireless.com/products/rak2247-lpwan-gateway-concentrator-module)
-  * [IMST iC880a](https://shop.imst.de/wireless-modules/lora-products/8/ic880a-spi-lorawan-concentrator-868-mhz)
+  * [IMST iC880a Concentrator](https://shop.imst.de/wireless-modules/lora-products/8/ic880a-spi-lorawan-concentrator-868-mhz)
   * [Dragino PG1301](https://www.dragino.com/products/lora/item/149-lora-gps-hat.html)
 * SX1302 (SPI or USB)
   * [RAK2287 Concentrator](https://store.rakwireless.com/products/rak2287-lpwan-gateway-concentrator-module)
-  * [Seeed WM1302](https://www.seeedstudio.com/WM1302-LoRaWAN-Gateway-Module-SPI-EU868-p-4889.html)
-  * [Dragino PG1302](https://www.dragino.com/products/lora/item/223-pg1302.html)
+  * [Seeed WM1302 Concentrator](https://www.seeedstudio.com/WM1302-LoRaWAN-Gateway-Module-SPI-EU868-p-4889.html)
+  * [Dragino PG1302 Concentrator](https://www.dragino.com/products/lora/item/223-pg1302.html)
 * SX1303 (SPI or USB)
   * [RAK5146 Concentrator](https://store.rakwireless.com/collections/wislink-lpwan/products/wislink-lpwan-concentrator-rak5146)
   * [RAK5166 Concentrator](https://store.rakwireless.com/products/rak5166-rak5167-concentrator-card-m-2-form-factor-innovation-for-lorawan-applications-sx1303-lora-core-usb-gps-lbt)
@@ -201,7 +200,7 @@ In case you can not pull the already built image from Docker Hub or if you want 
 docker buildx bake --load aarch64
 ```
 
-Once built (it will take some minutes) you can bring it up by using `xoseperez/basicstation:aarch64` as the image name in your `docker-compose.yml` file. If you are not in an ARMv8 64 bits machine (like a Raspberry Pi 4) you can change the `aarch64` with `armv7hf` (ARMv7), `armv6l` (ARMv6) or `amd64` (AMD64).
+Once built (it will take some minutes) you can bring it up by using `xoseperez/basicstation:aarch64` as the image name in your `docker-compose.yml` file. If you are not in an ARMv8 64 bits machine (like a Raspberry Pi 4) you can change the `aarch64` with `armv7hf` (ARMv7) or `amd64` (AMD64).
 
 The default built is the `stdn` variant that supports multiple radios. In case you want to build the `std` variantyou can do it like this:
 
