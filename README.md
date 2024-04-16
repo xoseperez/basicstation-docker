@@ -89,6 +89,7 @@ Tested LoRa concentrators:
 * SX1302 (SPI or USB)
   * [RAK2287 Concentrator](https://store.rakwireless.com/products/rak2287-lpwan-gateway-concentrator-module)
   * [Seeed WM1302](https://www.seeedstudio.com/WM1302-LoRaWAN-Gateway-Module-SPI-EU868-p-4889.html)
+  * [Dragino PG1302](https://www.dragino.com/products/lora/item/223-pg1302.html)
 * SX1303 (SPI or USB)
   * [RAK5146 Concentrator](https://store.rakwireless.com/collections/wislink-lpwan/products/wislink-lpwan-concentrator-rak5146)
   * [RAK5166 Concentrator](https://store.rakwireless.com/products/rak5166-rak5167-concentrator-card-m-2-form-factor-innovation-for-lorawan-applications-sx1303-lora-core-usb-gps-lbt)
