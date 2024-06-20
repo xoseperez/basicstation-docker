@@ -761,6 +761,16 @@ if [[ ! -f "${CONFIG_FILE}" ]]; then
     sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"${GATEWAY_EUI}\",#" "${CONFIG_FILE}"
     sed -i "s#\"clksrc\":\s*.*,#\"clksrc\": ${CLKSRC:-0},#" "${CONFIG_FILE}"
 
+    if [[ ${DISABLE_CLEAR_CHANNEL_ANALYSIS:-0} -eq 1 ]]; then
+        sed -i "s#\"nocca\":\s*.*,#\"nocca\": true,#" "${CONFIG_FILE}"
+    fi
+    if [[ ${DISABLE_DUTY_CYCLE_CHECK:-0} -eq 1 ]]; then
+        sed -i "s#\"nodc\":\s*.*,#\"nodc\": true,#" "${CONFIG_FILE}"
+    fi
+    if [[ ${DISABLE_DWELL_TIME_LIMITS:-0} -eq 1 ]]; then
+        sed -i "s#\"nodwell\":\s*.*,#\"nodwell\": true,#" "${CONFIG_FILE}"
+    fi
+
     if [[ -n "${WHITELIST_NETIDS}" ]]; then
         sed -i "s#\"whitelist_netids\":\s*.*,#\"whitelist_netids\": [\"${WHITELIST_NETIDS// /\",\"}\"],#" "${CONFIG_FILE}"
     fi

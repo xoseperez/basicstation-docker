@@ -274,6 +274,9 @@ Variable Name | Value | Description | Default
 **`GATEWAY_PREFIX`** | `STRING` | Prefix to autogenerate GATEWAY_ID for TTS/TTI/TTN autoprovision | `eui`
 **`GATEWAY_ID`** | `STRING` | ID to use when autoprovisioning the gateway on TTS/TTI/TTN | `GATEWAY_PREFIX` + `-` + `GATEWAY_EUI`
 **`GATEWAY_NAME`** | `STRING` | Name to use when autoprovisioning the gateway on TTS/TTI/TTN | `GATEWAY_ID`
+**`DISABLE_CLEAR_CHANNEL_ANALYSIS`** | 0 or 1 | Set to 1 to disable clear-channel analysis (LBT) | 0
+**`DISABLE_DUTY_CYCLE_CHECK`** | 0 or 1 | Set to 1 to disable duty cycle check | 0
+**`DISABLE_DWELL_TIME_LIMITS`** | 0 or 1 | Set to 1 to disable dwell-time limitations | 0
 **`TTS_USERNAME`** | `STRING` | Name of your user on the TTS instance you want to register the gateway | Paste your username
 **`TTS_PERSONAL_KEY`** | `STRING` | Unique key to create the gateway and its key | Paste personal API key from your TTS instance (check section about autoprovision below)
 **`TTS_FREQUENCY_PLAN_ID`** | `STRING` | The Things Stack frequency plan (https://www.thethingsindustries.com/docs/reference/frequency-plans/) | "EU_863_870_TTN"

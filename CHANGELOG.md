@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.8.4 (Unreleased)
+
+* Add options to disable LBT, duty-cycle and dwell-time limitations (development option only)
+
 ## 2.8.3 (2024-04-16)
 
 * Support for RAKwireless RAK5166 and RAK5167 M.2 concentrators
