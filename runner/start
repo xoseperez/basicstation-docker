@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-VERSION=2.8.3
+VERSION=2.8.4
 
 # -----------------------------------------------------------------------------
 # Colors
@@ -841,4 +841,5 @@ fi
 # Start packet forwarder
 # -----------------------------------------------------------------------------
 
-STATION_RADIOINIT=/app/config/reset.sh /app/artifacts/"${DESIGN}"/station -f
+export STATION_RADIOINIT=/app/config/reset.sh
+exec /app/artifacts/"${DESIGN}"/station -f

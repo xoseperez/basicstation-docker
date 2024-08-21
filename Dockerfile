@@ -6,7 +6,7 @@ ARG REMOTE_TAG
 ARG VARIANT
 
 # Builder image
-FROM balenalib/${ARCH}-debian:bookworm-build as builder
+FROM balenalib/${ARCH}-debian:bookworm-build AS builder
 ARG ARCH
 ARG REMOTE_TAG
 ARG VARIANT
@@ -21,7 +21,7 @@ RUN chmod +x build
 RUN ARCH=${ARCH} REMOTE_TAG=${REMOTE_TAG} VARIANT=${VARIANT} ./build
 
 # Runner image
-FROM balenalib/${ARCH}-debian:bookworm-run as runner
+FROM balenalib/${ARCH}-debian:bookworm-run AS runner
 ARG ARCH
 ARG TAG
 ARG VERSION

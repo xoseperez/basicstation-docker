@@ -893,8 +893,18 @@ index 2bbb7e5..2769f86 100644
                  default: {
                      dbuf_t b = uj_skipValue(&D);
                      int err = s2conf_set(filename, D.field.name, rt_strdupn(b.buf, b.bufsize));
+diff --git a/src/kwcrc.h b/src/kwcrc.h
+index 033281d..3509ce9 100644
+--- a/src/kwcrc.h
++++ b/src/kwcrc.h
+@@ -240,3 +240,5 @@
+ #define J_wifi_ssid            ((ujcrc_t)(0xE60F391C))
+ #define J_wifi_pass            ((ujcrc_t)(0xE13C3600))
+ #define J_cups_uri             ((ujcrc_t)(0x594AB0B8))
++#define J_whitelist_netids     ((ujcrc_t)(0x71028769))
++#define J_whitelist_ouis       ((ujcrc_t)(0xCA7848FB))
 diff --git a/src/kwlist.txt b/src/kwlist.txt
-index 7516d92..9cfada0 100644
+index 7516d92..3cab9f1 100644
 --- a/src/kwlist.txt
 +++ b/src/kwlist.txt
 @@ -247,3 +247,5 @@ wifi_scan
@@ -903,7 +913,6 @@ index 7516d92..9cfada0 100644
  cups_uri
 +whitelist_netids
 +whitelist_ouis
-\ No newline at end of file
 diff --git a/src/lora.c b/src/lora.c
 index 4d63baa..6c5c72e 100644
 --- a/src/lora.c
