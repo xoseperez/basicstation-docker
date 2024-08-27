@@ -3,6 +3,7 @@
 ## 2.8.4 (Unreleased)
 
 * Add options to disable LBT, duty-cycle and dwell-time limitations (development option only)
+* Add support for GPS coordinates and PPS (required for class B beaconing)
 * Force main process to run as PID 1
 
 ## 2.8.3 (2024-04-16)

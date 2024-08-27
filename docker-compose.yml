@@ -107,6 +107,15 @@ services:
       #WHITELIST_OUIS: 0x75B3D5
 
       # ------------------------------------------------
+      # GPS
+      # ------------------------------------------------
+
+      # Defines the FILE or FIFO that emits NMEA messages from the GNSS receiver.
+      # Station uses this to extract LAT/LON coordinates of the gateway. 
+      #GPS_DEV: "/dev/ttyAMA0"
+      #GPS_DEV: "/dev/ttyS0"
+
+      # ------------------------------------------------
       # TTI/TTN specific
       # ------------------------------------------------
 

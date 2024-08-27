@@ -661,6 +661,30 @@ if [[ -z ${GATEWAY_EUI} ]] ; then
 fi
 
 # -----------------------------------------------------------------------------
+# GPS Configuration
+# -----------------------------------------------------------------------------
+
+# Models with I2C GPS
+MODELS_WITH_I2C_GPS="RAK7243C RAK7244C RAK7248C"
+if [[ $MODELS_WITH_I2C_GPS =~ (^|[[:space:]])$MODEL($|[[:space:]]) ]]; then
+    GPS_DEV=${GPS_DEV:-"/dev/i2c-1"}
+fi
+
+# Models with UART GPS
+MODELS_WITH_UART_GPS="RAK7243 RAK7244 RAK7246G RAK7248 RAK831 RAK2245 RAK2287 RAK5146"
+if [[ $MODELS_WITH_UART_GPS =~ (^|[[:space:]])$MODEL($|[[:space:]]) ]]; then
+    GPS_DEV=${GPS_DEV:-"/dev/ttyAMA0"}
+fi
+
+# Is GPS interface set?
+if [[ -z "$GPS_DEV" ]] || [[ ! -e $GPS_DEV ]]; then
+    HAS_GPS=0
+else
+    HAS_GPS=${HAS_GPS:-1} 
+fi
+[[ $HAS_GPS -eq 0 ]] && GPS_DEV="" # allows to disable GPS in models with GPS
+
+# -----------------------------------------------------------------------------
 # Whitelists
 # -----------------------------------------------------------------------------
 
@@ -727,6 +751,9 @@ echo -e "${COLOR_INFO}Radio Device:  ${DEVICE}${COLOR_END}"
 if [[ -n "${CHIP_ID}" ]]; then
 echo -e "${COLOR_INFO}Chip ID:       ${CHIP_ID}${COLOR_END}"
 fi
+if [[ ${HAS_GPS} -eq 1 ]]; then
+echo -e "${COLOR_INFO}GPS Device:    ${GPS_DEV}${COLOR_END}"
+fi
 
 if [[ "$INTERFACE" == "SPI" ]]; then
 echo -e "${COLOR_INFO}SPI Speed:     ${LORAGW_SPI_SPEED}${COLOR_END}"
@@ -760,6 +787,11 @@ if [[ ! -f "${CONFIG_FILE}" ]]; then
     sed -i "s#\"device\":\s*.*,#\"device\": \"${INTERFACE,,}:${DEVICE}\",#" "${CONFIG_FILE}"
     sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"${GATEWAY_EUI}\",#" "${CONFIG_FILE}"
     sed -i "s#\"clksrc\":\s*.*,#\"clksrc\": ${CLKSRC:-0},#" "${CONFIG_FILE}"
+    
+    if [[ ${HAS_GPS} -eq 1 ]]; then
+    sed -i "s#\"gps\":\s*.*,#\"gps\": \"${GPS_DEV:-""}\",#" "${CONFIG_FILE}"
+    sed -i "s#\"pps\":\s*false,#\"pps\": true,#" "${CONFIG_FILE}"
+    fi
 
     if [[ ${DISABLE_CLEAR_CHANNEL_ANALYSIS:-0} -eq 1 ]]; then
         sed -i "s#\"nocca\":\s*.*,#\"nocca\": true,#" "${CONFIG_FILE}"
