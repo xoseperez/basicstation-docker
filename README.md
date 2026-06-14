@@ -225,7 +225,9 @@ Variable Name | Value | Description | Default
 **`SPI_SPEED`** | `INT` | Speed of the SPI interface | 2000000 (2MHz) for SX1301 concentrators, 8000000 (8Mhz) for the rest
 **`CLKSRC`** | `INT` | Radio index that provides clock to concentrator | 1 for SX1301 concentradors, 0 for the rest 
 **`USE_LIBGPIOD`** | `INT` | Use `sysfs` (0) or `libgpiod` (1) to manage the GPIOs | 1
-**`GPIO_CHIP`** | `STRING` | GPIO ID to use when using libgpiod | `gpiochip0` (`gpiochip4` for Raspberry Pi 5)
+**`GPIO_CHIP`** | `STRING` | Default GPIO ID to use when using libgpiod (used for both reset and enable if the specific variables are not defined) | `gpiochip0` (`gpiochip4` for Raspberry Pi 5)
+**`RESET_GPIO_CHIP`** | `STRING` | Override GPIO chip used for reset operations (e.g. separate gpiochip on boards with multiple pinctrl devices) | Falls back to `GPIO_CHIP`
+**`ENABLE_GPIO_CHIP`** | `STRING` | Override GPIO chip used for power enable operations (e.g. separate gpiochip on boards with multiple pinctrl devices) | Falls back to `GPIO_CHIP`
 **`RESET_GPIO`** | `INT` | GPIO number that resets (Broadcom pin number, if not defined it's calculated based on the `RESET_PIN`) | 17
 **`POWER_EN_GPIO`** | `INT` | GPIO number that enables power (by pulling HIGH) to the concentrator (Broadcom pin number). 0 means no required. | 0
 **`POWER_EN_LOGIC`** | `INT` | If `POWER_EN_GPIO` is not 0, the corresponding GPIO will be set to this value | 1
@@ -762,6 +764,33 @@ services:
       MODEL: "RAK5146"
       GPIO_CHIP: "gpiochip4"
 ```
+
+### Multiple GPIO chips
+
+Some embedded boards expose multiple `gpiochip` devices (e.g. one per pinctrl controller). If the reset and power enable signals are routed to different gpiochips, use the specific overrides:
+
+```
+version: '2.0'
+
+services:
+
+  basicstation:
+    image: xoseperez/basicstation:latest
+    container_name: basicstation
+    restart: unless-stopped
+    devices:
+      - /dev/spidev0.0
+      - /dev/gpiochip3
+      - /dev/gpiochip4
+    environment:
+      MODEL: "SX1303"
+      RESET_GPIO_CHIP: "gpiochip3"   # chip where reset pin lives
+      ENABLE_GPIO_CHIP: "gpiochip4"  # chip where power enable pin lives
+      RESET_GPIO: 12
+      POWER_EN_GPIO: 8
+```
+
+Run `gpiodetect` on your host to find the available gpiochip names, and `gpioinfo <name>` to list which pins are available on each.
 
 ### Whitelisting
 

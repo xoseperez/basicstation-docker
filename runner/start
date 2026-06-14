@@ -37,7 +37,11 @@ function create_reset_file {
     # Find proper chip to use with libgpiod
     if [[ $USE_LIBGPIOD -eq 1 ]]; then
         GPIO_CHIP=${GPIO_CHIP:-$( gpiodetect | grep pinctrl | head -1 | awk '{print $1}' )}
-    fi 
+    fi
+
+    # Allow separate gpiochips for reset and enable, falling back to GPIO_CHIP
+    RESET_GPIO_CHIP=${RESET_GPIO_CHIP:-${GPIO_CHIP}}
+    ENABLE_GPIO_CHIP=${ENABLE_GPIO_CHIP:-${GPIO_CHIP}}
 
     if [[ "${INTERFACE}" == "USB" ]]; then
         echo "" > ${RESET_FILE}
@@ -47,7 +51,8 @@ function create_reset_file {
         else
             cp /app/reset.sh.legacy ${RESET_FILE}
         fi
-        sed -i "s#{{GPIO_CHIP}}#${GPIO_CHIP}#" ${RESET_FILE}
+        sed -i "s#{{RESET_GPIO_CHIP}}#${RESET_GPIO_CHIP}#" ${RESET_FILE}
+        sed -i "s#{{ENABLE_GPIO_CHIP}}#${ENABLE_GPIO_CHIP}#" ${RESET_FILE}
         sed -i "s#{{RESET_GPIO}}#${RESET_GPIO:-17}#" ${RESET_FILE}
         sed -i "s#{{POWER_EN_GPIO}}#${POWER_EN_GPIO:-0}#" ${RESET_FILE}
         sed -i "s#{{POWER_EN_LOGIC}}#${POWER_EN_LOGIC:-1}#" ${RESET_FILE}
@@ -739,7 +744,8 @@ fi
 if [[ "$INTERFACE" == "SPI" ]]; then
 echo -e "${COLOR_INFO}SPI Speed:     ${LORAGW_SPI_SPEED}${COLOR_END}"
 if [[ $USE_LIBGPIOD -eq 1 ]]; then
-echo -e "${COLOR_INFO}GPIO chip:     ${GPIO_CHIP}${COLOR_END}"
+    echo -e "${COLOR_INFO}Reset GPIO chip:   ${RESET_GPIO_CHIP}${COLOR_END}"
+    echo -e "${COLOR_INFO}Enable GPIO chip:  ${ENABLE_GPIO_CHIP}${COLOR_END}"
 fi
 echo -e "${COLOR_INFO}Reset GPIO:    ${RESET_GPIO}${COLOR_END}"
 echo -e "${COLOR_INFO}Enable GPIO:   ${POWER_EN_GPIO}${COLOR_END}"
