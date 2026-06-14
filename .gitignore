@@ -1,2 +1,6 @@
+# Ignore all dotfiles except .gitignore
+.*
+!.gitignore
+
+# Private builder
 build_private.sh
-.DS_Store
