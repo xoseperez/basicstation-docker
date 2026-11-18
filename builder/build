@@ -38,9 +38,9 @@ clone_and_patch() {
     fi
 
     # Apply patches
-    if [ -f "../patches/$FOLDER.$TAG.patch" ]; then
-        echo -e "${COLOR_INFO}Applying $FOLDER.$TAG.patch ...${COLOR_END}"
-        git apply "../patches/$FOLDER.$TAG.patch"
+    if [ -d "../patches/$FOLDER.$TAG" ]; then
+        echo -e "${COLOR_INFO}Applying patches for $FOLDER.$TAG...${COLOR_END}"
+        find "../patches/$FOLDER.$TAG" -name "*.patch" | sort | xargs git apply -v
     fi
 
     popd >> /dev/null

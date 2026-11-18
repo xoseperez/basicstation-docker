@@ -1,0 +1,24 @@
+diff --git a/deps/smtcpico/V0.2.2-linuxpico.patch b/deps/smtcpico/V0.2.2-linuxpico.patch
+index fd4ca5a..a4bd19c 100644
+--- a/deps/smtcpico/V0.2.2-linuxpico.patch
++++ b/deps/smtcpico/V0.2.2-linuxpico.patch
+@@ -313,6 +313,19 @@ index 0000000..aa04060
+ +
+ +#endif
+ +/* --- EOF ------------------------------------------------------------------ */
++diff --git a/libloragw/inc/loragw_mcu.h b/libloragw/inc/loragw_mcu.h
++index 938d886..42004dd 100644
++--- a/libloragw/inc/loragw_mcu.h
+++++ b/libloragw/inc/loragw_mcu.h
++@@ -30,7 +30,7 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
++ #define LGW_MCU_SUCCESS 0
++ #define LGW_MCU_ERROR   -1
++ 
++-#define STM32FWVERSION 0x010a0006 /* increment LSB for new version */
+++#define STM32FWVERSION 0x010a0004 /* increment LSB for new version */
++ 
++ #define MCU_DELAY_COM_INIT 1000
++ #define MCU_DELAY_RESET 200
+ diff --git a/libloragw/inc/loragw_stationlog.h b/libloragw/inc/loragw_stationlog.h
+ new file mode 100644
+ index 0000000..a282b8f
