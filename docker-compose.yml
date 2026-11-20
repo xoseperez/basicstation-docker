@@ -9,9 +9,8 @@ services:
     #build:
     #  context: .
     #  args:
-    #    ARCH: aarch64
-    #    REMOTE_TAG: v2.0.6
-    #    VARIANT: std
+    #    BASICSTATION_VERSION: 2.0.6
+    #    VARIANT: stdn
 
     container_name: basicstation
     restart: unless-stopped
@@ -41,7 +40,7 @@ services:
       # To select your concentrator you have 3 options:
       # Option 1: set the MODEL to the device model number (i.e. RAK7371)
       # Option 2: set the MODEL to the concentrator model number (i.e. RAK5146, WM1302, R11E-LR8...)
-      # Option 2: set the MODEL to the concentrator chip (i.e. SX1303)
+      # Option 3: set the MODEL to the concentrator chip (i.e. SX1303)
       #MODEL: "RAK5146"
       #MODEL: "SX1303"
 
@@ -73,10 +72,12 @@ services:
 
       # GPIO to reset SPI concentrators (these are the defaults)
       #USE_LIBGPIOD: 1 # set to 0 to use legacy sysfs access (not recommended)
-      #GPIO_CHIP: "gpiochip0" # set to "gpiochip4" by default for Raspberry Pi 5
+      #GPIO_CHIP: "gpiochip0" # defaults to the first pinctrl gpiochip found; without one the concentrator is not reset
+      #RESET_GPIO_CHIP: "gpiochip0" # gpiochip for the reset pin, if not the same as GPIO_CHIP
+      #ENABLE_GPIO_CHIP: "gpiochip0" # gpiochip for the power enable pin, if not the same as GPIO_CHIP
       #RESET_GPIO: 17
       #POWER_EN_GPIO: 0
-      #POWER_EN_LOGIC:1
+      #POWER_EN_LOGIC: 1
 
       # Problems with an SPI concentrator are sometimes related to the bus speed,
       # you can set a different one this way
@@ -88,7 +89,7 @@ services:
       # 2) It will use the concentrator Chip ID if GATEWAY_EUI_SOURCE set to "chip" (will work only for Corecell concentrators)
       # 3) It will use the GATEWAY_EUI variable below if defined
       # 4) It will use the MAC address of the network interface identified by GATEWAY_EUI_SOURCE
-      # 5) It will use the MAC address of the first existing network interface in this list: eth0, wlan0 and usb0
+      # 5) It will use the MAC address of the first existing network interface in this list: eth0, wlan0, usb0 and eth1
       # 6) It will use the MAC address of the network interface with more traffic
       # For options 4 to 6 you want to use network mode host to get the same EUI accross container reboots
       #GATEWAY_EUI_SOURCE: "enx00e04c68160f"

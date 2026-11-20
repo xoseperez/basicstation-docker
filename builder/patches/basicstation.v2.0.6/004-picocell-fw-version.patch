@@ -1,3 +1,10 @@
+Subject: picocell HAL: expect MCU firmware 1.10.4
+
+picoGW_hal sends the firmware version it expects, and the MCU refuses the
+connection on a mismatch. Lowering STM32FWVERSION from 0x010a0006 to
+0x010a0004 makes picocell modules running firmware 1.10.4 work; modules
+running 1.10.6 are then refused. Changes the HAL patch station applies.
+
 diff --git a/deps/smtcpico/V0.2.2-linuxpico.patch b/deps/smtcpico/V0.2.2-linuxpico.patch
 index fd4ca5a..a4bd19c 100644
 --- a/deps/smtcpico/V0.2.2-linuxpico.patch

@@ -1,0 +1,19 @@
+Subject: Log frames that are dropped
+
+Station prepares the RX log line before it checks a frame, and writes it only
+when the frame is forwarded. Frames that failed the sanity checks or were
+stopped by a filter (join EUI, NetID or OUI whitelists, which add their reason
+to that line) left nothing in the log. Now that line is written for them too.
+
+diff --git a/src/s2e.c b/src/s2e.c
+index 6a9c009..6540415 100644
+--- a/src/s2e.c
++++ b/src/s2e.c
+@@ -162,6 +162,7 @@ void s2e_flushRxjobs (s2ctx_t* s2ctx) {
+         uj_encOpen(&sendbuf, '{');
+         if( !s2e_parse_lora_frame(&sendbuf, &s2ctx->rxq.rxdata[j->off], j->len, lbuf.buf ? &lbuf : NULL) ) {
+             // Frame failed sanity checks or stopped by filters
++            if( lbuf.buf ) log_specialFlush(lbuf.pos);
+             sendbuf.pos = 0;
+             continue;
+         }

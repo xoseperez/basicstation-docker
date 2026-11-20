@@ -1,0 +1,5 @@
+# The build only needs the builder scripts and patches, and the runner files
+*
+!runner/
+!builder/
+**/.*

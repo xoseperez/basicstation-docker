@@ -1,6 +1,8 @@
-# Ignore all dotfiles except .gitignore
+# Ignore all dotfiles except the ones the repository needs
 .*
 !.gitignore
+!.github/
+!.dockerignore
 
 # Private builder
 build_private.sh

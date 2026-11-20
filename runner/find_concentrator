@@ -21,6 +21,10 @@
 
 cd "$( dirname "$0" )" || exit
 
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=common.sh
+source ./common.sh
+
 # -----------------------------------------------------------------------------
 # Colors
 # -----------------------------------------------------------------------------
@@ -55,6 +59,8 @@ function test_device {
     local DEVICE=$1
     local GATEWAY_EUI=""
     local DESIGN
+    # Per probe: a tty probe sets it, and an SPI probe after it must not inherit it
+    local COM_TYPE=""
     
     pad "$DEVICE" $WIDTH_DEVICE " "
     
@@ -102,36 +108,14 @@ function test_device {
 # Create reset file
 # -----------------------------------------------------------------------------
 
-# Defaults to use libgpiod if gpioset exists
-command -v gpioset >/dev/null 2>&1 && USE_LIBGPIOD=1
-USE_LIBGPIOD=${USE_LIBGPIOD:-0}
-
-# Find proper chip to use with libgpiod
-if [[ $USE_LIBGPIOD -eq 1 ]]; then
-    GPIO_CHIP=${GPIO_CHIP:-$( gpiodetect | grep pinctrl | head -1 | awk '{print $1}' )}
-fi 
-
-# Create reset file
-if [[ $USE_LIBGPIOD -eq 1 ]]; then
-    cp reset.sh.gpiod reset_lgw.sh
-else
-    cp reset.sh.legacy reset_lgw.sh
-fi
-sed -i "s#{{GPIO_CHIP}}#${GPIO_CHIP:-gpiochip0}#" reset_lgw.sh
-sed -i "s#{{RESET_GPIO}}#${RESET_GPIO:-6 17}#" reset_lgw.sh
-sed -i "s#{{POWER_EN_GPIO}}#${POWER_EN_GPIO:-0}#" reset_lgw.sh
-sed -i "s#{{POWER_EN_LOGIC}}#${POWER_EN_LOGIC:-1}#" reset_lgw.sh
-chmod +x reset_lgw.sh
+# Reset both usual reset pins unless told otherwise; chip_id runs it
+render_reset_file reset_lgw.sh "${RESET_GPIO:-6,17}" "${POWER_EN_GPIO:-0}" "${POWER_EN_LOGIC:-1}" || exit 1
 
 # -----------------------------------------------------------------------------
 # Network device
 # -----------------------------------------------------------------------------
 
-if [[ "${INTERFACE}" == "NET" ]]; then
-    NETLINK=${DEVICE:-$( /sbin/ip route|awk '/default/ { print $3 ":3333" }' )}
-    DEVICE="/dev/ttyV0"
-    socat pty,link=$DEVICE,waitslave "tcp:$NETLINK" &
-fi
+[[ "${INTERFACE}" == "NET" ]] && create_network_link
 
 # -----------------------------------------------------------------------------
 # Test all devices

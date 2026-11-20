@@ -4,9 +4,13 @@ set -e
 
 cd "$( dirname "$0" )" || exit
 
+# Versions without the tag prefix; the upstream tags are v<version> for Basic
+# Station and V<version> for the HALs.
 ARCH=${ARCH:-armv7hf}
-REMOTE_TAG=${REMOTE_TAG:-"v2.0.6"}
-VARIANT=${VARIANT:-std}
+BASICSTATION_VERSION=${BASICSTATION_VERSION:-2.0.6}
+SX1302_HAL_VERSION=${SX1302_HAL_VERSION:-2.1.0}
+PICOGW_HAL_VERSION=${PICOGW_HAL_VERSION:-0.2.3}
+VARIANT=${VARIANT:-stdn}
 
 # -----------------------------------------------------------------------------
 # Colors
@@ -37,11 +41,18 @@ clone_and_patch() {
         git checkout "${TAG}"
     fi
 
-    # Apply patches
-    if [ -d "../patches/$FOLDER.$TAG" ]; then
+    # Apply patches in name order. The loop is not the tail of a pipeline, so a
+    # patch that does not apply stops the build here (set -e), and an empty or
+    # missing folder applies nothing instead of running "git apply" without
+    # arguments, which fails.
+    local PATCHES=()
+    mapfile -t PATCHES < <( find "../patches/$FOLDER.$TAG" -maxdepth 1 -name '*.patch' 2>/dev/null | LC_ALL=C sort )
+    if [[ ${#PATCHES[@]} -gt 0 ]]; then
         echo -e "${COLOR_INFO}Applying patches for $FOLDER.$TAG...${COLOR_END}"
-        find "../patches/$FOLDER.$TAG" -name "*.patch" | sort | xargs git apply -v
     fi
+    for PATCH in "${PATCHES[@]}"; do
+        git apply -v "$PATCH" || { echo "ERROR: $PATCH does not apply"; exit 1; }
+    done
 
     popd >> /dev/null
 
@@ -63,6 +74,16 @@ clone_patch_and_make() {
 
 }
 
+# The version a checkout was built from, without the v/V prefix. Fails if the
+# checkout is not exactly at a tag, so a wrong record never reaches the image.
+built_version() {
+
+    local VERSION
+    VERSION=$( git -C "$1" describe --tags --exact-match )
+    echo "${VERSION#[vV]}"
+
+}
+
 print_header() {
 
     TITLE="$1"
@@ -78,7 +99,9 @@ print_header() {
 
 echo -e "${COLOR_INFO}-------------------------------------------------------${COLOR_END}"
 echo -e "${COLOR_INFO}Build settings:${COLOR_END}"
-echo -e "${COLOR_INFO}  BASICSTATION VERSION: ${REMOTE_TAG}${COLOR_END}"
+echo -e "${COLOR_INFO}  BASICSTATION VERSION: ${BASICSTATION_VERSION}${COLOR_END}"
+echo -e "${COLOR_INFO}  SX1302_HAL VERSION:   ${SX1302_HAL_VERSION} (chip_id)${COLOR_END}"
+echo -e "${COLOR_INFO}  PICOGW_HAL VERSION:   ${PICOGW_HAL_VERSION} (chip_id)${COLOR_END}"
 echo -e "${COLOR_INFO}  VARIANT:              ${VARIANT}${COLOR_END}"
 echo -e "${COLOR_INFO}  ARCHITECTURE:         ${ARCH}${COLOR_END}"
 echo -e "${COLOR_INFO}-------------------------------------------------------${COLOR_END}"
@@ -88,7 +111,7 @@ echo
 # Building basicstation
 # -----------------------------------------------------------------------------
 
-clone_and_patch https://github.com/lorabasics/basicstation "${REMOTE_TAG}"
+clone_and_patch https://github.com/lorabasics/basicstation "v${BASICSTATION_VERSION}"
 pushd basicstation >> /dev/null
 
 print_header "Building BasicStation for v2"
@@ -105,7 +128,7 @@ popd > /dev/null
 # -----------------------------------------------------------------------------
 
 print_header "Building chip_id for Corecell"
-clone_patch_and_make https://github.com/Lora-net/sx1302_hal.git V2.1.0
+clone_patch_and_make https://github.com/Lora-net/sx1302_hal.git "V${SX1302_HAL_VERSION}"
 cp sx1302_hal/util_chip_id/chip_id "basicstation/build-corecell-${VARIANT}/bin/"
 
 # -----------------------------------------------------------------------------
@@ -113,5 +136,30 @@ cp sx1302_hal/util_chip_id/chip_id "basicstation/build-corecell-${VARIANT}/bin/"
 # -----------------------------------------------------------------------------
 
 print_header "Building chip_id for Picocell"
-clone_patch_and_make https://github.com/Lora-net/picoGW_hal V0.2.3
+clone_patch_and_make https://github.com/Lora-net/picoGW_hal "V${PICOGW_HAL_VERSION}"
 cp picoGW_hal/util_chip_id/util_chip_id "basicstation/build-linuxpico-${VARIANT}/bin/chip_id"
+
+# -----------------------------------------------------------------------------
+# Build record
+# -----------------------------------------------------------------------------
+
+# What was actually built, read from the checkouts. Station builds its own HALs
+# at the versions its deps/ folder pins; the chip_id tools use the HALs above.
+# Each version is assigned before it is written: a failing command substitution
+# inside an echo argument would not stop the build under set -e.
+BUILT_BASICSTATION=$( built_version basicstation )
+BUILT_STATION_LGW=$( built_version basicstation/deps/lgw/platform-rpi )
+BUILT_STATION_SX1302=$( built_version basicstation/deps/lgw1302/platform-corecell )
+BUILT_STATION_PICOGW=$( built_version basicstation/deps/smtcpico/platform-linuxpico )
+BUILT_CHIPID_SX1302=$( built_version sx1302_hal )
+BUILT_CHIPID_PICOGW=$( built_version picoGW_hal )
+cat > build-info << EOF
+basicstation=${BUILT_BASICSTATION}
+station.lora_gateway=${BUILT_STATION_LGW}
+station.sx1302_hal=${BUILT_STATION_SX1302}
+station.picoGW_hal=${BUILT_STATION_PICOGW}
+chip_id.sx1302_hal=${BUILT_CHIPID_SX1302}
+chip_id.picoGW_hal=${BUILT_CHIPID_PICOGW}
+variant=${VARIANT}
+EOF
+cat build-info

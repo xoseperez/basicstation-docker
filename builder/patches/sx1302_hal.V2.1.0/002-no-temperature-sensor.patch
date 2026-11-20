@@ -1,0 +1,76 @@
+Subject: Run without a temperature sensor
+
+sx1302_hal V2.1.0 lgw_start fails with "no temperature sensor found" when no
+STTS751 answers on its known I2C addresses, and many corecell boards have none.
+The sensor is compiled out (USE_TEMPERATURE_SENSOR) and a fixed 30 C stands in
+for the RSSI temperature compensation. Same change as basicstation 002.
+
+diff --git a/libloragw/src/loragw_hal.c b/libloragw/src/loragw_hal.c
+index 60e8387..0963480 100644
+--- a/libloragw/src/loragw_hal.c
++++ b/libloragw/src/loragw_hal.c
+@@ -205,8 +205,10 @@ static lgw_context_t lgw_context = {
+ FILE * log_file = NULL;
+ 
+ /* I2C temperature sensor handles */
++#ifdef USE_TEMPERATURE_SENSOR
+ static int     ts_fd = -1;
+ static uint8_t ts_addr = 0xFF;
++#endif
+ 
+ /* I2C AD5338 handles */
+ static int     ad_fd = -1;
+@@ -1097,6 +1099,9 @@ int lgw_start(void) {
+     dbg_init_random();
+ 
+     if (CONTEXT_COM_TYPE == LGW_COM_SPI) {
++
++#ifdef USE_TEMPERATURE_SENSOR
++
+         /* Find the temperature sensor on the known supported ports */
+         for (i = 0; i < (int)(sizeof I2C_PORT_TEMP_SENSOR); i++) {
+             ts_addr = I2C_PORT_TEMP_SENSOR[i];
+@@ -1121,6 +1126,8 @@ int lgw_start(void) {
+             return LGW_HAL_ERROR;
+         }
+ 
++#endif
++
+         /* Configure ADC AD338R for full duplex (CN490 reference design) */
+         if (CONTEXT_BOARD.full_duplex == true) {
+             err = i2c_linuxdev_open(I2C_DEVICE, I2C_PORT_DAC_AD5338R, &ad_fd);
+@@ -1226,13 +1233,14 @@ int lgw_stop(void) {
+     }
+ 
+     if (CONTEXT_COM_TYPE == LGW_COM_SPI) {
++#ifdef USE_TEMPERATURE_SENSOR
+         DEBUG_MSG("INFO: Closing I2C for temperature sensor\n");
+         x = i2c_linuxdev_close(ts_fd);
+         if (x != 0) {
+             ERROR_PRINTF("failed to close I2C temperature sensor device (err=%i)\n", x);
+             err = LGW_HAL_ERROR;
+         }
+-
++#endif
+         if (CONTEXT_BOARD.full_duplex == true) {
+             DEBUG_MSG("INFO: Closing I2C for AD5338R\n");
+             x = i2c_linuxdev_close(ad_fd);
+@@ -1600,6 +1608,7 @@ int lgw_get_temperature(float* temperature) {
+ 
+     CHECK_NULL(temperature);
+ 
++#ifdef USE_TEMPERATURE_SENSOR
+     switch (CONTEXT_COM_TYPE) {
+         case LGW_COM_SPI:
+             err = stts751_get_temperature(ts_fd, ts_addr, temperature);
+@@ -1611,6 +1620,10 @@ int lgw_get_temperature(float* temperature) {
+             ERROR_PRINTF("wrong communication type (SHOULD NOT HAPPEN)\n");
+             break;
+     }
++#else
++    *temperature = 30.0;
++    err = LGW_HAL_SUCCESS;
++#endif
+ 
+     // DEBUG_PRINTF(" --- %s\n", "OUT");
+ 

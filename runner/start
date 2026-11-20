@@ -1,15 +1,47 @@
 #!/usr/bin/env bash
 
-VERSION=2.8.6
-
 # -----------------------------------------------------------------------------
-# Colors
+# Usage: start [--render [--autoprovision]]
+#
+#   --render         Resolve the settings and write /app/config exactly as a
+#                    normal start does, print the summary, then exit 0 instead
+#                    of launching station. A missing radio device is only a
+#                    warning. Hardware is probed only when the settings ask for
+#                    it (MODEL or DEVICE unset or AUTO, GATEWAY_EUI_SOURCE=chip).
+#   --autoprovision  With --render, also register the gateway with The Things
+#                    Stack. It is off by default because autoprovisioning
+#                    revokes the gateway's previous key, which would disconnect
+#                    a gateway that is running with it.
 # -----------------------------------------------------------------------------
 
-COLOR_INFO="\e[32m" # green
-COLOR_WARNING="\e[33m" # yellow
-COLOR_ERROR="\e[31m" # red
-COLOR_END="\e[0m"
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=common.sh
+source "$( dirname "$( readlink -f "$0" )" )/common.sh"
+
+RENDER=0
+RENDER_AUTOPROVISION=0
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --render) RENDER=1 ;;
+        --autoprovision) RENDER_AUTOPROVISION=1 ;;
+        *)
+            echo -e "${COLOR_ERROR}ERROR: Unknown option '$1'. Usage: start [--render [--autoprovision]]${COLOR_END}"
+            exit 1
+            ;;
+    esac
+    shift
+done
+if [[ ${RENDER_AUTOPROVISION} -eq 1 ]] && [[ ${RENDER} -eq 0 ]]; then
+    echo -e "${COLOR_ERROR}ERROR: --autoprovision only applies to --render; a normal start always autoprovisions when TTS credentials are set${COLOR_END}"
+    exit 1
+fi
+
+# Settings a static station.conf replaces, noted before any default is applied
+# so the summary can say which ones the user set but are ignored
+STATIC_IGNORED=()
+for VAR in WHITELIST_NETIDS WHITELIST_OUIS GPS_DEV HAS_GPS; do
+    [[ -n "${!VAR}" ]] && STATIC_IGNORED+=( "${VAR}" )
+done
 
 # -----------------------------------------------------------------------------
 # Utils
@@ -19,8 +51,10 @@ function idle() {
 
     # Report GATEWAY_EUI if already defined
     [[ -n "${GATEWAY_EUI}" ]] && echo -e "${COLOR_INFO}GATEWAY_EUI: ${GATEWAY_EUI}${COLOR_END}"
-    
-    # Exit after 5 seconds otherwise
+
+    # A render reports the error at once; a normal start waits 5 seconds so a
+    # restart policy doesn't spin
+    [[ ${RENDER} -eq 1 ]] && exit 1
     sleep 5
     exit 1
 
@@ -29,35 +63,15 @@ function idle() {
 function create_reset_file {
 
     local RESET_FILE=/app/config/reset.sh
-    
-    # Defaults to use libgpiod if gpioset exists
-    command -v gpioset >/dev/null 2>&1 && USE_LIBGPIOD=1
-    USE_LIBGPIOD=${USE_LIBGPIOD:-0}
-    
-    # Find proper chip to use with libgpiod
-    if [[ $USE_LIBGPIOD -eq 1 ]]; then
-        GPIO_CHIP=${GPIO_CHIP:-$( gpiodetect | grep pinctrl | head -1 | awk '{print $1}' )}
-    fi
 
-    # Allow separate gpiochips for reset and enable, falling back to GPIO_CHIP
-    RESET_GPIO_CHIP=${RESET_GPIO_CHIP:-${GPIO_CHIP}}
-    ENABLE_GPIO_CHIP=${ENABLE_GPIO_CHIP:-${GPIO_CHIP}}
+    resolve_use_libgpiod
 
     if [[ "${INTERFACE}" == "USB" ]]; then
         echo "" > ${RESET_FILE}
+        chmod +x "${RESET_FILE}"
     else
-        if [[ $USE_LIBGPIOD -eq 1 ]]; then
-            cp /app/reset.sh.gpiod ${RESET_FILE}
-        else
-            cp /app/reset.sh.legacy ${RESET_FILE}
-        fi
-        sed -i "s#{{RESET_GPIO_CHIP}}#${RESET_GPIO_CHIP}#" ${RESET_FILE}
-        sed -i "s#{{ENABLE_GPIO_CHIP}}#${ENABLE_GPIO_CHIP}#" ${RESET_FILE}
-        sed -i "s#{{RESET_GPIO}}#${RESET_GPIO:-17}#" ${RESET_FILE}
-        sed -i "s#{{POWER_EN_GPIO}}#${POWER_EN_GPIO:-0}#" ${RESET_FILE}
-        sed -i "s#{{POWER_EN_LOGIC}}#${POWER_EN_LOGIC:-1}#" ${RESET_FILE}
+        render_reset_file "${RESET_FILE}" "${RESET_GPIO:-17}" "${POWER_EN_GPIO:-0}" "${POWER_EN_LOGIC:-1}" || idle
     fi
-    chmod +x "${RESET_FILE}"
     ln -s "${RESET_FILE}" /app/config/reset_lgw.sh 2>/dev/null
 
 }
@@ -67,7 +81,9 @@ function chip_id {
     local DESIGN=$1
     local DEVICE=$2
     local CHIP_ID
-    
+    # Per probe: a tty probe sets it, and an SPI probe after it must not inherit it
+    local COM_TYPE=""
+
     [[ "$DEVICE" == *"ttyV"* ]] && TIMEOUT=10 || TIMEOUT=3
 
     if [[ "$DESIGN" == "auto" ]] || [[ "$DESIGN" == "corecell" ]]; then
@@ -78,7 +94,7 @@ function chip_id {
             return 1
         fi
     fi
-        
+
     if [[ "$DESIGN" == "auto" ]] || [[ "$DESIGN" == "picocell" ]]; then
         CHIP_ID=$( timeout "${TIMEOUT}s" /app/artifacts/picocell/chip_id -d "$DEVICE" | tr "[:lower:]" "[:upper:]" )
         if [[ -n ${CHIP_ID} ]]; then
@@ -87,7 +103,7 @@ function chip_id {
             return 1
         fi
     fi
-        
+
     return 0
 
 }
@@ -124,23 +140,43 @@ function discover_concentrator {
 
 }
 
-function create_network_link {
+# tts_api METHOD PATH [BODY]: calls The Things Stack API on SERVER and prints
+# the reply. The personal key goes in a header read from a file descriptor and
+# the body on stdin, so neither is on curl's command line, where any process
+# listing would show them. The timeouts stop an unreachable server from
+# holding up the start.
+function tts_api {
 
-    NETLINK=${DEVICE:-$( /sbin/ip route|awk '/default/ { print $3 ":3333" }' )}
-    INTERFACE="USB"
-    DEVICE="/dev/ttyV0"
-    socat pty,link=$DEVICE,waitslave "tcp:$NETLINK" &
+    local METHOD=$1
+    local URL_PATH=$2
+
+    if [[ $# -ge 3 ]]; then
+        curl --silent --show-error --location --connect-timeout 10 --max-time 30 \
+            --header @<( printf 'Authorization: Bearer %s\n' "${TTS_PERSONAL_KEY}" ) \
+            --header 'Accept: application/json' \
+            --header 'Content-Type: application/json' \
+            --request "${METHOD}" \
+            --data-binary @- \
+            "https://${SERVER}${URL_PATH}" <<< "$3"
+    else
+        curl --silent --show-error --location --connect-timeout 10 --max-time 30 \
+            --header @<( printf 'Authorization: Bearer %s\n' "${TTS_PERSONAL_KEY}" ) \
+            --header 'Accept: application/json' \
+            --request "${METHOD}" \
+            "https://${SERVER}${URL_PATH}"
+    fi
 
 }
 
+# Registers the gateway (TTS_EUI) and creates a fresh LNS key for it in TC_KEY.
+# TC_KEY stays empty when anything fails.
 function tts_autoprovision() {
 
     # Autoprovision variables needed
-    TTS_USERNAME=${TTS_USERNAME:-"none"}
     GATEWAY_PREFIX=${GATEWAY_PREFIX:-"eui"}
-    GATEWAY_ID=${GATEWAY_ID:-"${GATEWAY_PREFIX,,}-${GATEWAY_EUI,,}"}
+    GATEWAY_ID=${GATEWAY_ID:-"${GATEWAY_PREFIX,,}-${TTS_EUI,,}"}
     GATEWAY_NAME=${GATEWAY_NAME:-${GATEWAY_ID}}
-    
+
     # Autoprovision regions defined here: https://www.thethingsindustries.com/docs/reference/frequency-plans/
     TTS_FREQUENCY_PLAN_ID=${TTS_FREQUENCY_PLAN_ID:-""}
     if [[ "$TTS_FREQUENCY_PLAN_ID" == "" ]]; then
@@ -154,33 +190,30 @@ function tts_autoprovision() {
     fi
 
     local API_KEY_NAME="autoprovision-lns-key"
-    local RAW
-    local CODE
-    local MESSAGE
+    local BODY RAW CODE MESSAGE IDS ID KEY
 
-    RAW=$(curl -s --location \
-        --header 'Accept: application/json' \
-        --header 'Authorization: Bearer '"${TTS_PERSONAL_KEY}"'' \
-        --header 'Content-Type: application/json' \
-        --request POST \
-        --data-raw '{
-            "gateway": {
-            "ids": {
-                "gateway_id": "'"${GATEWAY_ID}"'",
-                "eui": "'"${GATEWAY_EUI}"'"
-            },
-            "name": "'"${GATEWAY_NAME}"'",
-            "gateway_server_address": "'"${SERVER}"'",
-            "frequency_plan_id": "'"${TTS_FREQUENCY_PLAN_ID}"'"
-            }
-        }' \
-        'https://'"${SERVER}"'/api/v3/users/'"${TTS_USERNAME}"'/gateways' 2>/dev/null)
-    
-    CODE=$( echo "${RAW}" | jq --raw-output '.code' 2>/dev/null )
-    MESSAGE=$( echo "${RAW}" | jq --raw-output '.message' 2>/dev/null )
+    # Register the gateway. The JSON is built by jq, so quotes or backslashes in
+    # any value arrive intact instead of breaking the request.
+    BODY=$( jq -n \
+        --arg id "${GATEWAY_ID}" \
+        --arg eui "${TTS_EUI}" \
+        --arg name "${GATEWAY_NAME}" \
+        --arg server "${SERVER}" \
+        --arg plan "${TTS_FREQUENCY_PLAN_ID}" \
+        '{gateway: {ids: {gateway_id: $id, eui: $eui}, name: $name, gateway_server_address: $server, frequency_plan_id: $plan}}' )
+    if ! RAW=$( tts_api POST "/api/v3/users/${TTS_USERNAME}/gateways" "${BODY}" ); then
+        echo -e "${COLOR_ERROR}ERROR: Autoprovisioning failed, could not reach https://${SERVER}${COLOR_END}\n"
+        return
+    fi
+    if ! jq -e 'type == "object"' > /dev/null 2>&1 <<< "${RAW}"; then
+        echo -e "${COLOR_ERROR}ERROR: Autoprovisioning failed, unexpected reply from https://${SERVER}${COLOR_END}\n"
+        return
+    fi
+    CODE=$( jq -r '.code // empty' <<< "${RAW}" )
+    MESSAGE=$( jq -r '.message // empty' <<< "${RAW}" )
 
-    # ToDo: find more error codes when provision a gateway via API.   
-    if [[ "$CODE" == "null" ]]; then
+    # ToDo: find more error codes when provision a gateway via API.
+    if [[ -z "$CODE" ]]; then
         echo -e "${COLOR_INFO}Gateway autoprovisioned successfully!${COLOR_END}"
     elif [[ "$CODE" == 6 ]] || [[ "$CODE" == 9 ]]; then
         echo -e "${COLOR_WARNING}WARNING: The gateway was already provisioned.${COLOR_END}"
@@ -190,46 +223,23 @@ function tts_autoprovision() {
     fi
 
     # List api keys
-    local IDS
-    IDS=$(curl -s --location \
-        --header 'Accept: application/json' \
-        --header 'Authorization: Bearer '"${TTS_PERSONAL_KEY}"'' \
-        --header 'Content-Type: application/json' \
-        --request GET \
-        'https://'"${SERVER}"'/api/v3/gateways/'"${GATEWAY_ID}"'/api-keys' | jq '.api_keys[] | select(.name == "'"${API_KEY_NAME}"'") | .id' 2>/dev/null)
-    
+    IDS=$( tts_api GET "/api/v3/gateways/${GATEWAY_ID}/api-keys" \
+        | jq -r --arg name "${API_KEY_NAME}" '.api_keys[]? | select(.name == $name) | .id' 2>/dev/null )
+
     # Delete previous API keys
+    BODY=$( jq -n --arg name "${API_KEY_NAME}" '{name: $name, rights: [], expires_at: null}' )
     for ID in $IDS; do
-        curl -s --location \
-            --header 'Accept: application/json' \
-            --header 'Authorization: Bearer '"${TTS_PERSONAL_KEY}"'' \
-            --header 'Content-Type: application/json' \
-            --request PUT \
-            --data-raw '{
-                "name":"'"${API_KEY_NAME}"'",
-                "rights":[],
-                "expires_at":null
-            }' \
-            'https://'"${SERVER}"'/api/v3/gateways/'"${GATEWAY_ID}"'/api-keys/'"${ID//\"/}" >/dev/null
+        tts_api PUT "/api/v3/gateways/${GATEWAY_ID}/api-keys/${ID}" "${BODY}" > /dev/null
     done
 
     # Create new api key
-    RAW=$(curl -s --location \
-        --header 'Accept: application/json' \
-        --header 'Authorization: Bearer '"${TTS_PERSONAL_KEY}"'' \
-        --header 'Content-Type: application/json' \
-        --request POST \
-        --data-raw '{
-            "name":"'"${API_KEY_NAME}"'",
-            "rights":["RIGHT_GATEWAY_LINK"],
-            "expires_at":null
-        }' \
-        'https://'"${SERVER}"'/api/v3/gateways/'"${GATEWAY_ID}"'/api-keys' 2>/dev/null)
+    BODY=$( jq -n --arg name "${API_KEY_NAME}" '{name: $name, rights: ["RIGHT_GATEWAY_LINK"], expires_at: null}' )
+    RAW=$( tts_api POST "/api/v3/gateways/${GATEWAY_ID}/api-keys" "${BODY}" )
+    KEY=$( jq -r '.key // empty' <<< "${RAW}" 2>/dev/null )
 
-    local KEY
-    KEY=$( echo "$RAW" | jq --raw-output '.key' 2>/dev/null )
-
-    if [[ "$KEY" != "null" ]]; then
+    # Only a real key counts: an empty or missing one (or a failed request)
+    # leaves TC_KEY unset, and the caller reports the error
+    if [[ -n "$KEY" ]]; then
         TC_KEY=$KEY
         echo -e "${COLOR_INFO}TC_KEY successfully generated${COLOR_END}"
     fi
@@ -238,26 +248,31 @@ function tts_autoprovision() {
 
 }
 
+# Prints every PEM block in $1 with its body re-wrapped at 64 columns, which
+# repairs values whose line breaks were lost or turned into spaces (as often
+# happens with environment variables). Every block is kept, so certificate
+# chains stay whole. Content without a PEM block is printed unchanged.
 function clean_certs_keys() {
-    
+
     local CONTENT=$1
 
-    if [[ "$CONTENT" == *-----* ]]; then
-    
-        CONTENT=${CONTENT//-----/-}
-        readarray -d '-' -t PARTS <<< "$CONTENT"
-        local HEADER=${PARTS[1]}
-        local KEY
-        KEY=$( echo "${PARTS[2]}" | tr '\n' ' ' | sed 's/\s//g' )
-        local FOOTER=${PARTS[3]}
-        echo -e "-----$HEADER-----\n$KEY\n-----$FOOTER-----"
-
+    if [[ "$CONTENT" == *-----BEGIN* ]]; then
+        printf '%s' "$CONTENT" | perl -0777 -ne '
+            my $original = $_;
+            my $count = 0;
+            while ( /-----BEGIN ([A-Z0-9 ]+)-----(.*?)-----END \1-----/sg ) {
+                my ( $label, $body ) = ( $1, $2 );
+                $body =~ s/\s+//g;
+                $body =~ s/(.{1,64})/$1\n/g;
+                print "-----BEGIN $label-----\n$body-----END $label-----\n";
+                $count++;
+            }
+            print "$original\n" if $count == 0;
+        '
     else
-        
         echo "$CONTENT"
-    
     fi
-        
+
 }
 
 # -----------------------------------------------------------------------------
@@ -293,7 +308,7 @@ CONFIG_FILE=./station.conf
 # Server configuration
 # -----------------------------------------------------------------------------
 
-# Defaults to TTN server v3, `eu1` region, 
+# Defaults to TTN server v3, `eu1` region,
 # use a custom SERVER, CUPS_URI or TC_URI to change this.
 # If TTS_TENANT is defined different than "ttn", it will be used to build the
 # tenant URL under thethings.industries, otherwise only the region will be used
@@ -307,8 +322,8 @@ if [[ "$TTS_TENANT" == "ttn" ]]; then
 else
     SERVER=${SERVER:-"${TTS_TENANT}.${TTS_REGION}.cloud.thethings.industries"}
 fi
-CUPS_URI=${CUPS_URI:-"https://${SERVER}:443"} 
-TC_URI=${TC_URI:-"wss://${SERVER}:8887"} 
+CUPS_URI=${CUPS_URI:-"https://${SERVER}:443"}
+TC_URI=${TC_URI:-"wss://${SERVER}:8887"}
 
 # -----------------------------------------------------------------------------
 # Mode (static/dynamic) & protocol (cups/lns)
@@ -319,9 +334,15 @@ TC_URI=${TC_URI:-"wss://${SERVER}:8887"}
 USE_CUPS=${USE_CUPS:-2} # undefined by default
 PROTOCOL=""
 
+# TTS credentials only mark the gateway for autoprovisioning here. It runs
+# after the gateway EUI is resolved, further down: registering it now would
+# send an empty EUI unless GATEWAY_EUI was set by hand.
+AUTOPROVISION=0
+
 # Configuration mode
-if [[ -f ${CONFIG_FILE} ]]; then 
+if [[ -f ${CONFIG_FILE} ]]; then
     MODE="STATIC"
+    MISSING_CONFIGURATION="ERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a valid cups.key or tc.key files or TTS_PERSONAL_KEY and TTS_USERNAME variable"
     if [[ $USE_CUPS -eq 1 ]]; then
         PROTOCOL="CUPS"
     elif [[ -f ./cups.key ]] && [[ $USE_CUPS -ne 0 ]]; then
@@ -330,45 +351,42 @@ if [[ -f ${CONFIG_FILE} ]]; then
     elif [[ -f ./tc.key ]]; then
         PROTOCOL="LNS"
     elif [[ -n "${TTS_PERSONAL_KEY}" ]] && [[ -n "${TTS_USERNAME}" ]]; then
-        tts_autoprovision
-        if [[ -n "${TC_KEY}" ]]; then 
-            PROTOCOL="LNS"
-        fi
-    fi
-    if [[ -z "${PROTOCOL}" ]]; then
-        echo -e "${COLOR_ERROR}ERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a valid cups.key or tc.key files or TTS_PERSONAL_KEY and TTS_USERNAME variable${COLOR_END}"
-        idle
+        AUTOPROVISION=1
     fi
 else
     MODE="DYNAMIC"
+    MISSING_CONFIGURATION="ERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define valid TC_KEY, CUPS_KEY or TTS_PERSONAL_KEY and TTS_USERNAME"
     if [[ $USE_CUPS -eq 1 ]]; then
         PROTOCOL="CUPS"
     elif [[ -n "${CUPS_KEY}" ]] && [[ ${USE_CUPS} -ne 0 ]]; then
         PROTOCOL="CUPS"
         echo -e "${COLOR_WARNING}WARNING: USE_CUPS variable will be mandatory in future versions to enable CUPS${COLOR_END}"
-    elif [[ -n "${TC_KEY}" ]]; then 
+    elif [[ -n "${TC_KEY}" ]]; then
         PROTOCOL="LNS"
     elif [[ -n "${TTS_PERSONAL_KEY}" ]] && [[ -n "${TTS_USERNAME}" ]]; then
-        tts_autoprovision
-        if [[ -n "${TC_KEY}" ]]; then 
-            PROTOCOL="LNS"
-        fi
+        AUTOPROVISION=1
     fi
-    if [[ -z "${PROTOCOL}" ]]; then
-        echo -e "${COLOR_ERROR}ERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define valid TC_KEY, CUPS_KEY or TTS_PERSONAL_KEY and TTS_USERNAME${COLOR_END}"
-        idle
-    fi
+fi
+if [[ -z "${PROTOCOL}" ]] && [[ ${AUTOPROVISION} -eq 0 ]]; then
+    echo -e "${COLOR_ERROR}${MISSING_CONFIGURATION}${COLOR_END}"
+    idle
 fi
 
 # -----------------------------------------------------------------------------
 # Retrieve values from static config files
 # -----------------------------------------------------------------------------
 
+STATIC_ROUTERID=""
 if [[ -f ${CONFIG_FILE} ]]; then
 
-    # Get device & interface
-    DEVICE=$( jq '.[] | .device' "${CONFIG_FILE}" | head -1 | sed 's/\("\|spi:\|usb:\)//g' )
-    [[ "${DEVICE}" == *"spi"* ]] && INTERFACE="SPI" || INTERFACE="USB"
+    # Get device & interface. jq prints nothing for a missing key (instead of
+    # "null"), and then the usual defaults apply.
+    STATIC_DEVICE=$( jq -r '[.. | objects | .device? // empty] | first // empty' "${CONFIG_FILE}" 2>/dev/null )
+    if [[ -n "${STATIC_DEVICE}" ]]; then
+        DEVICE=${STATIC_DEVICE#spi:}
+        DEVICE=${DEVICE#usb:}
+        [[ "${DEVICE}" == *"spi"* ]] && INTERFACE="SPI" || INTERFACE="USB"
+    fi
 
     # Guess generic model
     if [[ $( grep -c "SX1302_conf" "${CONFIG_FILE}" ) -ne 0 ]]; then
@@ -379,9 +397,13 @@ if [[ -f ${CONFIG_FILE} ]]; then
         MODEL=${MODEL:-"SX1301"}
     fi
 
-    # Get Gateway EUI
-    GATEWAY_EUI=$( jq '.station_conf.routerid' "${CONFIG_FILE}" | sed 's/"//g' )
-    [[ -n "${GATEWAY_EUI}" ]] && GATEWAY_EUI_SOURCE="file"
+    # Get Gateway EUI. Station uses the routerid in the file, so it wins over
+    # GATEWAY_EUI. Without one, station picks an EUI of its own.
+    STATIC_ROUTERID=$( jq -r '.station_conf.routerid // empty' "${CONFIG_FILE}" 2>/dev/null )
+    if [[ -n "${STATIC_ROUTERID}" ]]; then
+        GATEWAY_EUI=${STATIC_ROUTERID}
+        GATEWAY_EUI_SOURCE="file"
+    fi
 
 fi
 
@@ -391,28 +413,28 @@ fi
 
 # If no MODEL defined we try to find the concentrator
 if [[ -z "${MODEL}" ]] || [[ "${MODEL}" == "AUTO" ]]; then
-    
+
     unset MODEL
 
-    create_reset_file 
+    create_reset_file
     discover_concentrator "${INTERFACE:-AUTO}" "${DESIGN:-AUTO}" "${RADIO_NUM:-1}"
     if [[ $? -ne 0 ]]; then
-        
+
         DESIGN=${RESPONSE[0]}
         DEVICE=${RESPONSE[1]}
         CHIP_ID=${RESPONSE[2]}
-        
+
         [[ "${DEVICE}" == *"spi"*    ]] && INTERFACE="SPI" || INTERFACE="USB"
         [[ "${DESIGN}" == "corecell" ]] && MODEL="SX1302"
         [[ "${DESIGN}" == "picocell" ]] && MODEL="SX1308"
 
     else
-    
+
         echo -e "${COLOR_ERROR}ERROR: MODEL variable not set and we couldn't find any concentrator!${COLOR_END}"
 	    idle
 
     fi
-    
+
 fi
 
 # -----------------------------------------------------------------------------
@@ -430,23 +452,23 @@ declare -A MODEL_MAP=(
 
     # SX1301
     [SX1301]=SX1301
-    [RAK7243]=SX1301 [RAK7243C]=SX1301 [RAK7244]=SX1301 [RAK7244C]=SX1301 [RAK831]=SX1301 [RAK833]=SX1301 [RAK2245]=SX1301 [RAK2247]=SX1301 
+    [RAK7243]=SX1301 [RAK7243C]=SX1301 [RAK7244]=SX1301 [RAK7244C]=SX1301 [RAK831]=SX1301 [RAK833]=SX1301 [RAK2245]=SX1301 [RAK2247]=SX1301
     [IC880A]=SX1301 [PG1301]=SX1301
-    
+
     # SX1302
     [SX1302]=SX1302
     [RAK7248]=SX1302 [RAK7248C]=SX1302 [RAK7271]=SX1302 [RAK2287]=SX1302
     [WM1302]=SX1302 [PG1302]=SX1302
-    
+
     # SX1303
     [SX1303]=SX1303
-    [RAK5146]=SX1303 [RAK5166]=SX1303 [RAK5167]=SX1303 [RAK7371]=SX1303 
-     
+    [RAK5146]=SX1303 [RAK5166]=SX1303 [RAK5167]=SX1303 [RAK7371]=SX1303
+
     # SX1308
     [SX1308]=SX1308
     [RAK7246]=SX1308 [RAK7246G]=SX1308 [RAK2246]=SX1308
     [R11E-LR8]=SX1308 [R11E-LR9]=SX1308 [R11E-LORA8]=SX1308 [R11E-LORA9]=SX1308
-    
+
 )
 
 CONCENTRATOR=${MODEL_MAP[$MODEL]}
@@ -562,10 +584,14 @@ if [[ -z "${DEVICE}" ]]; then
     fi
 fi
 
-# Assert device
+# Assert device. A render writes the configuration without the radio.
 if [[ ! -e $DEVICE ]]; then
-    echo -e "${COLOR_ERROR}ERROR: $DEVICE does not exist${COLOR_END}"
-    idle
+    if [[ ${RENDER} -eq 1 ]]; then
+        echo -e "${COLOR_WARNING}WARNING: $DEVICE does not exist (ignored by --render)${COLOR_END}"
+    else
+        echo -e "${COLOR_ERROR}ERROR: $DEVICE does not exist${COLOR_END}"
+        idle
+    fi
 fi
 
 # Fix INTERFACE based on DEVICE
@@ -589,7 +615,7 @@ export LORAGW_SPI_SPEED=${SPI_SPEED:-8000000}
 # Gateway EUI
 # -----------------------------------------------------------------------------
 
-# Source to get the EUI from
+# Source to get the EUI from (GATEWAY_EUI_NIC is the old name; the new one wins)
 GATEWAY_EUI_NIC=${GATEWAY_EUI_NIC:-"manual"}
 GATEWAY_EUI_SOURCE=${GATEWAY_EUI_SOURCE:-$GATEWAY_EUI_NIC}
 
@@ -598,7 +624,7 @@ if [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
 
     # Check if it's already cached
     if [[ -n "${CHIP_ID}" ]]; then
-        GATEWAY_EUI=${CHIP_ID}    
+        GATEWAY_EUI=${CHIP_ID}
     else
         chip_id "$DESIGN" "$DEVICE"
         if [[ $? -eq 1 ]]; then
@@ -609,32 +635,12 @@ if [[ "$GATEWAY_EUI_SOURCE" == "chip" ]]; then
 
 fi
 
-# If still no GATEWAY_EUI, try building it from a NIC MAC
+# If still no GATEWAY_EUI, build it from a NIC MAC: the one GATEWAY_EUI_SOURCE
+# names, else eth0/wlan0/usb0/eth1, else the busiest one
 if [[ -z "${GATEWAY_EUI}" ]]; then
-
-    # Unset it but keep it global
-    GATEWAY_EUI_SOURCE=""
-
-    # Try usual interfaces
-    for INET in eth0 wlan0 usb0 eth1; do
-        if [[ $( grep -c "^\s*${INET}:" /proc/net/dev ) -eq 1 ]]; then
-            GATEWAY_EUI_SOURCE=$INET
-            break
-    fi
-    done
-
-    # If none of the above, get the most used NIC based on received bytes
-    if [[ -z $GATEWAY_EUI_SOURCE ]]; then
-        GATEWAY_EUI_SOURCE=$( tail -n+3 < /proc/net/dev | sort -k2 -nr | head -n1 | cut -d ":" -f1 | sed 's/ //g' )
-    fi
-    
-    # Get the Gateway EUI from the source
-    if [[ -n $GATEWAY_EUI_SOURCE ]]; then
-        GATEWAY_EUI=$( ip link show "$GATEWAY_EUI_SOURCE" | awk '/ether/ {print $2}' | awk -F: '{print $1$2$3"FFFE"$4$5$6}' )
-    else
+    if ! resolve_nic_eui "${GATEWAY_EUI_SOURCE}"; then
         echo -e "${COLOR_ERROR}ERROR: No network interface found. Cannot set gateway EUI.${COLOR_END}"
     fi
-
 fi
 
 # Normalize EUI
@@ -644,6 +650,45 @@ GATEWAY_EUI=${GATEWAY_EUI^^}
 if [[ -z ${GATEWAY_EUI} ]] ; then
     echo -e "${COLOR_ERROR}ERROR: GATEWAY_EUI not set.${COLOR_END}"
 	idle
+fi
+
+# -----------------------------------------------------------------------------
+# Autoprovisioning
+# -----------------------------------------------------------------------------
+
+SKIP_TC_KEY=0
+if [[ ${AUTOPROVISION} -eq 1 ]]; then
+
+    # With a static station.conf, station uses its routerid, or picks an EUI of
+    # its own when there is none. Registering any other EUI would leave a
+    # gateway that never connects.
+    if [[ "${MODE}" == "STATIC" ]] && [[ -z "${STATIC_ROUTERID}" ]]; then
+        echo -e "${COLOR_ERROR}ERROR: Autoprovisioning needs the gateway EUI, but station.conf has no routerid. Add \"routerid\" to its station_conf section.${COLOR_END}"
+        idle
+    fi
+
+    # The registration must use the EUI station uses, so there is no fallback
+    TTS_EUI=${GATEWAY_EUI//[:-]/}
+    if [[ ! "${TTS_EUI}" =~ ^[0-9A-F]{16}$ ]]; then
+        echo -e "${COLOR_ERROR}ERROR: Cannot autoprovision the gateway EUI '${GATEWAY_EUI}': it is not 16 hex digits${COLOR_END}"
+        idle
+    fi
+
+    if [[ ${RENDER} -eq 1 ]] && [[ ${RENDER_AUTOPROVISION} -eq 0 ]]; then
+        echo -e "${COLOR_WARNING}Autoprovisioning skipped (use --autoprovision); tc.key not written, this output is not ready to run${COLOR_END}"
+        PROTOCOL="LNS"
+        SKIP_TC_KEY=1
+    else
+        tts_autoprovision
+        if [[ -n "${TC_KEY}" ]]; then
+            PROTOCOL="LNS"
+        else
+            echo -e "${COLOR_ERROR}ERROR: Autoprovisioning returned no key${COLOR_END}"
+            echo -e "${COLOR_ERROR}${MISSING_CONFIGURATION}${COLOR_END}"
+            idle
+        fi
+    fi
+
 fi
 
 # -----------------------------------------------------------------------------
@@ -666,7 +711,7 @@ fi
 if [[ -z "$GPS_DEV" ]] || [[ ! -e $GPS_DEV ]]; then
     HAS_GPS=0
 else
-    HAS_GPS=${HAS_GPS:-1} 
+    HAS_GPS=${HAS_GPS:-1}
 fi
 [[ $HAS_GPS -eq 0 ]] && GPS_DEV="" # allows to disable GPS in models with GPS
 
@@ -674,32 +719,76 @@ fi
 # Whitelists
 # -----------------------------------------------------------------------------
 
-IFS=', ' read -r -a WHITELIST_NETIDS_ARRAY <<< "${WHITELIST_NETIDS:-} "
-WHITELIST_NETIDS=""
-for NETID in "${WHITELIST_NETIDS_ARRAY[@]}"; do
-    WHITELIST_NETIDS+=$( printf "0x%06X " "$NETID" )
-done
-WHITELIST_NETIDS=$( echo "${WHITELIST_NETIDS}" | xargs )
+# whitelist_entries NAME: checks the comma or space separated list in the
+# variable NAME and sets WHITELIST_ENTRIES to its values as 0x%06X. Station
+# keeps at most 16 per list. Values are decimal or 0x hex; a decimal with a
+# leading zero is rejected because it used to be read as octal, so 000013
+# silently became 0x00000B.
+function whitelist_entries {
 
-IFS=', ' read -r -a WHITELIST_OUIS_ARRAY <<< "${WHITELIST_OUIS:-} "
-WHITELIST_OUIS=""
-for OUI in "${WHITELIST_OUIS_ARRAY[@]}"; do
-    WHITELIST_OUIS+=$( printf "0x%06X " "$OUI" )
-done
-WHITELIST_OUIS=$( echo "${WHITELIST_OUIS}" | xargs )
+    local NAME=$1
+    local ENTRY VALUE HINT
+    local -a ENTRIES=() VALUES=()
+
+    IFS=', ' read -r -a ENTRIES <<< "${!NAME}"
+    for ENTRY in "${ENTRIES[@]}"; do
+        [[ -z "${ENTRY}" ]] && continue
+        HINT=""
+        if [[ "${ENTRY}" =~ ^0[xX][0-9A-Fa-f]{1,6}$ ]]; then
+            VALUE=$(( 16#${ENTRY:2} ))
+        elif [[ "${ENTRY}" =~ ^(0|[1-9][0-9]{0,7})$ ]] && (( 10#${ENTRY} <= 0xFFFFFF )); then
+            VALUE=$(( 10#${ENTRY} ))
+        else
+            [[ "${ENTRY}" =~ ^0[0-9]+$ ]] && HINT=" (use 0x${ENTRY} for hex)"
+            echo -e "${COLOR_ERROR}ERROR: ${NAME} entry '${ENTRY}' is not a valid 3-byte number${HINT}${COLOR_END}"
+            return 1
+        fi
+        VALUES+=( "$( printf '0x%06X' "${VALUE}" )" )
+    done
+
+    if [[ ${#VALUES[@]} -gt 16 ]]; then
+        echo -e "${COLOR_ERROR}ERROR: ${NAME} has ${#VALUES[@]} entries, the limit is 16${COLOR_END}"
+        return 1
+    fi
+
+    WHITELIST_ENTRIES="${VALUES[*]}"
+
+}
+
+# A static station.conf brings its own lists, and these variables are ignored
+# (the summary says so), so they are only checked when they are used
+if [[ "${MODE}" == "DYNAMIC" ]]; then
+    whitelist_entries WHITELIST_NETIDS || idle
+    WHITELIST_NETIDS=${WHITELIST_ENTRIES}
+    whitelist_entries WHITELIST_OUIS || idle
+    WHITELIST_OUIS=${WHITELIST_ENTRIES}
+else
+    WHITELIST_NETIDS=$( jq -r '(.station_conf.whitelist_netids // []) | map(tostring) | join(" ")' "${CONFIG_FILE}" 2>/dev/null )
+    WHITELIST_OUIS=$( jq -r '(.station_conf.whitelist_ouis // []) | map(tostring) | join(" ")' "${CONFIG_FILE}" 2>/dev/null )
+    STATIC_GPS=$( jq -r '.station_conf.gps // empty' "${CONFIG_FILE}" 2>/dev/null )
+fi
 
 # -----------------------------------------------------------------------------
 # Debug
 # -----------------------------------------------------------------------------
 
+# Versions recorded by the build, one key=value per line
+function build_info {
+    sed -n "s/^$1=//p" /app/build-info 2>/dev/null
+}
+
 echo -e "${COLOR_WARNING}------------------------------------------------------------------${COLOR_END}"
-echo -e "${COLOR_WARNING}BasicStation (TM) Packet Forwarder Container v${VERSION}${COLOR_END}"
+echo -e "${COLOR_WARNING}BasicStation (TM) Packet Forwarder Container ${IMAGE_VERSION:-unknown}${COLOR_END}"
 echo -e "${COLOR_WARNING}(c) Xose Pérez 2021-2025${COLOR_END}"
 echo -e ""
-echo -e "${COLOR_WARNING}Based on:${COLOR_END}"
-echo -e "${COLOR_WARNING} * basicstation v2.0.6${COLOR_END}"
-echo -e "${COLOR_WARNING} * sx1302_hal v2.1.0${COLOR_END}"
-echo -e "${COLOR_WARNING} * picoGW_hal v0.2.3${COLOR_END}"
+echo -e "${COLOR_WARNING}Station built with:${COLOR_END}"
+echo -e "${COLOR_WARNING} * basicstation v$( build_info basicstation )${COLOR_END}"
+echo -e "${COLOR_WARNING} * lora_gateway v$( build_info station.lora_gateway )${COLOR_END}"
+echo -e "${COLOR_WARNING} * sx1302_hal v$( build_info station.sx1302_hal )${COLOR_END}"
+echo -e "${COLOR_WARNING} * picoGW_hal v$( build_info station.picoGW_hal )${COLOR_END}"
+echo -e "${COLOR_WARNING}chip_id tools built with:${COLOR_END}"
+echo -e "${COLOR_WARNING} * sx1302_hal v$( build_info chip_id.sx1302_hal )${COLOR_END}"
+echo -e "${COLOR_WARNING} * picoGW_hal v$( build_info chip_id.picoGW_hal )${COLOR_END}"
 echo -e "${COLOR_WARNING}------------------------------------------------------------------${COLOR_END}"
 
 echo -e ""
@@ -721,6 +810,14 @@ fi
 if [[ -n "${WHITELIST_OUIS}" ]]; then
 echo -e "${COLOR_INFO}OUIs:          ${WHITELIST_OUIS// /,}${COLOR_END}"
 fi
+if [[ "${MODE}" == "STATIC" ]]; then
+if [[ -z "${STATIC_ROUTERID}" ]]; then
+echo -e "${COLOR_WARNING}WARNING: station.conf has no routerid, station may use a different EUI than the one shown${COLOR_END}"
+fi
+for VAR in "${STATIC_IGNORED[@]}"; do
+echo -e "${COLOR_WARNING}WARNING: ${VAR} is ignored, static station.conf in use${COLOR_END}"
+done
+fi
 
 echo -e ""
 
@@ -737,7 +834,11 @@ echo -e "${COLOR_INFO}Radio Device:  ${DEVICE}${COLOR_END}"
 if [[ -n "${CHIP_ID}" ]]; then
 echo -e "${COLOR_INFO}Chip ID:       ${CHIP_ID}${COLOR_END}"
 fi
-if [[ ${HAS_GPS} -eq 1 ]]; then
+if [[ "${MODE}" == "STATIC" ]]; then
+if [[ -n "${STATIC_GPS}" ]]; then
+echo -e "${COLOR_INFO}GPS Device:    ${STATIC_GPS}${COLOR_END}"
+fi
+elif [[ ${HAS_GPS} -eq 1 ]]; then
 echo -e "${COLOR_INFO}GPS Device:    ${GPS_DEV}${COLOR_END}"
 fi
 
@@ -762,13 +863,13 @@ echo -e ""
 
 # Link the corresponding configuration file
 if [[ ! -f "${CONFIG_FILE}" ]]; then
-    
+
     cp "/app/station.${DESIGN}.conf" "${CONFIG_FILE}"
-    
+
     sed -i "s#\"device\":\s*.*,#\"device\": \"${INTERFACE,,}:${DEVICE}\",#" "${CONFIG_FILE}"
     sed -i "s#\"routerid\":\s*.*,#\"routerid\": \"${GATEWAY_EUI}\",#" "${CONFIG_FILE}"
     sed -i "s#\"clksrc\":\s*.*,#\"clksrc\": ${CLKSRC:-0},#" "${CONFIG_FILE}"
-    
+
     if [[ ${HAS_GPS} -eq 1 ]]; then
     sed -i "s#\"gps\":\s*.*,#\"gps\": \"${GPS_DEV:-""}\",#" "${CONFIG_FILE}"
     sed -i "s#\"pps\":\s*false,#\"pps\": true,#" "${CONFIG_FILE}"
@@ -790,7 +891,7 @@ if [[ ! -f "${CONFIG_FILE}" ]]; then
     if [[ -n "${WHITELIST_OUIS}" ]]; then
         sed -i "s#\"whitelist_ouis\":\s*.*,#\"whitelist_ouis\": [\"${WHITELIST_OUIS// /\",\"}\"],#" "${CONFIG_FILE}"
     fi
-    
+
 fi
 
 # If stdn variant (or any *n variant) we need at least one slave concentrator
@@ -798,25 +899,29 @@ if [[ ! -f ./slave-0.conf ]]; then
     echo "{}" > ./slave-0.conf
 fi
 
+# The default trust is the image's system CA bundle, which is refreshed with
+# every image build
+SYSTEM_TRUST=/etc/ssl/certs/ca-certificates.crt
+
 # CUPS protocol
 if [[ "${PROTOCOL}" == "CUPS" ]]; then
-    if [[ ! -f ./cups.uri ]]; then 
+    if [[ ! -f ./cups.uri ]]; then
         echo "${CUPS_URI}" > cups.uri
     fi
-    if [[ ! -f ./cups.trust ]]; then 
+    if [[ ! -f ./cups.trust ]]; then
         if [[ -z "${CUPS_TRUST}" ]]; then
-            cp /app/cacert.pem cups.trust
+            cp "${SYSTEM_TRUST}" cups.trust
         else
             clean_certs_keys "${CUPS_TRUST}" > cups.trust
         fi
     fi
-    if [[ ! -f ./cups.crt ]]; then 
+    if [[ ! -f ./cups.crt ]]; then
         if [[ -n "${CUPS_CRT}" ]]; then
             clean_certs_keys "${CUPS_CRT}" > cups.crt
         fi
     fi
-    if [[ ! -f ./cups.key ]]; then 
-        if [[ ! -f ./cups.crt ]]; then 
+    if [[ ! -f ./cups.key ]]; then
+        if [[ ! -f ./cups.crt ]]; then
 	        echo "Authorization: Bearer ${CUPS_KEY}" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > cups.key
         else
             clean_certs_keys "$CUPS_KEY" > cups.key
@@ -826,22 +931,22 @@ fi
 
 # LNS protocol
 if [[ "$PROTOCOL" == "LNS" ]]; then
-    if [[ ! -f ./tc.uri ]]; then 
+    if [[ ! -f ./tc.uri ]]; then
         echo "$TC_URI" > tc.uri
     fi
-    if [[ ! -f ./tc.trust ]]; then 
+    if [[ ! -f ./tc.trust ]]; then
         if [[ -z "$TC_TRUST" ]]; then
-            cp /app/cacert.pem tc.trust
+            cp "${SYSTEM_TRUST}" tc.trust
         else
             clean_certs_keys "$TC_TRUST" > tc.trust
         fi
     fi
-    if [[ ! -f ./tc.crt ]]; then 
+    if [[ ! -f ./tc.crt ]]; then
         if [[ -n "$TC_CRT" ]]; then
             clean_certs_keys "$TC_CRT" > tc.crt
         fi
     fi
-    if [[ ! -f ./tc.key ]]; then 
+    if [[ ! -f ./tc.key ]] && [[ ${SKIP_TC_KEY} -eq 0 ]]; then
         if [[ ! -f ./tc.crt ]]; then
         	echo "Authorization: Bearer $TC_KEY" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > tc.key
         else
@@ -853,6 +958,12 @@ fi
 # -----------------------------------------------------------------------------
 # Start packet forwarder
 # -----------------------------------------------------------------------------
+
+# A render stops here, with the configuration written
+[[ ${RENDER} -eq 1 ]] && exit 0
+
+# In NET mode the link is recreated if its TCP connection dropped
+[[ -n "${NETLINK}" ]] && wait_for_device "${DEVICE}" 10
 
 export STATION_RADIOINIT=/app/config/reset.sh
 exec /app/artifacts/"${DESIGN}"/station -f

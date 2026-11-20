@@ -1,0 +1,261 @@
+Subject: corecell HAL: talk to USB MCU firmware older than 1.0.0
+
+Some USB corecell modules ship with STM32 firmware older than 1.0.0, whose
+multiple-SPI order IDs are one higher (0x06/0x46 instead of 0x05/0x45). The
+HAL records the MCU version when it opens the USB link and adjusts the IDs.
+Changes the HAL patch station applies (deps/lgw1302).
+
+diff --git a/deps/lgw1302/V2.1.0-corecell.patch b/deps/lgw1302/V2.1.0-corecell.patch
+index 824f61c..f48adb8 100644
+--- a/deps/lgw1302/V2.1.0-corecell.patch
++++ b/deps/lgw1302/V2.1.0-corecell.patch
+@@ -22,6 +22,22 @@ index 6e153a3..45981b5 100644
+  
+  /* radio-specific parameters */
+  #define LGW_XTAL_FREQU      32000000            /* frequency of the RF reference oscillator */
++diff --git a/libloragw/inc/loragw_mcu.h b/libloragw/inc/loragw_mcu.h
++index 0d0588f..c81d2e7 100644
++--- a/libloragw/inc/loragw_mcu.h
+++++ b/libloragw/inc/loragw_mcu.h
++@@ -190,6 +190,11 @@ int mcu_spi_store(uint8_t * in_out_buf, size_t buf_size);
++ */
++ int mcu_spi_flush(int fd);
++ 
+++/**
+++ *
+++*/
+++void mcu_save_version(char * version);
+++
++ #endif
++ 
++ /* --- EOF ------------------------------------------------------------------ */
+ diff --git a/libloragw/inc/loragw_spi.h b/libloragw/inc/loragw_spi.h
+ index 88e4530..1b83698 100644
+ --- a/libloragw/inc/loragw_spi.h
+@@ -1237,7 +1253,7 @@ index e298c42..b585fe4 100644
+  /* --- PRIVATE FUNCTIONS DEFINITION ----------------------------------------- */
+  
+ diff --git a/libloragw/src/loragw_mcu.c b/libloragw/src/loragw_mcu.c
+-index 4644df8..1d05002 100644
++index 4644df8..82cbaac 100644
+ --- a/libloragw/src/loragw_mcu.c
+ +++ b/libloragw/src/loragw_mcu.c
+ @@ -44,6 +44,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
+@@ -1249,7 +1265,16 @@ index 4644df8..1d05002 100644
+  /* -------------------------------------------------------------------------- */
+  /* --- PRIVATE CONSTANTS ---------------------------------------------------- */
+  
+-@@ -235,8 +237,8 @@ int write_req(int fd, order_id_t cmd, const uint8_t * payload, uint16_t payload_
++@@ -73,6 +75,8 @@ static spi_req_bulk_t spi_bulk_buffer = {
++     .buffer = { 0 }
++ };
++ 
+++static char mcu_version[9];
+++
++ /* -------------------------------------------------------------------------- */
++ /* --- PRIVATE FUNCTIONS DEFINITION ----------------------------------------- */
++ 
++@@ -235,8 +239,8 @@ int write_req(int fd, order_id_t cmd, const uint8_t * payload, uint16_t payload_
+  
+  #if DEBUG_MCU == 1
+      gettimeofday(&write_tv, NULL);
+@@ -1259,7 +1284,7 @@ index 4644df8..1d05002 100644
+  
+  #if DEBUG_VERBOSE
+      int i;
+-@@ -285,8 +287,8 @@ int read_ack(int fd, uint8_t * hdr, uint8_t * buf, size_t buf_size) {
++@@ -285,8 +289,8 @@ int read_ack(int fd, uint8_t * hdr, uint8_t * buf, size_t buf_size) {
+      } else {
+  #if DEBUG_MCU == 1
+          gettimeofday(&read_tv, NULL);
+@@ -1269,7 +1294,7 @@ index 4644df8..1d05002 100644
+      }
+  
+      /* Compute time spent in this function */
+-@@ -331,8 +333,8 @@ int read_ack(int fd, uint8_t * hdr, uint8_t * buf, size_t buf_size) {
++@@ -331,8 +335,8 @@ int read_ack(int fd, uint8_t * hdr, uint8_t * buf, size_t buf_size) {
+              } else {
+  #if DEBUG_MCU == 1
+                  gettimeofday(&read_tv, NULL);
+@@ -1279,6 +1304,47 @@ index 4644df8..1d05002 100644
+                  nb_read += n;
+              }
+          } while (nb_read < (int)size); /* we want to read only the expected payload, not more */
++@@ -483,8 +487,13 @@ int decode_ack_spi_bulk(const uint8_t * hdr, const uint8_t * payload) {
++         return -1;
++     }
++ 
++-    if (cmd_get_type(hdr) != ORDER_ID__ACK_MULTIPLE_SPI) {
++-        printf("ERROR: wrong ACK type for ACK_MULTIPLE_SPI (expected:0x%02X, got 0x%02X)\n", ORDER_ID__ACK_MULTIPLE_SPI, cmd_get_type(hdr));
+++    order_id_t command = ORDER_ID__ACK_MULTIPLE_SPI;
+++
+++    // ORDER_ID__ACK_MULTIPLE_SPI in firmware versions prior to 1.0.0 was 0x46 instead of 0x45
+++    if (strcmp(mcu_version, mcu_version_string) < 0) command = command + 1;
+++
+++    if (cmd_get_type(hdr) != command) {
+++        printf("ERROR: wrong ACK type for ACK_MULTIPLE_SPI (expected:0x%02X, got 0x%02X)\n", command, cmd_get_type(hdr));
++         return -1;
++     }
++ 
++@@ -610,6 +619,10 @@ int mcu_get_status(int fd, s_status * status) {
++     return 0;
++ }
++ 
+++void mcu_save_version(char * version) {
+++    strcpy(mcu_version, version);
+++}
+++
++ /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
++ 
++ int mcu_gpio_write(int fd, uint8_t gpio_port, uint8_t gpio_id, uint8_t gpio_value) {
++@@ -649,7 +662,12 @@ int mcu_spi_write(int fd, uint8_t * in_out_buf, size_t buf_size) {
++     /* Check input parameters */
++     CHECK_NULL(in_out_buf);
++ 
++-    if (write_req(fd, ORDER_ID__REQ_MULTIPLE_SPI, in_out_buf, buf_size) != 0) {
+++    order_id_t command = ORDER_ID__REQ_MULTIPLE_SPI;
+++
+++    // ORDER_ID__REQ_MULTIPLE_SPI in firmware versions prior to 1.0.0 was 0x06 instead of 0x05
+++    if (strcmp(mcu_version, mcu_version_string) < 0) command = command + 1;
+++
+++    if (write_req(fd, command, in_out_buf, buf_size) != 0) {
++         printf("ERROR: failed to write REQ_MULTIPLE_SPI request\n");
++         return -1;
++     }
+ diff --git a/libloragw/src/loragw_reg.c b/libloragw/src/loragw_reg.c
+ index 6a7d0df..8019654 100644
+ --- a/libloragw/src/loragw_reg.c
+@@ -2591,7 +2657,7 @@ index effeaa0..40c3144 100644
+      }
+  
+ diff --git a/libloragw/src/loragw_usb.c b/libloragw/src/loragw_usb.c
+-index 4fe7e9a..b69f73c 100644
++index 4fe7e9a..019b5e8 100644
+ --- a/libloragw/src/loragw_usb.c
+ +++ b/libloragw/src/loragw_usb.c
+ @@ -47,6 +47,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
+@@ -2684,7 +2750,7 @@ index 4fe7e9a..b69f73c 100644
+              free(usb_device);
+              return LGW_USB_ERROR;
+          }
+-@@ -187,25 +189,25 @@ int lgw_usb_open(const char * com_path, void **com_target_ptr) {
++@@ -187,25 +189,26 @@ int lgw_usb_open(const char * com_path, void **com_target_ptr) {
+          *com_target_ptr = (void*)usb_device;
+  
+          /* Initialize pseudo-random generator for MCU request ID */
+@@ -2699,6 +2765,7 @@ index 4fe7e9a..b69f73c 100644
+ +            ERROR_PRINTF("failed to ping the concentrator MCU\n");
+              return LGW_USB_ERROR;
+          }
+++        mcu_save_version(gw_info.version + 1);
+          if (strncmp(gw_info.version + 1, mcu_version_string, sizeof mcu_version_string) != 0) {
+              printf("WARNING: MCU version mismatch (expected:%s, got:%s)\n", mcu_version_string, gw_info.version);
+          }
+@@ -2716,7 +2783,7 @@ index 4fe7e9a..b69f73c 100644
+  
+          /* Reset SX1302 */
+          x  = mcu_gpio_write(fd, 0, 1, 1); /*   set PA1 : POWER_EN */
+-@@ -215,7 +217,7 @@ int lgw_usb_open(const char * com_path, void **com_target_ptr) {
++@@ -215,7 +218,7 @@ int lgw_usb_open(const char * com_path, void **com_target_ptr) {
+          x |= mcu_gpio_write(fd, 0, 8, 0); /*   set PA8 : SX1261_NRESET active */
+          x |= mcu_gpio_write(fd, 0, 8, 1); /* unset PA8 : SX1261_NRESET inactive */
+          if (x != 0) {
+@@ -2725,7 +2792,7 @@ index 4fe7e9a..b69f73c 100644
+              free(usb_device);
+              return LGW_USB_ERROR;
+          }
+-@@ -247,7 +249,7 @@ int lgw_usb_close(void *com_target) {
++@@ -247,7 +250,7 @@ int lgw_usb_close(void *com_target) {
+      x |= mcu_gpio_write(usb_device, 0, 8, 0); /*   set PA8 : SX1261_NRESET active */
+      x |= mcu_gpio_write(usb_device, 0, 8, 1); /* unset PA8 : SX1261_NRESET inactive */
+      if (x != 0) {
+@@ -2734,7 +2801,7 @@ index 4fe7e9a..b69f73c 100644
+          err = LGW_USB_ERROR;
+      }
+  
+-@@ -255,16 +257,16 @@ int lgw_usb_close(void *com_target) {
++@@ -255,16 +258,16 @@ int lgw_usb_close(void *com_target) {
+      x = close(usb_device);
+      free(com_target);
+      if (x != 0) {
+@@ -2754,7 +2821,7 @@ index 4fe7e9a..b69f73c 100644
+          return LGW_USB_SUCCESS;
+      }
+  }
+-@@ -316,10 +318,10 @@ int lgw_usb_rmw(void *com_target, uint16_t address, uint8_t offs, uint8_t leng,
++@@ -316,10 +319,10 @@ int lgw_usb_rmw(void *com_target, uint16_t address, uint8_t offs, uint8_t leng,
+  
+      /* determine return code */
+      if (a != 0) {
+@@ -2767,7 +2834,7 @@ index 4fe7e9a..b69f73c 100644
+          return 0;
+      }
+  }
+-@@ -364,10 +366,10 @@ int lgw_usb_wb(void *com_target, uint8_t spi_mux_target, uint16_t address, const
++@@ -364,10 +367,10 @@ int lgw_usb_wb(void *com_target, uint8_t spi_mux_target, uint16_t address, const
+  
+      /* determine return code */
+      if (a != 0) {
+@@ -2780,7 +2847,7 @@ index 4fe7e9a..b69f73c 100644
+          return 0;
+      }
+  }
+-@@ -406,7 +408,7 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
++@@ -406,7 +409,7 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
+  
+      if (_lgw_write_mode == LGW_COM_WRITE_MODE_BULK) {
+          /* makes no sense to read in bulk mode, as we can't get the result */
+@@ -2789,7 +2856,7 @@ index 4fe7e9a..b69f73c 100644
+          return -1;
+      } else {
+          a = mcu_spi_write(usb_device, in_out_buf, command_size);
+-@@ -414,10 +416,10 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
++@@ -414,10 +417,10 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
+  
+      /* determine return code */
+      if (a != 0) {
+@@ -2802,7 +2869,7 @@ index 4fe7e9a..b69f73c 100644
+          memcpy(data, in_out_buf + 9, size); /* remove the first bytes, keep only the payload */
+          return 0;
+      }
+-@@ -427,11 +429,11 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
++@@ -427,11 +430,11 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
+  
+  int lgw_usb_set_write_mode(lgw_com_write_mode_t write_mode) {
+      if (write_mode >= LGW_COM_WRITE_MODE_UNKNOWN) {
+@@ -2816,7 +2883,7 @@ index 4fe7e9a..b69f73c 100644
+  
+      _lgw_write_mode = write_mode;
+  
+-@@ -447,7 +449,7 @@ int lgw_usb_flush(void *com_target) {
++@@ -447,7 +450,7 @@ int lgw_usb_flush(void *com_target) {
+      /* Check input parameters */
+      CHECK_NULL(com_target);
+      if (_lgw_write_mode != LGW_COM_WRITE_MODE_BULK) {
+@@ -2825,7 +2892,7 @@ index 4fe7e9a..b69f73c 100644
+          return -1;
+      }
+  
+-@@ -455,7 +457,7 @@ int lgw_usb_flush(void *com_target) {
++@@ -455,7 +458,7 @@ int lgw_usb_flush(void *com_target) {
+      _lgw_write_mode = LGW_COM_WRITE_MODE_SINGLE;
+  
+      if (_lgw_spi_req_nb == 0) {
+@@ -2834,7 +2901,7 @@ index 4fe7e9a..b69f73c 100644
+          return 0;
+      }
+  
+-@@ -464,7 +466,7 @@ int lgw_usb_flush(void *com_target) {
++@@ -464,7 +467,7 @@ int lgw_usb_flush(void *com_target) {
+      DEBUG_MSG("INFO: flushing USB write buffer\n");
+      a = mcu_spi_flush(usb_device);
+      if (a != 0) {
+@@ -2843,7 +2910,7 @@ index 4fe7e9a..b69f73c 100644
+      }
+  
+      /* reset the pending request number */
+-@@ -492,10 +494,10 @@ int lgw_usb_get_temperature(void *com_target, float * temperature) {
++@@ -492,10 +495,10 @@ int lgw_usb_get_temperature(void *com_target, float * temperature) {
+      usb_device = *(int *)com_target;
+  
+      if (mcu_get_status(usb_device, &mcu_status) != 0) {

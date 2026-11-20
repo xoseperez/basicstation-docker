@@ -16,27 +16,30 @@ if [[ -z "${ENABLE_GPIO_CHIP}" ]]; then
     ENABLE_GPIO_CHIP="${RESET_GPIO_CHIP:-}"
 fi
 
+# Without a chip, gpioset has nothing to drive: running "17=0" as a command
+# would fail quietly and the concentrator would start without a reset.
+if [[ -z "${RESET_GPIO_CHIP}" ]]; then
+    echo "WARNING: no GPIO chip given or detected, the concentrator is not reset (set GPIO_CHIP)"
+    exit 0
+fi
+
 # Build gpioset commands using the correct chip for each operation
-if [[ -n "${RESET_GPIO_CHIP}" ]]; then
-    RESET_GPIOSET="gpioset -m time -u 100000 ${RESET_GPIO_CHIP}"
-fi
-if [[ -n "${ENABLE_GPIO_CHIP}" ]]; then
-    ENABLE_GPIOSET="gpioset -m time -u 100000 ${ENABLE_GPIO_CHIP}"
-fi
+RESET_GPIOSET="gpioset -m time -u 100000 ${RESET_GPIO_CHIP}"
+ENABLE_GPIOSET="gpioset -m time -u 100000 ${ENABLE_GPIO_CHIP}"
 
 # Enable gateway
 if [[ ${POWER_EN_GPIO} -ne 0 ]]; then
     echo "Concentrator enabled through ${ENABLE_GPIO_CHIP}:${POWER_EN_GPIO} (using libgpiod)"
-    ${ENABLE_GPIOSET:-} ${POWER_EN_GPIO}=${POWER_EN_LOGIC} 2>/dev/null
+    ${ENABLE_GPIOSET} "${POWER_EN_GPIO}=${POWER_EN_LOGIC}" 2>/dev/null
 fi
 
 # Reset gateway
 for GPIO in ${RESET_GPIO//,/ }; do
     if [[ ${GPIO} -ne 0 ]]; then
         echo "Concentrator reset through ${RESET_GPIO_CHIP}:${GPIO} (using libgpiod)"
-        ${RESET_GPIOSET:-} "${GPIO}"=0 2>/dev/null
-        ${RESET_GPIOSET:-} "${GPIO}"=1 2>/dev/null
-        ${RESET_GPIOSET:-} "${GPIO}"=0 2>/dev/null
+        ${RESET_GPIOSET} "${GPIO}"=0 2>/dev/null
+        ${RESET_GPIOSET} "${GPIO}"=1 2>/dev/null
+        ${RESET_GPIOSET} "${GPIO}"=0 2>/dev/null
     fi
 done
 

@@ -1,5 +1,13 @@
+Subject: Filter uplinks by NetID and join requests by OUI
+
+Adds the station.conf settings whitelist_netids and whitelist_ouis, up to 16
+3-byte values each. When a list is not empty, uplinks from other NetIDs and
+join requests from DevEUIs with other OUIs are dropped before they reach the
+LNS, and the reason is logged. Entries beyond the 16th are ignored, with one
+warning per list.
+
 diff --git a/src-linux/sys_linux.c b/src-linux/sys_linux.c
-index 2bbb7e5..2769f86 100644
+index 2bbb7e5..5e5ef8e 100644
 --- a/src-linux/sys_linux.c
 +++ b/src-linux/sys_linux.c
 @@ -61,7 +61,11 @@ extern void setupConfigFilenames ();
@@ -15,24 +23,42 @@ index 2bbb7e5..2769f86 100644
  
  #if defined(CFG_ral_master_slave)
  static const char* const SLAVE_ENVS[] = {
-@@ -792,6 +796,22 @@ static int parseStationConf () {
+@@ -792,6 +796,40 @@ static int parseStationConf () {
                      setWebDir(uj_str(&D), filename);
                      break;
                  }
 +                case J_whitelist_netids: {
++                    // Every slot is read, so the decoder stays in step, but only
++                    // WHITELIST_SIZE values fit: the rest are dropped and counted.
++                    int entries = 0;
 +                    uj_enterArray(&D);
 +                    while( uj_nextSlot(&D) >= 0 ) {
-+                        static_netids[static_netids_count++] = ((int) strtol(uj_str(&D), NULL, 0)) & 0x00FFFFFF;
++                        str_t value = uj_str(&D);
++                        entries++;
++                        if( static_netids_count < WHITELIST_SIZE )
++                            static_netids[static_netids_count++] = ((int) strtol(value, NULL, 0)) & 0x00FFFFFF;
 +                    }
 +                    uj_exitArray(&D);
++                    if( entries > static_netids_count )
++                        LOG(MOD_SYS|WARNING, "whitelist_netids: %d entries, kept %d, ignored %d",
++                            entries, static_netids_count, entries - static_netids_count);
 +                    break;
 +                }
 +                case J_whitelist_ouis: {
++                    // Every slot is read, so the decoder stays in step, but only
++                    // WHITELIST_SIZE values fit: the rest are dropped and counted.
++                    int entries = 0;
 +                    uj_enterArray(&D);
 +                    while( uj_nextSlot(&D) >= 0 ) {
-+                        static_ouis[static_ouis_count++] = ((int) strtol(uj_str(&D), NULL, 0)) & 0x00FFFFFF;
++                        str_t value = uj_str(&D);
++                        entries++;
++                        if( static_ouis_count < WHITELIST_SIZE )
++                            static_ouis[static_ouis_count++] = ((int) strtol(value, NULL, 0)) & 0x00FFFFFF;
 +                    }
 +                    uj_exitArray(&D);
++                    if( entries > static_ouis_count )
++                        LOG(MOD_SYS|WARNING, "whitelist_ouis: %d entries, kept %d, ignored %d",
++                            entries, static_ouis_count, entries - static_ouis_count);
 +                    break;
 +                }
                  default: {
@@ -59,10 +85,10 @@ index 7516d92..3cab9f1 100644
 +whitelist_netids
 +whitelist_ouis
 diff --git a/src/lora.c b/src/lora.c
-index 4d63baa..6c5c72e 100644
+index 4d63baa..e8f6a76 100644
 --- a/src/lora.c
 +++ b/src/lora.c
-@@ -82,6 +82,26 @@
+@@ -82,6 +82,30 @@
  uL_t* s2e_joineuiFilter;
  u4_t  s2e_netidFilter[4] = { 0xffFFffFF, 0xffFFffFF, 0xffFFffFF, 0xffFFffFF };
  
@@ -73,6 +99,10 @@ index 4d63baa..6c5c72e 100644
 +u1_t static_ouis_count = 0;
 +
 +static u4_t get_netid(u4_t devaddr) {
++
++    // __builtin_clz(0) is undefined, and ~devaddr is 0 for 0xFFFFFFFF, which
++    // is not a valid DevAddr type anyway.
++    if (devaddr == 0xFFFFFFFF) return 0;
 +
 +    uint8_t nwkid_bits_array[] = { 6, 6, 9, 11, 12, 13, 15, 17 };
 +    uint8_t type_id = __builtin_clz(~devaddr);
@@ -89,7 +119,7 @@ index 4d63baa..6c5c72e 100644
  
  int s2e_parse_lora_frame (ujbuf_t* buf, const u1_t* frame , int len, dbuf_t* lbuf) {
      if( len == 0 ) {
-@@ -108,6 +128,7 @@ int s2e_parse_lora_frame (ujbuf_t* buf, const u1_t* frame , int len, dbuf_t* lbu
+@@ -108,6 +132,7 @@ int s2e_parse_lora_frame (ujbuf_t* buf, const u1_t* frame , int len, dbuf_t* lbu
          if( len != OFF_jreq_len)
              goto badframe;
          uL_t joineui = rt_rlsbf8(&frame[OFF_joineui]);
@@ -97,7 +127,7 @@ index 4d63baa..6c5c72e 100644
          
          if( s2e_joineuiFilter[0] != 0 ) {
              uL_t* f = s2e_joineuiFilter-2;
-@@ -120,9 +141,25 @@ int s2e_parse_lora_frame (ujbuf_t* buf, const u1_t* frame , int len, dbuf_t* lbu
+@@ -120,9 +145,25 @@ int s2e_parse_lora_frame (ujbuf_t* buf, const u1_t* frame , int len, dbuf_t* lbu
              return 0;
            out1:;
          }
@@ -124,7 +154,7 @@ index 4d63baa..6c5c72e 100644
          u2_t  devnonce = rt_rlsbf2(&frame[OFF_devnonce]);
          s4_t  mic = (s4_t)rt_rlsbf4(&frame[len-4]);
          uj_encKVn(buf,
-@@ -148,6 +185,24 @@ int s2e_parse_lora_frame (ujbuf_t* buf, const u1_t* frame , int len, dbuf_t* lbu
+@@ -148,6 +189,24 @@ int s2e_parse_lora_frame (ujbuf_t* buf, const u1_t* frame , int len, dbuf_t* lbu
          xprintf(lbuf, "DevAddr=%X with NetID=%d filtered", devaddr, netid);
          return 0;
      }

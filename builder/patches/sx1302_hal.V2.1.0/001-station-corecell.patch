@@ -1,5 +1,11 @@
+Subject: Basic Station's corecell changes, for the chip_id tool
+
+This is Basic Station v2.0.6's deps/lgw1302/V2.1.0-corecell.patch, byte for
+byte. The chip_id tool is built from this HAL tree, so it gets the same HAL
+changes that station's own corecell build gets.
+
 diff --git a/libloragw/Makefile b/libloragw/Makefile
-index 881442f..2af7bac 100644
+index 881442f..425bb48 100644
 --- a/libloragw/Makefile
 +++ b/libloragw/Makefile
 @@ -12,6 +12,7 @@ CC := $(CROSS_COMPILE)gcc
@@ -10,23 +16,6 @@ index 881442f..2af7bac 100644
  
  OBJDIR = obj
  INCLUDES = $(wildcard inc/*.h) $(wildcard ../libtools/inc/*.h)
-@@ -34,6 +35,7 @@ all: 	libloragw.a \
- 		test_loragw_com_sx1261 \
- 		test_loragw_counter \
- 		test_loragw_gps \
-+		test_loragw_gps_i2c \
- 		test_loragw_toa \
- 		test_loragw_sx1261_rssi
- 
-@@ -170,5 +172,8 @@ test_loragw_toa: tst/test_loragw_toa.c libloragw.a
- 
- test_loragw_sx1261_rssi: tst/test_loragw_sx1261_rssi.c libloragw.a
- 	$(CC) $(CFLAGS) -L. -L../libtools  $< -o $@ $(LIBS)
-+	
-+test_loragw_gps_i2c: tst/test_loragw_gps_i2c.c libloragw.a
-+	$(CC) $(CFLAGS) -L. -L../libtools  $< -o $@ $(LIBS)
- 
- ### EOF
 diff --git a/libloragw/inc/loragw_hal.h b/libloragw/inc/loragw_hal.h
 index 6e153a3..45981b5 100644
 --- a/libloragw/inc/loragw_hal.h
@@ -39,22 +28,6 @@ index 6e153a3..45981b5 100644
  
  /* radio-specific parameters */
  #define LGW_XTAL_FREQU      32000000            /* frequency of the RF reference oscillator */
-diff --git a/libloragw/inc/loragw_mcu.h b/libloragw/inc/loragw_mcu.h
-index 0d0588f..c81d2e7 100644
---- a/libloragw/inc/loragw_mcu.h
-+++ b/libloragw/inc/loragw_mcu.h
-@@ -190,6 +190,11 @@ int mcu_spi_store(uint8_t * in_out_buf, size_t buf_size);
- */
- int mcu_spi_flush(int fd);
- 
-+/**
-+ *
-+*/
-+void mcu_save_version(char * version);
-+
- #endif
- 
- /* --- EOF ------------------------------------------------------------------ */
 diff --git a/libloragw/inc/loragw_spi.h b/libloragw/inc/loragw_spi.h
 index 88e4530..1b83698 100644
 --- a/libloragw/inc/loragw_spi.h
@@ -307,104 +280,8 @@ index 9a81a08..2314e32 100644
      return 0; /* ignored */
  }
 +#endif
-diff --git a/libloragw/src/loragw_gps.c b/libloragw/src/loragw_gps.c
-index ca9602d..15a1b39 100644
---- a/libloragw/src/loragw_gps.c
-+++ b/libloragw/src/loragw_gps.c
-@@ -30,6 +30,12 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
- #include <termios.h>    /* tcflush */
- #include <math.h>       /* modf */
- 
-+#include <linux/i2c.h>
-+#include <linux/i2c-dev.h>
-+#include <sys/ioctl.h>
-+
-+#include <stdlib.h>
-+
- #include "loragw_gps.h"
- 
- /* -------------------------------------------------------------------------- */
-@@ -251,7 +257,54 @@ int str_chop(char *s, int buff_size, char separator, int *idx_ary, int max_idx)
- /* -------------------------------------------------------------------------- */
- /* --- PUBLIC FUNCTIONS DEFINITION ------------------------------------------ */
- 
--int lgw_gps_enable(char *tty_path, char *gps_family, speed_t target_brate, int *fd_ptr) {
-+static int lgw_gps_enable_i2c(char *tty_path, char *gps_family, speed_t target_brate, int *fd_ptr) {
-+    int i;
-+    struct termios ttyopt; /* serial port options */
-+    int gps_tty_dev; /* file descriptor to the serial port of the GNSS module */
-+    uint8_t ubx_cmd_timegps[UBX_MSG_NAVTIMEGPS_LEN] = {
-+                    0xB5, 0x62, /* UBX Sync Chars */
-+                    0x06, 0x01, /* CFG-MSG Class/ID */
-+                    0x08, 0x00, /* Payload length */
-+                    0x01, 0x20, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, /* Enable NAV-TIMEGPS output on serial */
-+                    0x31, 0x91 }; /* Checksum */
-+    ssize_t num_written;
-+
-+    /* check input parameters */
-+    CHECK_NULL(tty_path);
-+    CHECK_NULL(fd_ptr);
-+
-+    /* open TTY device */
-+    gps_tty_dev = open(tty_path, O_RDWR | O_NOCTTY);
-+    if (gps_tty_dev <= 0) {
-+        DEBUG_MSG("ERROR: TTY PORT FAIL TO OPEN, CHECK PATH AND ACCESS RIGHTS\n");
-+        return LGW_GPS_ERROR;
-+    }
-+    *fd_ptr = gps_tty_dev;
-+    if(ioctl(gps_tty_dev, I2C_SLAVE, 0x42) < 0)
-+    {
-+    	DEBUG_MSG("ERROR: I2C FAIL TO SET ADDR\n");
-+    	return LGW_GPS_ERROR;
-+    }
-+
-+    /* manage the different GPS modules families */
-+
-+    num_written = write (gps_tty_dev, ubx_cmd_timegps, UBX_MSG_NAVTIMEGPS_LEN);
-+    if (num_written != UBX_MSG_NAVTIMEGPS_LEN) {
-+        DEBUG_MSG("ERROR: Failed to write on serial port (written=%d)\n", (int) num_written);
-+    }
-+
-+    /* get timezone info */
-+    tzset();
-+
-+    /* initialize global variables */
-+    gps_time_ok = false;
-+    gps_pos_ok = false;
-+    gps_mod = 'N';
-+
-+    return LGW_GPS_SUCCESS;
-+}
-+
-+static int lgw_gps_enable_uart(char *tty_path, char *gps_family, speed_t target_brate, int *fd_ptr) {
-     int i;
-     struct termios ttyopt; /* serial port options */
-     int gps_tty_dev; /* file descriptor to the serial port of the GNSS module */
-@@ -366,6 +419,22 @@ int lgw_gps_enable(char *tty_path, char *gps_family, speed_t target_brate, int *
-     return LGW_GPS_SUCCESS;
- }
- 
-+/* -------------------------------------------------------------------------- */
-+/* --- PUBLIC FUNCTIONS DEFINITION ------------------------------------------ */
-+
-+int lgw_gps_enable(char *tty_path, char *gps_family, speed_t target_brate, int *fd_ptr) {
-+    if (strcmp("/dev/i2c-1", tty_path) == 0)
-+	{
-+		printf("This is i2c for GPS.\n");
-+		return lgw_gps_enable_i2c(tty_path, gps_family, target_brate, fd_ptr);
-+	}
-+	else
-+	{
-+		printf("This is uart for GPS.\n");
-+		return lgw_gps_enable_uart(tty_path, gps_family, target_brate, fd_ptr);
-+	}
-+}
-+
- /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
- 
- int lgw_gps_disable(int fd) {
 diff --git a/libloragw/src/loragw_hal.c b/libloragw/src/loragw_hal.c
-index ffc8ec0..0963480 100644
+index ffc8ec0..60e8387 100644
 --- a/libloragw/src/loragw_hal.c
 +++ b/libloragw/src/loragw_hal.c
 @@ -69,6 +69,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
@@ -416,18 +293,7 @@ index ffc8ec0..0963480 100644
  #define TRACE()             fprintf(stderr, "@ %s %d\n", __FUNCTION__, __LINE__);
  
  #define CONTEXT_STARTED         lgw_context.is_started
-@@ -203,8 +205,10 @@ static lgw_context_t lgw_context = {
- FILE * log_file = NULL;
- 
- /* I2C temperature sensor handles */
-+#ifdef USE_TEMPERATURE_SENSOR
- static int     ts_fd = -1;
- static uint8_t ts_addr = 0xFF;
-+#endif
- 
- /* I2C AD5338 handles */
- static int     ad_fd = -1;
-@@ -277,7 +281,7 @@ static int remove_pkt(struct lgw_pkt_rx_s * p, uint8_t * nb_pkt, uint8_t pkt_ind
+@@ -277,7 +279,7 @@ static int remove_pkt(struct lgw_pkt_rx_s * p, uint8_t * nb_pkt, uint8_t pkt_ind
      CHECK_NULL(p);
      CHECK_NULL(nb_pkt);
      if (pkt_index > ((*nb_pkt) - 1)) {
@@ -436,7 +302,7 @@ index ffc8ec0..0963480 100644
          return -1;
      }
  
-@@ -390,11 +394,13 @@ static int merge_packets(struct lgw_pkt_rx_s * p, uint8_t * nb_pkt) {
+@@ -390,11 +392,13 @@ static int merge_packets(struct lgw_pkt_rx_s * p, uint8_t * nb_pkt) {
                      }
                  }
                  /* pkt_dup_idx contains the index to be deleted */
@@ -451,7 +317,7 @@ index ffc8ec0..0963480 100644
                  }
                  dup_restart = true;
                  break;
-@@ -453,13 +459,13 @@ int lgw_board_setconf(struct lgw_conf_board_s * conf) {
+@@ -453,13 +457,13 @@ int lgw_board_setconf(struct lgw_conf_board_s * conf) {
  
      /* check if the concentrator is running */
      if (CONTEXT_STARTED == true) {
@@ -467,7 +333,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -487,7 +493,7 @@ int lgw_rxrf_setconf(uint8_t rf_chain, struct lgw_conf_rxrf_s * conf) {
+@@ -487,7 +491,7 @@ int lgw_rxrf_setconf(uint8_t rf_chain, struct lgw_conf_rxrf_s * conf) {
  
      /* check if the concentrator is running */
      if (CONTEXT_STARTED == true) {
@@ -476,7 +342,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -499,19 +505,19 @@ int lgw_rxrf_setconf(uint8_t rf_chain, struct lgw_conf_rxrf_s * conf) {
+@@ -499,19 +503,19 @@ int lgw_rxrf_setconf(uint8_t rf_chain, struct lgw_conf_rxrf_s * conf) {
  
      /* check input range (segfault prevention) */
      if (rf_chain >= LGW_RF_CHAIN_NB) {
@@ -499,7 +365,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -549,13 +555,13 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
+@@ -549,13 +553,13 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
  
      /* check if the concentrator is running */
      if (CONTEXT_STARTED == true) {
@@ -515,7 +381,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -569,10 +575,10 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
+@@ -569,10 +573,10 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
  
      /* check 'general' parameters */
      if (sx1302_get_ifmod_config(if_chain) == IF_UNDEFINED) {
@@ -528,7 +394,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
      /* check if IF frequency is optimal based on channel and radio bandwidths */
-@@ -590,10 +596,10 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
+@@ -590,10 +594,10 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
      }
      bw_hz = lgw_bw_getval(conf->bandwidth); /* channel bandwidth */
      if ((conf->freq_hz + ((bw_hz==-1)?LGW_REF_BW:bw_hz)/2) > ((int32_t)rf_rx_bandwidth/2)) {
@@ -541,7 +407,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -610,11 +616,11 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
+@@ -610,11 +614,11 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
              }
              /* check BW & DR */
              if (!IS_LORA_BW(conf->bandwidth)) {
@@ -555,7 +421,7 @@ index ffc8ec0..0963480 100644
                  return LGW_HAL_ERROR;
              }
              /* set internal configuration  */
-@@ -645,11 +651,11 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
+@@ -645,11 +649,11 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
              }
              /* check BW & DR */
              if (conf->bandwidth != BW_125KHZ) {
@@ -569,7 +435,7 @@ index ffc8ec0..0963480 100644
                  return LGW_HAL_ERROR;
              }
              /* set internal configuration  */
-@@ -672,11 +678,11 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
+@@ -672,11 +676,11 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
              }
              /* check BW & DR */
              if(!IS_FSK_BW(conf->bandwidth)) {
@@ -583,7 +449,7 @@ index ffc8ec0..0963480 100644
                  return LGW_HAL_ERROR;
              }
              /* set internal configuration  */
-@@ -700,7 +706,7 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
+@@ -700,7 +704,7 @@ int lgw_rxif_setconf(uint8_t if_chain, struct lgw_conf_rxif_s * conf) {
              break;
  
          default:
@@ -592,7 +458,7 @@ index ffc8ec0..0963480 100644
              return LGW_HAL_ERROR;
      }
  
-@@ -726,7 +732,7 @@ int lgw_txgain_setconf(uint8_t rf_chain, struct lgw_tx_gain_lut_s * conf) {
+@@ -726,7 +730,7 @@ int lgw_txgain_setconf(uint8_t rf_chain, struct lgw_tx_gain_lut_s * conf) {
  
      /* Check LUT size */
      if ((conf->size < 1) || (conf->size > TX_GAIN_LUT_SIZE_MAX)) {
@@ -601,7 +467,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -735,23 +741,23 @@ int lgw_txgain_setconf(uint8_t rf_chain, struct lgw_tx_gain_lut_s * conf) {
+@@ -735,23 +739,23 @@ int lgw_txgain_setconf(uint8_t rf_chain, struct lgw_tx_gain_lut_s * conf) {
      for (i = 0; i < CONTEXT_TX_GAIN_LUT[rf_chain].size; i++) {
          /* Check gain range */
          if (conf->lut[i].dig_gain > 3) {
@@ -630,7 +496,7 @@ index ffc8ec0..0963480 100644
              return LGW_HAL_ERROR;
          }
  
-@@ -802,11 +808,11 @@ int lgw_sx1261_setconf(struct lgw_conf_sx1261_s * conf) {
+@@ -802,11 +806,11 @@ int lgw_sx1261_setconf(struct lgw_conf_sx1261_s * conf) {
      CONTEXT_SX1261.lbt_conf.nb_channel = conf->lbt_conf.nb_channel;
      for (i = 0; i < CONTEXT_SX1261.lbt_conf.nb_channel; i++) {
          if (conf->lbt_conf.channels[i].bandwidth != BW_125KHZ && conf->lbt_conf.channels[i].bandwidth != BW_250KHZ) {
@@ -644,7 +510,7 @@ index ffc8ec0..0963480 100644
              return LGW_HAL_ERROR;
          }
          CONTEXT_SX1261.lbt_conf.channels[i] = conf->lbt_conf.channels[i];
-@@ -857,21 +863,21 @@ int lgw_start(void) {
+@@ -857,21 +861,21 @@ int lgw_start(void) {
  
      err = lgw_connect(CONTEXT_COM_TYPE, CONTEXT_COM_PATH);
      if (err == LGW_REG_ERROR) {
@@ -669,7 +535,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -881,7 +887,7 @@ int lgw_start(void) {
+@@ -881,7 +885,7 @@ int lgw_start(void) {
              /* Reset the radio */
              err = sx1302_radio_reset(i, CONTEXT_RF_CHAIN[i].type);
              if (err != LGW_REG_SUCCESS) {
@@ -678,7 +544,7 @@ index ffc8ec0..0963480 100644
                  return LGW_HAL_ERROR;
              }
  
-@@ -895,18 +901,18 @@ int lgw_start(void) {
+@@ -895,18 +899,18 @@ int lgw_start(void) {
                      err = sx125x_setup(i, CONTEXT_BOARD.clksrc, true, CONTEXT_RF_CHAIN[i].type, CONTEXT_RF_CHAIN[i].freq_hz);
                      break;
                  default:
@@ -700,7 +566,7 @@ index ffc8ec0..0963480 100644
                  return LGW_HAL_ERROR;
              }
          }
-@@ -915,54 +921,54 @@ int lgw_start(void) {
+@@ -915,54 +919,54 @@ int lgw_start(void) {
      /* Select the radio which provides the clock to the sx1302 */
      err = sx1302_radio_clock_select(CONTEXT_BOARD.clksrc);
      if (err != LGW_REG_SUCCESS) {
@@ -763,7 +629,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -970,12 +976,12 @@ int lgw_start(void) {
+@@ -970,12 +974,12 @@ int lgw_start(void) {
      if (CONTEXT_IF_CHAIN[8].enable == true) {
          err = sx1302_lora_service_correlator_configure(&(CONTEXT_LORA_SERVICE));
          if (err != LGW_REG_SUCCESS) {
@@ -778,7 +644,7 @@ index ffc8ec0..0963480 100644
              return LGW_HAL_ERROR;
          }
      }
-@@ -984,7 +990,7 @@ int lgw_start(void) {
+@@ -984,7 +988,7 @@ int lgw_start(void) {
      if (CONTEXT_IF_CHAIN[9].enable == true) {
          err = sx1302_fsk_configure(&(CONTEXT_FSK));
          if (err != LGW_REG_SUCCESS) {
@@ -787,7 +653,7 @@ index ffc8ec0..0963480 100644
              return LGW_HAL_ERROR;
          }
      }
-@@ -992,14 +998,14 @@ int lgw_start(void) {
+@@ -992,14 +996,14 @@ int lgw_start(void) {
      /* configure syncword */
      err = sx1302_lora_syncword(CONTEXT_LWAN_PUBLIC, CONTEXT_LORA_SERVICE.datarate);
      if (err != LGW_REG_SUCCESS) {
@@ -804,7 +670,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -1009,7 +1015,7 @@ int lgw_start(void) {
+@@ -1009,7 +1013,7 @@ int lgw_start(void) {
              DEBUG_MSG("Loading AGC fw for sx1250\n");
              err = sx1302_agc_load_firmware(agc_firmware_sx1250);
              if (err != LGW_REG_SUCCESS) {
@@ -813,7 +679,7 @@ index ffc8ec0..0963480 100644
                  return LGW_HAL_ERROR;
              }
              fw_version_agc = FW_VERSION_AGC_SX1250;
-@@ -1019,18 +1025,18 @@ int lgw_start(void) {
+@@ -1019,18 +1023,18 @@ int lgw_start(void) {
              DEBUG_MSG("Loading AGC fw for sx125x\n");
              err = sx1302_agc_load_firmware(agc_firmware_sx125x);
              if (err != LGW_REG_SUCCESS) {
@@ -835,7 +701,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -1038,26 +1044,26 @@ int lgw_start(void) {
+@@ -1038,26 +1042,26 @@ int lgw_start(void) {
      DEBUG_MSG("Loading ARB fw\n");
      err = sx1302_arb_load_firmware(arb_firmware);
      if (err != LGW_REG_SUCCESS) {
@@ -866,7 +732,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -1075,7 +1081,7 @@ int lgw_start(void) {
+@@ -1075,7 +1079,7 @@ int lgw_start(void) {
      /* Open the file for writting */
      log_file = fopen(CONTEXT_DEBUG.log_file_name, "w+"); /* create log file, overwrite if file already exist */
      if (log_file == NULL) {
@@ -875,7 +741,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      } else {
          printf("INFO: %s file opened for debug log\n", CONTEXT_DEBUG.log_file_name);
-@@ -1084,7 +1090,7 @@ int lgw_start(void) {
+@@ -1084,7 +1088,7 @@ int lgw_start(void) {
          unlink("loragw_hal.log");
          i = symlink(CONTEXT_DEBUG.log_file_name, "loragw_hal.log");
          if (i < 0) {
@@ -884,15 +750,7 @@ index ffc8ec0..0963480 100644
          }
      }
  #endif
-@@ -1093,41 +1099,46 @@ int lgw_start(void) {
-     dbg_init_random();
- 
-     if (CONTEXT_COM_TYPE == LGW_COM_SPI) {
-+
-+#ifdef USE_TEMPERATURE_SENSOR
-+
-         /* Find the temperature sensor on the known supported ports */
-         for (i = 0; i < (int)(sizeof I2C_PORT_TEMP_SENSOR); i++) {
+@@ -1098,22 +1102,22 @@ int lgw_start(void) {
              ts_addr = I2C_PORT_TEMP_SENSOR[i];
              err = i2c_linuxdev_open(I2C_DEVICE, ts_addr, &ts_fd);
              if (err != LGW_I2C_SUCCESS) {
@@ -919,9 +777,7 @@ index ffc8ec0..0963480 100644
              return LGW_HAL_ERROR;
          }
  
-+#endif
-+
-         /* Configure ADC AD338R for full duplex (CN490 reference design) */
+@@ -1121,13 +1125,13 @@ int lgw_start(void) {
          if (CONTEXT_BOARD.full_duplex == true) {
              err = i2c_linuxdev_open(I2C_DEVICE, I2C_PORT_DAC_AD5338R, &ad_fd);
              if (err != LGW_I2C_SUCCESS) {
@@ -937,7 +793,7 @@ index ffc8ec0..0963480 100644
                  i2c_linuxdev_close(ad_fd);
                  ad_fd = -1;
                  return LGW_HAL_ERROR;
-@@ -1137,10 +1148,10 @@ int lgw_start(void) {
+@@ -1137,10 +1141,10 @@ int lgw_start(void) {
              uint8_t volt_val[AD5338R_CMD_SIZE] = { 0x39, (uint8_t)VOLTAGE2HEX_H(0), (uint8_t)VOLTAGE2HEX_L(0) };
              err = ad5338r_write(ad_fd, I2C_PORT_DAC_AD5338R, volt_val);
              if (err != LGW_I2C_SUCCESS) {
@@ -950,7 +806,7 @@ index ffc8ec0..0963480 100644
          }
      }
  
-@@ -1148,25 +1159,25 @@ int lgw_start(void) {
+@@ -1148,25 +1152,25 @@ int lgw_start(void) {
      if (CONTEXT_SX1261.enable == true) {
          err = sx1261_connect(CONTEXT_COM_TYPE, (CONTEXT_COM_TYPE == LGW_COM_SPI) ? CONTEXT_SX1261.spi_path : NULL);
          if (err != LGW_REG_SUCCESS) {
@@ -980,7 +836,7 @@ index ffc8ec0..0963480 100644
              return LGW_HAL_ERROR;
          }
      }
-@@ -1174,7 +1185,7 @@ int lgw_start(void) {
+@@ -1174,7 +1178,7 @@ int lgw_start(void) {
      /* Set CONFIG_DONE GPIO to 1 (turn on the corresponding LED) */
      err = sx1302_set_gpio(0x01);
      if (err != LGW_REG_SUCCESS) {
@@ -989,7 +845,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -1203,7 +1214,7 @@ int lgw_stop(void) {
+@@ -1203,7 +1207,7 @@ int lgw_stop(void) {
          DEBUG_PRINTF("INFO: aborting TX on chain %u\n", i);
          x = lgw_abort_tx(i);
          if (x != LGW_HAL_SUCCESS) {
@@ -998,7 +854,7 @@ index ffc8ec0..0963480 100644
              err = LGW_HAL_ERROR;
          }
      }
-@@ -1217,23 +1228,24 @@ int lgw_stop(void) {
+@@ -1217,7 +1221,7 @@ int lgw_stop(void) {
      DEBUG_MSG("INFO: Disconnecting\n");
      x = lgw_disconnect();
      if (x != LGW_HAL_SUCCESS) {
@@ -1007,8 +863,7 @@ index ffc8ec0..0963480 100644
          err = LGW_HAL_ERROR;
      }
  
-     if (CONTEXT_COM_TYPE == LGW_COM_SPI) {
-+#ifdef USE_TEMPERATURE_SENSOR
+@@ -1225,7 +1229,7 @@ int lgw_stop(void) {
          DEBUG_MSG("INFO: Closing I2C for temperature sensor\n");
          x = i2c_linuxdev_close(ts_fd);
          if (x != 0) {
@@ -1016,9 +871,8 @@ index ffc8ec0..0963480 100644
 +            ERROR_PRINTF("failed to close I2C temperature sensor device (err=%i)\n", x);
              err = LGW_HAL_ERROR;
          }
--
-+#endif
-         if (CONTEXT_BOARD.full_duplex == true) {
+ 
+@@ -1233,7 +1237,7 @@ int lgw_stop(void) {
              DEBUG_MSG("INFO: Closing I2C for AD5338R\n");
              x = i2c_linuxdev_close(ad_fd);
              if (x != 0) {
@@ -1027,7 +881,7 @@ index ffc8ec0..0963480 100644
                  err = LGW_HAL_ERROR;
              }
          }
-@@ -1257,7 +1269,7 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
+@@ -1257,7 +1261,7 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
      /* performances variables */
      struct timeval tm;
  
@@ -1036,7 +890,7 @@ index ffc8ec0..0963480 100644
  
      /* Record function start time */
      _meas_time_start(&tm);
-@@ -1265,7 +1277,7 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
+@@ -1265,7 +1269,7 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
      /* Get packets from SX1302, if any */
      res = sx1302_fetch(&nb_pkt_fetched);
      if (res != LGW_REG_SUCCESS) {
@@ -1045,7 +899,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -1283,13 +1295,14 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
+@@ -1283,13 +1287,14 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
      }
      if (nb_pkt_fetched > max_pkt) {
          nb_pkt_left = nb_pkt_fetched - max_pkt;
@@ -1062,7 +916,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -1298,10 +1311,10 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
+@@ -1298,10 +1303,10 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
          /* Get packet and move to next one */
          res = sx1302_parse(&lgw_context, &pkt_data[nb_pkt_found]);
          if (res == LGW_REG_WARNING) {
@@ -1075,7 +929,7 @@ index ffc8ec0..0963480 100644
              return LGW_HAL_ERROR;
          }
  
-@@ -1321,7 +1334,7 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
+@@ -1321,7 +1326,7 @@ int lgw_receive(uint8_t max_pkt, struct lgw_pkt_rx_s *pkt_data) {
      if ((nb_pkt_found > 0) && (CONTEXT_FINE_TIMESTAMP.enable == true)) {
          res = merge_packets(pkt_data, &nb_pkt_found);
          if (res != 0) {
@@ -1084,7 +938,7 @@ index ffc8ec0..0963480 100644
          }
  
          DEBUG_PRINTF("INFO: nb pkt found:%u (after de-duplicating)\n", nb_pkt_found);
-@@ -1349,7 +1362,7 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
+@@ -1349,7 +1354,7 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
  
      /* check if the concentrator is running */
      if (CONTEXT_STARTED == false) {
@@ -1093,7 +947,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -1357,57 +1370,57 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
+@@ -1357,57 +1362,57 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
  
      /* check input range (segfault prevention) */
      if (pkt_data->rf_chain >= LGW_RF_CHAIN_NB) {
@@ -1163,7 +1017,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -1416,17 +1429,17 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
+@@ -1416,17 +1421,17 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
          uint8_t volt_val[AD5338R_CMD_SIZE] = {0x39, VOLTAGE2HEX_H(2.51), VOLTAGE2HEX_L(2.51)}; /* set to 2.51V */
          err = ad5338r_write(ad_fd, I2C_PORT_DAC_AD5338R, volt_val);
          if (err != LGW_I2C_SUCCESS) {
@@ -1184,7 +1038,7 @@ index ffc8ec0..0963480 100644
              return LGW_HAL_ERROR;
          }
      }
-@@ -1434,12 +1447,12 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
+@@ -1434,12 +1439,12 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
      /* Send the TX request to the concentrator */
      err = sx1302_send(CONTEXT_RF_CHAIN[pkt_data->rf_chain].type, &CONTEXT_TX_GAIN_LUT[pkt_data->rf_chain], CONTEXT_LWAN_PUBLIC, &CONTEXT_FSK, pkt_data);
      if (err != LGW_REG_SUCCESS) {
@@ -1199,7 +1053,7 @@ index ffc8ec0..0963480 100644
              }
          }
  
-@@ -1452,26 +1465,26 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
+@@ -1452,26 +1457,26 @@ int lgw_send(struct lgw_pkt_tx_s * pkt_data) {
      if (CONTEXT_SX1261.lbt_conf.enable == true) {
          err = lgw_lbt_tx_status(pkt_data->rf_chain, &lbt_tx_allowed);
          if (err != 0) {
@@ -1232,7 +1086,7 @@ index ffc8ec0..0963480 100644
              return LGW_HAL_ERROR;
          }
      }
-@@ -1493,7 +1506,7 @@ int lgw_status(uint8_t rf_chain, uint8_t select, uint8_t *code) {
+@@ -1493,7 +1498,7 @@ int lgw_status(uint8_t rf_chain, uint8_t select, uint8_t *code) {
      /* check input variables */
      CHECK_NULL(code);
      if (rf_chain >= LGW_RF_CHAIN_NB) {
@@ -1241,7 +1095,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -1511,7 +1524,7 @@ int lgw_status(uint8_t rf_chain, uint8_t select, uint8_t *code) {
+@@ -1511,7 +1516,7 @@ int lgw_status(uint8_t rf_chain, uint8_t select, uint8_t *code) {
              *code = sx1302_rx_status(rf_chain);
          }
      } else {
@@ -1250,7 +1104,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -1530,7 +1543,7 @@ int lgw_abort_tx(uint8_t rf_chain) {
+@@ -1530,7 +1535,7 @@ int lgw_abort_tx(uint8_t rf_chain) {
  
      /* check input variables */
      if (rf_chain >= LGW_RF_CHAIN_NB) {
@@ -1259,7 +1113,7 @@ index ffc8ec0..0963480 100644
          return LGW_HAL_ERROR;
      }
  
-@@ -1591,10 +1604,11 @@ int lgw_get_eui(uint64_t* eui) {
+@@ -1591,7 +1596,7 @@ int lgw_get_eui(uint64_t* eui) {
  int lgw_get_temperature(float* temperature) {
      int err = LGW_HAL_ERROR;
  
@@ -1268,11 +1122,7 @@ index ffc8ec0..0963480 100644
  
      CHECK_NULL(temperature);
  
-+#ifdef USE_TEMPERATURE_SENSOR
-     switch (CONTEXT_COM_TYPE) {
-         case LGW_COM_SPI:
-             err = stts751_get_temperature(ts_fd, ts_addr, temperature);
-@@ -1603,11 +1617,15 @@ int lgw_get_temperature(float* temperature) {
+@@ -1603,11 +1608,11 @@ int lgw_get_temperature(float* temperature) {
              err = lgw_com_get_temperature(temperature);
              break;
          default:
@@ -1280,17 +1130,13 @@ index ffc8ec0..0963480 100644
 +            ERROR_PRINTF("wrong communication type (SHOULD NOT HAPPEN)\n");
              break;
      }
-+#else
-+    *temperature = 30.0;
-+    err = LGW_HAL_SUCCESS;
-+#endif
  
 -    DEBUG_PRINTF(" --- %s\n", "OUT");
 +    // DEBUG_PRINTF(" --- %s\n", "OUT");
  
      return err;
  }
-@@ -1627,7 +1645,7 @@ uint32_t lgw_time_on_air(const struct lgw_pkt_tx_s *packet) {
+@@ -1627,7 +1632,7 @@ uint32_t lgw_time_on_air(const struct lgw_pkt_tx_s *packet) {
      DEBUG_PRINTF(" --- %s\n", "IN");
  
      if (packet == NULL) {
@@ -1299,7 +1145,7 @@ index ffc8ec0..0963480 100644
          return 0;
      }
  
-@@ -1649,7 +1667,7 @@ uint32_t lgw_time_on_air(const struct lgw_pkt_tx_s *packet) {
+@@ -1649,7 +1654,7 @@ uint32_t lgw_time_on_air(const struct lgw_pkt_tx_s *packet) {
          toa_ms = (uint32_t)t_fsk + 1; /* add margin for rounding */
      } else {
          toa_ms = 0;
@@ -1308,7 +1154,7 @@ index ffc8ec0..0963480 100644
      }
  
      DEBUG_PRINTF(" --- %s\n", "OUT");
-@@ -1663,19 +1681,19 @@ int lgw_spectral_scan_start(uint32_t freq_hz, uint16_t nb_scan) {
+@@ -1663,19 +1668,19 @@ int lgw_spectral_scan_start(uint32_t freq_hz, uint16_t nb_scan) {
      int err;
  
      if (CONTEXT_SX1261.enable != true) {
@@ -1366,7 +1212,7 @@ index e298c42..b585fe4 100644
  /* --- PRIVATE FUNCTIONS DEFINITION ----------------------------------------- */
  
 diff --git a/libloragw/src/loragw_mcu.c b/libloragw/src/loragw_mcu.c
-index 4644df8..82cbaac 100644
+index 4644df8..1d05002 100644
 --- a/libloragw/src/loragw_mcu.c
 +++ b/libloragw/src/loragw_mcu.c
 @@ -44,6 +44,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
@@ -1378,16 +1224,7 @@ index 4644df8..82cbaac 100644
  /* -------------------------------------------------------------------------- */
  /* --- PRIVATE CONSTANTS ---------------------------------------------------- */
  
-@@ -73,6 +75,8 @@ static spi_req_bulk_t spi_bulk_buffer = {
-     .buffer = { 0 }
- };
- 
-+static char mcu_version[9];
-+
- /* -------------------------------------------------------------------------- */
- /* --- PRIVATE FUNCTIONS DEFINITION ----------------------------------------- */
- 
-@@ -235,8 +239,8 @@ int write_req(int fd, order_id_t cmd, const uint8_t * payload, uint16_t payload_
+@@ -235,8 +237,8 @@ int write_req(int fd, order_id_t cmd, const uint8_t * payload, uint16_t payload_
  
  #if DEBUG_MCU == 1
      gettimeofday(&write_tv, NULL);
@@ -1397,7 +1234,7 @@ index 4644df8..82cbaac 100644
  
  #if DEBUG_VERBOSE
      int i;
-@@ -285,8 +289,8 @@ int read_ack(int fd, uint8_t * hdr, uint8_t * buf, size_t buf_size) {
+@@ -285,8 +287,8 @@ int read_ack(int fd, uint8_t * hdr, uint8_t * buf, size_t buf_size) {
      } else {
  #if DEBUG_MCU == 1
          gettimeofday(&read_tv, NULL);
@@ -1407,7 +1244,7 @@ index 4644df8..82cbaac 100644
      }
  
      /* Compute time spent in this function */
-@@ -331,8 +335,8 @@ int read_ack(int fd, uint8_t * hdr, uint8_t * buf, size_t buf_size) {
+@@ -331,8 +333,8 @@ int read_ack(int fd, uint8_t * hdr, uint8_t * buf, size_t buf_size) {
              } else {
  #if DEBUG_MCU == 1
                  gettimeofday(&read_tv, NULL);
@@ -1417,47 +1254,6 @@ index 4644df8..82cbaac 100644
                  nb_read += n;
              }
          } while (nb_read < (int)size); /* we want to read only the expected payload, not more */
-@@ -483,8 +487,13 @@ int decode_ack_spi_bulk(const uint8_t * hdr, const uint8_t * payload) {
-         return -1;
-     }
- 
--    if (cmd_get_type(hdr) != ORDER_ID__ACK_MULTIPLE_SPI) {
--        printf("ERROR: wrong ACK type for ACK_MULTIPLE_SPI (expected:0x%02X, got 0x%02X)\n", ORDER_ID__ACK_MULTIPLE_SPI, cmd_get_type(hdr));
-+    order_id_t command = ORDER_ID__ACK_MULTIPLE_SPI;
-+
-+    // ORDER_ID__ACK_MULTIPLE_SPI in firmware versions prior to 1.0.0 was 0x46 instead of 0x45
-+    if (strcmp(mcu_version, mcu_version_string) < 0) command = command + 1;
-+
-+    if (cmd_get_type(hdr) != command) {
-+        printf("ERROR: wrong ACK type for ACK_MULTIPLE_SPI (expected:0x%02X, got 0x%02X)\n", command, cmd_get_type(hdr));
-         return -1;
-     }
- 
-@@ -610,6 +619,10 @@ int mcu_get_status(int fd, s_status * status) {
-     return 0;
- }
- 
-+void mcu_save_version(char * version) {
-+    strcpy(mcu_version, version);
-+}
-+
- /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
- 
- int mcu_gpio_write(int fd, uint8_t gpio_port, uint8_t gpio_id, uint8_t gpio_value) {
-@@ -649,7 +662,12 @@ int mcu_spi_write(int fd, uint8_t * in_out_buf, size_t buf_size) {
-     /* Check input parameters */
-     CHECK_NULL(in_out_buf);
- 
--    if (write_req(fd, ORDER_ID__REQ_MULTIPLE_SPI, in_out_buf, buf_size) != 0) {
-+    order_id_t command = ORDER_ID__REQ_MULTIPLE_SPI;
-+
-+    // ORDER_ID__REQ_MULTIPLE_SPI in firmware versions prior to 1.0.0 was 0x06 instead of 0x05
-+    if (strcmp(mcu_version, mcu_version_string) < 0) command = command + 1;
-+
-+    if (write_req(fd, command, in_out_buf, buf_size) != 0) {
-         printf("ERROR: failed to write REQ_MULTIPLE_SPI request\n");
-         return -1;
-     }
 diff --git a/libloragw/src/loragw_reg.c b/libloragw/src/loragw_reg.c
 index 6a7d0df..8019654 100644
 --- a/libloragw/src/loragw_reg.c
@@ -2770,7 +2566,7 @@ index effeaa0..40c3144 100644
      }
  
 diff --git a/libloragw/src/loragw_usb.c b/libloragw/src/loragw_usb.c
-index 4fe7e9a..019b5e8 100644
+index 4fe7e9a..b69f73c 100644
 --- a/libloragw/src/loragw_usb.c
 +++ b/libloragw/src/loragw_usb.c
 @@ -47,6 +47,8 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
@@ -2863,7 +2659,7 @@ index 4fe7e9a..019b5e8 100644
              free(usb_device);
              return LGW_USB_ERROR;
          }
-@@ -187,25 +189,26 @@ int lgw_usb_open(const char * com_path, void **com_target_ptr) {
+@@ -187,25 +189,25 @@ int lgw_usb_open(const char * com_path, void **com_target_ptr) {
          *com_target_ptr = (void*)usb_device;
  
          /* Initialize pseudo-random generator for MCU request ID */
@@ -2878,7 +2674,6 @@ index 4fe7e9a..019b5e8 100644
 +            ERROR_PRINTF("failed to ping the concentrator MCU\n");
              return LGW_USB_ERROR;
          }
-+        mcu_save_version(gw_info.version + 1);
          if (strncmp(gw_info.version + 1, mcu_version_string, sizeof mcu_version_string) != 0) {
              printf("WARNING: MCU version mismatch (expected:%s, got:%s)\n", mcu_version_string, gw_info.version);
          }
@@ -2896,7 +2691,7 @@ index 4fe7e9a..019b5e8 100644
  
          /* Reset SX1302 */
          x  = mcu_gpio_write(fd, 0, 1, 1); /*   set PA1 : POWER_EN */
-@@ -215,7 +218,7 @@ int lgw_usb_open(const char * com_path, void **com_target_ptr) {
+@@ -215,7 +217,7 @@ int lgw_usb_open(const char * com_path, void **com_target_ptr) {
          x |= mcu_gpio_write(fd, 0, 8, 0); /*   set PA8 : SX1261_NRESET active */
          x |= mcu_gpio_write(fd, 0, 8, 1); /* unset PA8 : SX1261_NRESET inactive */
          if (x != 0) {
@@ -2905,7 +2700,7 @@ index 4fe7e9a..019b5e8 100644
              free(usb_device);
              return LGW_USB_ERROR;
          }
-@@ -247,7 +250,7 @@ int lgw_usb_close(void *com_target) {
+@@ -247,7 +249,7 @@ int lgw_usb_close(void *com_target) {
      x |= mcu_gpio_write(usb_device, 0, 8, 0); /*   set PA8 : SX1261_NRESET active */
      x |= mcu_gpio_write(usb_device, 0, 8, 1); /* unset PA8 : SX1261_NRESET inactive */
      if (x != 0) {
@@ -2914,7 +2709,7 @@ index 4fe7e9a..019b5e8 100644
          err = LGW_USB_ERROR;
      }
  
-@@ -255,16 +258,16 @@ int lgw_usb_close(void *com_target) {
+@@ -255,16 +257,16 @@ int lgw_usb_close(void *com_target) {
      x = close(usb_device);
      free(com_target);
      if (x != 0) {
@@ -2934,7 +2729,7 @@ index 4fe7e9a..019b5e8 100644
          return LGW_USB_SUCCESS;
      }
  }
-@@ -316,10 +319,10 @@ int lgw_usb_rmw(void *com_target, uint16_t address, uint8_t offs, uint8_t leng,
+@@ -316,10 +318,10 @@ int lgw_usb_rmw(void *com_target, uint16_t address, uint8_t offs, uint8_t leng,
  
      /* determine return code */
      if (a != 0) {
@@ -2947,7 +2742,7 @@ index 4fe7e9a..019b5e8 100644
          return 0;
      }
  }
-@@ -364,10 +367,10 @@ int lgw_usb_wb(void *com_target, uint8_t spi_mux_target, uint16_t address, const
+@@ -364,10 +366,10 @@ int lgw_usb_wb(void *com_target, uint8_t spi_mux_target, uint16_t address, const
  
      /* determine return code */
      if (a != 0) {
@@ -2960,7 +2755,7 @@ index 4fe7e9a..019b5e8 100644
          return 0;
      }
  }
-@@ -406,7 +409,7 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
+@@ -406,7 +408,7 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
  
      if (_lgw_write_mode == LGW_COM_WRITE_MODE_BULK) {
          /* makes no sense to read in bulk mode, as we can't get the result */
@@ -2969,7 +2764,7 @@ index 4fe7e9a..019b5e8 100644
          return -1;
      } else {
          a = mcu_spi_write(usb_device, in_out_buf, command_size);
-@@ -414,10 +417,10 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
+@@ -414,10 +416,10 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
  
      /* determine return code */
      if (a != 0) {
@@ -2982,7 +2777,7 @@ index 4fe7e9a..019b5e8 100644
          memcpy(data, in_out_buf + 9, size); /* remove the first bytes, keep only the payload */
          return 0;
      }
-@@ -427,11 +430,11 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
+@@ -427,11 +429,11 @@ int lgw_usb_rb(void *com_target, uint8_t spi_mux_target, uint16_t address, uint8
  
  int lgw_usb_set_write_mode(lgw_com_write_mode_t write_mode) {
      if (write_mode >= LGW_COM_WRITE_MODE_UNKNOWN) {
@@ -2996,7 +2791,7 @@ index 4fe7e9a..019b5e8 100644
  
      _lgw_write_mode = write_mode;
  
-@@ -447,7 +450,7 @@ int lgw_usb_flush(void *com_target) {
+@@ -447,7 +449,7 @@ int lgw_usb_flush(void *com_target) {
      /* Check input parameters */
      CHECK_NULL(com_target);
      if (_lgw_write_mode != LGW_COM_WRITE_MODE_BULK) {
@@ -3005,7 +2800,7 @@ index 4fe7e9a..019b5e8 100644
          return -1;
      }
  
-@@ -455,7 +458,7 @@ int lgw_usb_flush(void *com_target) {
+@@ -455,7 +457,7 @@ int lgw_usb_flush(void *com_target) {
      _lgw_write_mode = LGW_COM_WRITE_MODE_SINGLE;
  
      if (_lgw_spi_req_nb == 0) {
@@ -3014,7 +2809,7 @@ index 4fe7e9a..019b5e8 100644
          return 0;
      }
  
-@@ -464,7 +467,7 @@ int lgw_usb_flush(void *com_target) {
+@@ -464,7 +466,7 @@ int lgw_usb_flush(void *com_target) {
      DEBUG_MSG("INFO: flushing USB write buffer\n");
      a = mcu_spi_flush(usb_device);
      if (a != 0) {
@@ -3023,7 +2818,7 @@ index 4fe7e9a..019b5e8 100644
      }
  
      /* reset the pending request number */
-@@ -492,10 +495,10 @@ int lgw_usb_get_temperature(void *com_target, float * temperature) {
+@@ -492,10 +494,10 @@ int lgw_usb_get_temperature(void *com_target, float * temperature) {
      usb_device = *(int *)com_target;
  
      if (mcu_get_status(usb_device, &mcu_status) != 0) {
@@ -3036,1006 +2831,3 @@ index 4fe7e9a..019b5e8 100644
  
      *temperature = mcu_status.temperature;
  
-diff --git a/libloragw/tst/test_loragw_gps_i2c.c b/libloragw/tst/test_loragw_gps_i2c.c
-new file mode 100644
-index 0000000..04513f9
---- /dev/null
-+++ b/libloragw/tst/test_loragw_gps_i2c.c
-@@ -0,0 +1,431 @@
-+/*
-+ / _____)             _              | |
-+( (____  _____ ____ _| |_ _____  ____| |__
-+ \____ \| ___ |    (_   _) ___ |/ ___)  _ \
-+ _____) ) ____| | | || |_| ____( (___| | | |
-+(______/|_____)_|_|_| \__)_____)\____)_| |_|
-+  (C)2019 Semtech
-+
-+Description:
-+    Minimum test program for the loragw_gps module
-+
-+License: Revised BSD License, see LICENSE.TXT file include in the project
-+*/
-+
-+
-+/* -------------------------------------------------------------------------- */
-+/* --- DEPENDANCIES --------------------------------------------------------- */
-+
-+/* fix an issue between POSIX and C99 */
-+#if __STDC_VERSION__ >= 199901L
-+    #define _XOPEN_SOURCE 600
-+#else
-+    #define _XOPEN_SOURCE 500
-+#endif
-+
-+#include <stdint.h>     /* C99 types */
-+#include <stdbool.h>    /* bool type */
-+#include <stdio.h>      /* printf */
-+#include <string.h>     /* memset */
-+#include <signal.h>     /* sigaction */
-+#include <stdlib.h>     /* exit */
-+#include <unistd.h>     /* read */
-+
-+#include "loragw_hal.h"
-+#include "loragw_gps.h"
-+#include "loragw_aux.h"
-+
-+/* -------------------------------------------------------------------------- */
-+/* --- PRIVATE MACROS ------------------------------------------------------- */
-+
-+#define MATCH(a,b) ( ((int32_t)(a-b)<=1) && ((int32_t)(a-b)>=-1) ) /* tolerate 1µs */
-+
-+/* -------------------------------------------------------------------------- */
-+/* --- PRIVATE CONSTANTS ---------------------------------------------------- */
-+
-+#define COM_TYPE_DEFAULT LGW_COM_SPI
-+#define COM_PATH_DEFAULT "/dev/spidev0.0"
-+
-+/* -------------------------------------------------------------------------- */
-+/* --- PRIVATE VARIABLES ---------------------------------------------------- */
-+
-+static int exit_sig = 0; /* 1 -> application terminates cleanly (shut down hardware, close open files, etc) */
-+static int quit_sig = 0; /* 1 -> application terminates without shutting down the hardware */
-+
-+struct tref ppm_ref;
-+
-+/* -------------------------------------------------------------------------- */
-+/* --- PRIVATE FUNCTIONS DECLARATION ---------------------------------------- */
-+
-+static void sig_handler(int sigio);
-+static void gps_process_sync(void);
-+static void gps_process_coords(void);
-+
-+/* -------------------------------------------------------------------------- */
-+/* --- PRIVATE FUNCTIONS DEFINITION ----------------------------------------- */
-+
-+void usage(void) {
-+    //printf("Library version information: %s\n", lgw_version_info());
-+    printf("Available options:\n");
-+    printf(" -h print this help\n");
-+    printf(" -u        set COM type as USB (default is SPI)\n");
-+    printf(" -d <path> COM path to be used to connect the concentrator\n");
-+    printf("            => default path (SPI): " COM_PATH_DEFAULT "\n");
-+    printf(" -k <uint> Concentrator clock source (Radio A or Radio B) [0..1]\n");
-+    printf(" -r <uint> Radio type (1255, 1257, 1250)\n");
-+}
-+
-+static void sig_handler(int sigio) {
-+    if (sigio == SIGQUIT) {
-+        quit_sig = 1;;
-+    } else if ((sigio == SIGINT) || (sigio == SIGTERM)) {
-+        exit_sig = 1;
-+    }
-+}
-+
-+static void gps_process_sync(void) {
-+    /* variables for PPM pulse GPS synchronization */
-+    uint32_t ppm_tstamp;
-+    struct timespec ppm_gps;
-+    struct timespec ppm_utc;
-+
-+    /* variables for timestamp <-> GPS time conversions */
-+    uint32_t x, z;
-+    struct timespec y;
-+
-+    /* get GPS time for synchronization */
-+    int i = lgw_gps_get(&ppm_utc, &ppm_gps, NULL, NULL);
-+    if (i != LGW_GPS_SUCCESS) {
-+        printf("    No valid reference GPS time available, synchronization impossible.\n");
-+        return;
-+    }
-+
-+    /* get timestamp for synchronization */
-+    i = lgw_get_trigcnt(&ppm_tstamp);
-+    if (i != LGW_HAL_SUCCESS) {
-+        printf("    Failed to read timestamp, synchronization impossible.\n");
-+        return;
-+    }
-+
-+    /* try to update synchronize time reference with the new GPS & timestamp */
-+    i = lgw_gps_sync(&ppm_ref, ppm_tstamp, ppm_utc, ppm_gps);
-+    if (i != LGW_GPS_SUCCESS) {
-+        printf("    Synchronization error.\n");
-+        return;
-+    }
-+
-+    /* display result */
-+    printf("    * Synchronization successful *\n");
-+    printf("    UTC reference time: %lld.%09ld\n", (long long)ppm_ref.utc.tv_sec, ppm_ref.utc.tv_nsec);
-+    printf("    GPS reference time: %lld.%09ld\n", (long long)ppm_ref.gps.tv_sec, ppm_ref.gps.tv_nsec);
-+    printf("    Internal counter reference value: %u\n", ppm_ref.count_us);
-+    printf("    Clock error: %.9f\n", ppm_ref.xtal_err);
-+
-+    x = ppm_tstamp + 500000;
-+
-+    /* CNT -> GPS -> CNT */
-+    printf("\n");
-+    printf("    * Test of timestamp counter <-> GPS value conversion *\n");
-+    printf("    Test value: %u\n", x);
-+    lgw_cnt2gps(ppm_ref, x, &y);
-+    printf("    Conversion to GPS: %lld.%09ld\n", (long long)y.tv_sec, y.tv_nsec);
-+    lgw_gps2cnt(ppm_ref, y, &z);
-+    printf("    Converted back: %u ==> %dµs\n", z, (int32_t)(z-x));
-+    /* Display test result */
-+    if (MATCH(x,z)) {
-+        printf("    ** PASS **: (SX1302 -> GPS -> SX1302) conversion MATCH\n");
-+    } else {
-+        printf("    ** FAILED **: (SX1302 -> GPS -> SX1302) conversion MISMATCH\n");
-+    }
-+
-+    /* CNT -> UTC -> CNT */
-+    printf("\n");
-+    printf("    * Test of timestamp counter <-> UTC value conversion *\n");
-+    printf("    Test value: %u\n", x);
-+    lgw_cnt2utc(ppm_ref, x, &y);
-+    printf("    Conversion to UTC: %lld.%09ld\n", (long long)y.tv_sec, y.tv_nsec);
-+    lgw_utc2cnt(ppm_ref, y, &z);
-+    printf("    Converted back: %u ==> %dµs\n", z, (int32_t)(z-x));
-+    /* Display test result */
-+    if (MATCH(x,z)) {
-+        printf("    ** PASS **: (SX1302 -> UTC -> SX1302) conversion MATCH\n");
-+    } else {
-+        printf("    ** FAILED **: (SX1302 -> UTC -> SX1302) conversion MISMATCH\n");
-+    }
-+}
-+
-+static void gps_process_coords(void) {
-+    /* position variable */
-+    struct coord_s coord;
-+    struct coord_s gpserr;
-+    int    i = lgw_gps_get(NULL, NULL, &coord, &gpserr);
-+
-+    /* update gateway coordinates */
-+    if (i == LGW_GPS_SUCCESS) {
-+        printf("\n");
-+        printf("# GPS coordinates: latitude %.5f, longitude %.5f, altitude %i m\n", coord.lat, coord.lon, coord.alt);
-+        printf("# GPS err:         latitude %.5f, longitude %.5f, altitude %i m\n", gpserr.lat, gpserr.lon, gpserr.alt);
-+    }
-+}
-+
-+/* -------------------------------------------------------------------------- */
-+/* --- MAIN FUNCTION -------------------------------------------------------- */
-+
-+int main(int argc, char **argv)
-+{
-+    /* SPI interfaces */
-+    const char com_path_default[] = COM_PATH_DEFAULT;
-+    const char * com_path = com_path_default;
-+    lgw_com_type_t com_type = COM_TYPE_DEFAULT;
-+
-+    struct sigaction sigact; /* SIGQUIT&SIGINT&SIGTERM signal handling */
-+
-+    int i;
-+    unsigned int arg_u;
-+
-+    /* concentrator variables */
-+    uint8_t clocksource = 0;
-+    lgw_radio_type_t radio_type = LGW_RADIO_TYPE_SX1250;
-+    struct lgw_conf_board_s boardconf;
-+    struct lgw_conf_rxrf_s rfconf;
-+
-+    /* serial variables */
-+    char serial_buff[128]; /* buffer to receive GPS data */
-+    size_t wr_idx = 0;     /* pointer to end of chars in buffer */
-+    int gps_tty_dev; /* file descriptor to the serial port of the GNSS module */
-+
-+    /* NMEA/UBX variables */
-+    enum gps_msg latest_msg; /* keep track of latest NMEA/UBX message parsed */
-+
-+    /* parse command line options */
-+    while ((i = getopt (argc, argv, "hk:r:d:u")) != -1) {
-+        switch (i) {
-+            case 'h':
-+                usage();
-+                return -1;
-+                break;
-+            case 'd':
-+                if (optarg != NULL) {
-+                    com_path = optarg;
-+                }
-+                break;
-+            case 'u':
-+                com_type = LGW_COM_USB;
-+                break;
-+            case 'r': /* <uint> Radio type */
-+                i = sscanf(optarg, "%u", &arg_u);
-+                if ((i != 1) || ((arg_u != 1255) && (arg_u != 1257) && (arg_u != 1250))) {
-+                    printf("ERROR: argument parsing of -r argument. Use -h to print help\n");
-+                    return EXIT_FAILURE;
-+                } else {
-+                    switch (arg_u) {
-+                        case 1255:
-+                            radio_type = LGW_RADIO_TYPE_SX1255;
-+                            break;
-+                        case 1257:
-+                            radio_type = LGW_RADIO_TYPE_SX1257;
-+                            break;
-+                        default: /* 1250 */
-+                            radio_type = LGW_RADIO_TYPE_SX1250;
-+                            break;
-+                    }
-+                }
-+                break;
-+            case 'k': /* <uint> Clock Source */
-+                i = sscanf(optarg, "%u", &arg_u);
-+                if ((i != 1) || (arg_u > 1)) {
-+                    printf("ERROR: argument parsing of -k argument. Use -h to print help\n");
-+                    return EXIT_FAILURE;
-+                } else {
-+                    clocksource = (uint8_t)arg_u;
-+                }
-+                break;
-+            default:
-+                printf("ERROR: argument parsing\n");
-+                usage();
-+                exit(EXIT_FAILURE);
-+        }
-+    }
-+
-+    /* configure signal handling */
-+    sigemptyset(&sigact.sa_mask);
-+    sigact.sa_flags = 0;
-+    sigact.sa_handler = sig_handler;
-+    sigaction(SIGQUIT, &sigact, NULL);
-+    sigaction(SIGINT, &sigact, NULL);
-+    sigaction(SIGTERM, &sigact, NULL);
-+
-+    /* Intro message and library information */
-+    printf("Beginning of test for loragw_gps.c\n");
-+    printf("*** Library version information ***\n%s\n***\n", lgw_version_info());
-+
-+    if (com_type == LGW_COM_SPI) {
-+        /* Board reset */
-+        if (system("./reset_lgw.sh start") != 0) {
-+            printf("ERROR: failed to reset SX1302, check your reset_lgw.sh script\n");
-+            exit(EXIT_FAILURE);
-+        }
-+    }
-+
-+    /* Open and configure GPS */
-+    i = lgw_gps_enable("/dev/i2c-1", "ubx7", 0, &gps_tty_dev);
-+    if (i != LGW_GPS_SUCCESS) {
-+        printf("ERROR: Failed to enable GPS\n");
-+        exit(EXIT_FAILURE);
-+    }
-+
-+    /* start concentrator (default conf for IoT SK) */
-+    /* board config */
-+    memset(&boardconf, 0, sizeof(boardconf));
-+    boardconf.lorawan_public = true;
-+    boardconf.clksrc = clocksource;
-+    boardconf.full_duplex = false;
-+    boardconf.com_type = com_type;
-+    strncpy(boardconf.com_path, com_path, sizeof boardconf.com_path);
-+    boardconf.com_path[sizeof boardconf.com_path - 1] = '\0'; /* ensure string termination */
-+    if (lgw_board_setconf(&boardconf) != LGW_HAL_SUCCESS) {
-+        printf("ERROR: failed to configure board\n");
-+        return EXIT_FAILURE;
-+    }
-+
-+    /* set configuration for RF chains */
-+    memset( &rfconf, 0, sizeof rfconf);
-+    rfconf.enable = true;
-+    rfconf.freq_hz = 868000000;
-+    rfconf.rssi_offset = 0.0;
-+    rfconf.type = radio_type;
-+    rfconf.tx_enable = false;
-+    rfconf.single_input_mode = false;
-+    if (lgw_rxrf_setconf(0, &rfconf) != LGW_HAL_SUCCESS) {
-+        printf("ERROR: failed to configure rxrf 0\n");
-+        return EXIT_FAILURE;
-+    }
-+
-+    memset( &rfconf, 0, sizeof rfconf);
-+    rfconf.enable = true;
-+    rfconf.freq_hz = 868000000;
-+    rfconf.rssi_offset = 0.0;
-+    rfconf.type = radio_type;
-+    rfconf.tx_enable = false;
-+    rfconf.single_input_mode = false;
-+    if (lgw_rxrf_setconf(1, &rfconf) != LGW_HAL_SUCCESS) {
-+        printf("ERROR: failed to configure rxrf 1\n");
-+        return EXIT_FAILURE;
-+    }
-+
-+    /* start */
-+    if (lgw_start() != LGW_HAL_SUCCESS) {
-+        printf("ERROR: IMPOSSIBLE TO START THE GATEWAY\n");
-+        exit(EXIT_FAILURE);
-+    }
-+
-+    /* initialize some variables before loop */
-+    memset(serial_buff, 0, sizeof serial_buff);
-+    memset(&ppm_ref, 0, sizeof ppm_ref);
-+
-+    /* loop until user action */
-+    while ((quit_sig != 1) && (exit_sig != 1)) {
-+        size_t rd_idx = 0;
-+        size_t frame_end_idx = 0;
-+
-+        /* blocking non-canonical read on serial port */
-+        ssize_t nb_char = read(gps_tty_dev, serial_buff + wr_idx, LGW_GPS_MIN_MSG_SIZE);
-+        if (nb_char <= 0) {
-+            #if DEBUG_GPS == 1
-+                printf("WARNING: [gps] read() returned value %d\n", nb_char);
-+            #endif
-+            continue;
-+        }
-+        wr_idx += (size_t)nb_char;
-+
-+        /*******************************************
-+         * Scan buffer for UBX/NMEA sync chars and *
-+         * attempt to decode frame if one is found *
-+         *******************************************/
-+        while (rd_idx < wr_idx) {
-+            size_t frame_size = 0;
-+
-+            /* Scan buffer for UBX sync char */
-+            if (serial_buff[rd_idx] == (char)LGW_GPS_UBX_SYNC_CHAR) {
-+
-+                /***********************
-+                 * Found UBX sync char *
-+                 ***********************/
-+                latest_msg = lgw_parse_ubx(&serial_buff[rd_idx], (wr_idx - rd_idx), &frame_size);
-+
-+                if (frame_size > 0) {
-+                    if (latest_msg == INCOMPLETE) {
-+                        /* UBX header found but frame appears to be missing bytes */
-+                        frame_size = 0;
-+                    } else if (latest_msg == INVALID) {
-+                        /* message header received but message appears to be corrupted */
-+                        printf("WARNING: [gps] could not get a valid message from GPS (no time)\n");
-+                        frame_size = 0;
-+                    } else if (latest_msg == UBX_NAV_TIMEGPS) {
-+                        printf("\n~~ UBX NAV-TIMEGPS sentence, triggering synchronization attempt ~~\n");
-+                        gps_process_sync();
-+                    }
-+                }
-+            } else if(serial_buff[rd_idx] == (char)LGW_GPS_NMEA_SYNC_CHAR) {
-+                /************************
-+                 * Found NMEA sync char *
-+                 ************************/
-+                /* scan for NMEA end marker (LF = 0x0a) */
-+                char* nmea_end_ptr = memchr(&serial_buff[rd_idx],(int)0x0a, (wr_idx - rd_idx));
-+
-+                if (nmea_end_ptr) {
-+                    /* found end marker */
-+                    frame_size = nmea_end_ptr - &serial_buff[rd_idx] + 1;
-+                    latest_msg = lgw_parse_nmea(&serial_buff[rd_idx], frame_size);
-+
-+                    if(latest_msg == INVALID || latest_msg == UNKNOWN) {
-+                        /* checksum failed */
-+                        frame_size = 0;
-+                    } else if (latest_msg == NMEA_RMC) { /* Get location from RMC frames */
-+                        gps_process_coords();
-+                    }
-+                }
-+            }
-+
-+            if (frame_size > 0) {
-+                /* At this point message is a checksum verified frame
-+                   we're processed or ignored. Remove frame from buffer */
-+                rd_idx += frame_size;
-+                frame_end_idx = rd_idx;
-+            } else {
-+                rd_idx++;
-+            }
-+        } /* ...for(rd_idx = 0... */
-+
-+        if (frame_end_idx) {
-+          /* Frames have been processed. Remove bytes to end of last processed frame */
-+          memcpy(serial_buff,&serial_buff[frame_end_idx],wr_idx - frame_end_idx);
-+          wr_idx -= frame_end_idx;
-+        } /* ...for(rd_idx = 0... */
-+
-+        /* Prevent buffer overflow */
-+        if ((sizeof(serial_buff) - wr_idx) < LGW_GPS_MIN_MSG_SIZE) {
-+            memcpy(serial_buff,&serial_buff[LGW_GPS_MIN_MSG_SIZE],wr_idx - LGW_GPS_MIN_MSG_SIZE);
-+            wr_idx -= LGW_GPS_MIN_MSG_SIZE;
-+        }
-+    }
-+
-+    /* clean up before leaving */
-+    if (exit_sig == 1) {
-+        lgw_gps_disable(gps_tty_dev);
-+        lgw_stop();
-+    }
-+
-+    if (com_type == LGW_COM_SPI) {
-+        /* Board reset */
-+        if (system("./reset_lgw.sh stop") != 0) {
-+            printf("ERROR: failed to reset SX1302, check your reset_lgw.sh script\n");
-+            exit(EXIT_FAILURE);
-+        }
-+    }
-+
-+    printf("\nEnd of test for loragw_gps.c\n");
-+    exit(EXIT_SUCCESS);
-+}
-+
-+/* --- EOF ------------------------------------------------------------------ */
-diff --git a/libloragw/tst/test_loragw_gps_uart.c b/libloragw/tst/test_loragw_gps_uart.c
-new file mode 100644
-index 0000000..f250433
---- /dev/null
-+++ b/libloragw/tst/test_loragw_gps_uart.c
-@@ -0,0 +1,431 @@
-+/*
-+ / _____)             _              | |
-+( (____  _____ ____ _| |_ _____  ____| |__
-+ \____ \| ___ |    (_   _) ___ |/ ___)  _ \
-+ _____) ) ____| | | || |_| ____( (___| | | |
-+(______/|_____)_|_|_| \__)_____)\____)_| |_|
-+  (C)2019 Semtech
-+
-+Description:
-+    Minimum test program for the loragw_gps module
-+
-+License: Revised BSD License, see LICENSE.TXT file include in the project
-+*/
-+
-+
-+/* -------------------------------------------------------------------------- */
-+/* --- DEPENDANCIES --------------------------------------------------------- */
-+
-+/* fix an issue between POSIX and C99 */
-+#if __STDC_VERSION__ >= 199901L
-+    #define _XOPEN_SOURCE 600
-+#else
-+    #define _XOPEN_SOURCE 500
-+#endif
-+
-+#include <stdint.h>     /* C99 types */
-+#include <stdbool.h>    /* bool type */
-+#include <stdio.h>      /* printf */
-+#include <string.h>     /* memset */
-+#include <signal.h>     /* sigaction */
-+#include <stdlib.h>     /* exit */
-+#include <unistd.h>     /* read */
-+
-+#include "loragw_hal.h"
-+#include "loragw_gps.h"
-+#include "loragw_aux.h"
-+
-+/* -------------------------------------------------------------------------- */
-+/* --- PRIVATE MACROS ------------------------------------------------------- */
-+
-+#define MATCH(a,b) ( ((int32_t)(a-b)<=1) && ((int32_t)(a-b)>=-1) ) /* tolerate 1µs */
-+
-+/* -------------------------------------------------------------------------- */
-+/* --- PRIVATE CONSTANTS ---------------------------------------------------- */
-+
-+#define COM_TYPE_DEFAULT LGW_COM_SPI
-+#define COM_PATH_DEFAULT "/dev/spidev0.0"
-+
-+/* -------------------------------------------------------------------------- */
-+/* --- PRIVATE VARIABLES ---------------------------------------------------- */
-+
-+static int exit_sig = 0; /* 1 -> application terminates cleanly (shut down hardware, close open files, etc) */
-+static int quit_sig = 0; /* 1 -> application terminates without shutting down the hardware */
-+
-+struct tref ppm_ref;
-+
-+/* -------------------------------------------------------------------------- */
-+/* --- PRIVATE FUNCTIONS DECLARATION ---------------------------------------- */
-+
-+static void sig_handler(int sigio);
-+static void gps_process_sync(void);
-+static void gps_process_coords(void);
-+
-+/* -------------------------------------------------------------------------- */
-+/* --- PRIVATE FUNCTIONS DEFINITION ----------------------------------------- */
-+
-+void usage(void) {
-+    //printf("Library version information: %s\n", lgw_version_info());
-+    printf("Available options:\n");
-+    printf(" -h print this help\n");
-+    printf(" -u        set COM type as USB (default is SPI)\n");
-+    printf(" -d <path> COM path to be used to connect the concentrator\n");
-+    printf("            => default path (SPI): " COM_PATH_DEFAULT "\n");
-+    printf(" -k <uint> Concentrator clock source (Radio A or Radio B) [0..1]\n");
-+    printf(" -r <uint> Radio type (1255, 1257, 1250)\n");
-+}
-+
-+static void sig_handler(int sigio) {
-+    if (sigio == SIGQUIT) {
-+        quit_sig = 1;;
-+    } else if ((sigio == SIGINT) || (sigio == SIGTERM)) {
-+        exit_sig = 1;
-+    }
-+}
-+
-+static void gps_process_sync(void) {
-+    /* variables for PPM pulse GPS synchronization */
-+    uint32_t ppm_tstamp;
-+    struct timespec ppm_gps;
-+    struct timespec ppm_utc;
-+
-+    /* variables for timestamp <-> GPS time conversions */
-+    uint32_t x, z;
-+    struct timespec y;
-+
-+    /* get GPS time for synchronization */
-+    int i = lgw_gps_get(&ppm_utc, &ppm_gps, NULL, NULL);
-+    if (i != LGW_GPS_SUCCESS) {
-+        printf("    No valid reference GPS time available, synchronization impossible.\n");
-+        return;
-+    }
-+
-+    /* get timestamp for synchronization */
-+    i = lgw_get_trigcnt(&ppm_tstamp);
-+    if (i != LGW_HAL_SUCCESS) {
-+        printf("    Failed to read timestamp, synchronization impossible.\n");
-+        return;
-+    }
-+
-+    /* try to update synchronize time reference with the new GPS & timestamp */
-+    i = lgw_gps_sync(&ppm_ref, ppm_tstamp, ppm_utc, ppm_gps);
-+    if (i != LGW_GPS_SUCCESS) {
-+        printf("    Synchronization error.\n");
-+        return;
-+    }
-+
-+    /* display result */
-+    printf("    * Synchronization successful *\n");
-+    printf("    UTC reference time: %lld.%09ld\n", (long long)ppm_ref.utc.tv_sec, ppm_ref.utc.tv_nsec);
-+    printf("    GPS reference time: %lld.%09ld\n", (long long)ppm_ref.gps.tv_sec, ppm_ref.gps.tv_nsec);
-+    printf("    Internal counter reference value: %u\n", ppm_ref.count_us);
-+    printf("    Clock error: %.9f\n", ppm_ref.xtal_err);
-+
-+    x = ppm_tstamp + 500000;
-+
-+    /* CNT -> GPS -> CNT */
-+    printf("\n");
-+    printf("    * Test of timestamp counter <-> GPS value conversion *\n");
-+    printf("    Test value: %u\n", x);
-+    lgw_cnt2gps(ppm_ref, x, &y);
-+    printf("    Conversion to GPS: %lld.%09ld\n", (long long)y.tv_sec, y.tv_nsec);
-+    lgw_gps2cnt(ppm_ref, y, &z);
-+    printf("    Converted back: %u ==> %dµs\n", z, (int32_t)(z-x));
-+    /* Display test result */
-+    if (MATCH(x,z)) {
-+        printf("    ** PASS **: (SX1302 -> GPS -> SX1302) conversion MATCH\n");
-+    } else {
-+        printf("    ** FAILED **: (SX1302 -> GPS -> SX1302) conversion MISMATCH\n");
-+    }
-+
-+    /* CNT -> UTC -> CNT */
-+    printf("\n");
-+    printf("    * Test of timestamp counter <-> UTC value conversion *\n");
-+    printf("    Test value: %u\n", x);
-+    lgw_cnt2utc(ppm_ref, x, &y);
-+    printf("    Conversion to UTC: %lld.%09ld\n", (long long)y.tv_sec, y.tv_nsec);
-+    lgw_utc2cnt(ppm_ref, y, &z);
-+    printf("    Converted back: %u ==> %dµs\n", z, (int32_t)(z-x));
-+    /* Display test result */
-+    if (MATCH(x,z)) {
-+        printf("    ** PASS **: (SX1302 -> UTC -> SX1302) conversion MATCH\n");
-+    } else {
-+        printf("    ** FAILED **: (SX1302 -> UTC -> SX1302) conversion MISMATCH\n");
-+    }
-+}
-+
-+static void gps_process_coords(void) {
-+    /* position variable */
-+    struct coord_s coord;
-+    struct coord_s gpserr;
-+    int    i = lgw_gps_get(NULL, NULL, &coord, &gpserr);
-+
-+    /* update gateway coordinates */
-+    if (i == LGW_GPS_SUCCESS) {
-+        printf("\n");
-+        printf("# GPS coordinates: latitude %.5f, longitude %.5f, altitude %i m\n", coord.lat, coord.lon, coord.alt);
-+        printf("# GPS err:         latitude %.5f, longitude %.5f, altitude %i m\n", gpserr.lat, gpserr.lon, gpserr.alt);
-+    }
-+}
-+
-+/* -------------------------------------------------------------------------- */
-+/* --- MAIN FUNCTION -------------------------------------------------------- */
-+
-+int main(int argc, char **argv)
-+{
-+    /* SPI interfaces */
-+    const char com_path_default[] = COM_PATH_DEFAULT;
-+    const char * com_path = com_path_default;
-+    lgw_com_type_t com_type = COM_TYPE_DEFAULT;
-+
-+    struct sigaction sigact; /* SIGQUIT&SIGINT&SIGTERM signal handling */
-+
-+    int i;
-+    unsigned int arg_u;
-+
-+    /* concentrator variables */
-+    uint8_t clocksource = 0;
-+    lgw_radio_type_t radio_type = LGW_RADIO_TYPE_SX1250;
-+    struct lgw_conf_board_s boardconf;
-+    struct lgw_conf_rxrf_s rfconf;
-+
-+    /* serial variables */
-+    char serial_buff[128]; /* buffer to receive GPS data */
-+    size_t wr_idx = 0;     /* pointer to end of chars in buffer */
-+    int gps_tty_dev; /* file descriptor to the serial port of the GNSS module */
-+
-+    /* NMEA/UBX variables */
-+    enum gps_msg latest_msg; /* keep track of latest NMEA/UBX message parsed */
-+
-+    /* parse command line options */
-+    while ((i = getopt (argc, argv, "hk:r:d:u")) != -1) {
-+        switch (i) {
-+            case 'h':
-+                usage();
-+                return -1;
-+                break;
-+            case 'd':
-+                if (optarg != NULL) {
-+                    com_path = optarg;
-+                }
-+                break;
-+            case 'u':
-+                com_type = LGW_COM_USB;
-+                break;
-+            case 'r': /* <uint> Radio type */
-+                i = sscanf(optarg, "%u", &arg_u);
-+                if ((i != 1) || ((arg_u != 1255) && (arg_u != 1257) && (arg_u != 1250))) {
-+                    printf("ERROR: argument parsing of -r argument. Use -h to print help\n");
-+                    return EXIT_FAILURE;
-+                } else {
-+                    switch (arg_u) {
-+                        case 1255:
-+                            radio_type = LGW_RADIO_TYPE_SX1255;
-+                            break;
-+                        case 1257:
-+                            radio_type = LGW_RADIO_TYPE_SX1257;
-+                            break;
-+                        default: /* 1250 */
-+                            radio_type = LGW_RADIO_TYPE_SX1250;
-+                            break;
-+                    }
-+                }
-+                break;
-+            case 'k': /* <uint> Clock Source */
-+                i = sscanf(optarg, "%u", &arg_u);
-+                if ((i != 1) || (arg_u > 1)) {
-+                    printf("ERROR: argument parsing of -k argument. Use -h to print help\n");
-+                    return EXIT_FAILURE;
-+                } else {
-+                    clocksource = (uint8_t)arg_u;
-+                }
-+                break;
-+            default:
-+                printf("ERROR: argument parsing\n");
-+                usage();
-+                exit(EXIT_FAILURE);
-+        }
-+    }
-+
-+    /* configure signal handling */
-+    sigemptyset(&sigact.sa_mask);
-+    sigact.sa_flags = 0;
-+    sigact.sa_handler = sig_handler;
-+    sigaction(SIGQUIT, &sigact, NULL);
-+    sigaction(SIGINT, &sigact, NULL);
-+    sigaction(SIGTERM, &sigact, NULL);
-+
-+    /* Intro message and library information */
-+    printf("Beginning of test for loragw_gps.c\n");
-+    printf("*** Library version information ***\n%s\n***\n", lgw_version_info());
-+
-+    if (com_type == LGW_COM_SPI) {
-+        /* Board reset */
-+        if (system("./reset_lgw.sh start") != 0) {
-+            printf("ERROR: failed to reset SX1302, check your reset_lgw.sh script\n");
-+            exit(EXIT_FAILURE);
-+        }
-+    }
-+
-+    /* Open and configure GPS */
-+    i = lgw_gps_enable("/dev/ttyAMA0", "ubx7", 0, &gps_tty_dev);
-+    if (i != LGW_GPS_SUCCESS) {
-+        printf("ERROR: Failed to enable GPS\n");
-+        exit(EXIT_FAILURE);
-+    }
-+
-+    /* start concentrator (default conf for IoT SK) */
-+    /* board config */
-+    memset(&boardconf, 0, sizeof(boardconf));
-+    boardconf.lorawan_public = true;
-+    boardconf.clksrc = clocksource;
-+    boardconf.full_duplex = false;
-+    boardconf.com_type = com_type;
-+    strncpy(boardconf.com_path, com_path, sizeof boardconf.com_path);
-+    boardconf.com_path[sizeof boardconf.com_path - 1] = '\0'; /* ensure string termination */
-+    if (lgw_board_setconf(&boardconf) != LGW_HAL_SUCCESS) {
-+        printf("ERROR: failed to configure board\n");
-+        return EXIT_FAILURE;
-+    }
-+
-+    /* set configuration for RF chains */
-+    memset( &rfconf, 0, sizeof rfconf);
-+    rfconf.enable = true;
-+    rfconf.freq_hz = 868000000;
-+    rfconf.rssi_offset = 0.0;
-+    rfconf.type = radio_type;
-+    rfconf.tx_enable = false;
-+    rfconf.single_input_mode = false;
-+    if (lgw_rxrf_setconf(0, &rfconf) != LGW_HAL_SUCCESS) {
-+        printf("ERROR: failed to configure rxrf 0\n");
-+        return EXIT_FAILURE;
-+    }
-+
-+    memset( &rfconf, 0, sizeof rfconf);
-+    rfconf.enable = true;
-+    rfconf.freq_hz = 868000000;
-+    rfconf.rssi_offset = 0.0;
-+    rfconf.type = radio_type;
-+    rfconf.tx_enable = false;
-+    rfconf.single_input_mode = false;
-+    if (lgw_rxrf_setconf(1, &rfconf) != LGW_HAL_SUCCESS) {
-+        printf("ERROR: failed to configure rxrf 1\n");
-+        return EXIT_FAILURE;
-+    }
-+
-+    /* start */
-+    if (lgw_start() != LGW_HAL_SUCCESS) {
-+        printf("ERROR: IMPOSSIBLE TO START THE GATEWAY\n");
-+        exit(EXIT_FAILURE);
-+    }
-+
-+    /* initialize some variables before loop */
-+    memset(serial_buff, 0, sizeof serial_buff);
-+    memset(&ppm_ref, 0, sizeof ppm_ref);
-+
-+    /* loop until user action */
-+    while ((quit_sig != 1) && (exit_sig != 1)) {
-+        size_t rd_idx = 0;
-+        size_t frame_end_idx = 0;
-+
-+        /* blocking non-canonical read on serial port */
-+        ssize_t nb_char = read(gps_tty_dev, serial_buff + wr_idx, LGW_GPS_MIN_MSG_SIZE);
-+        if (nb_char <= 0) {
-+            #if DEBUG_GPS == 1
-+                printf("WARNING: [gps] read() returned value %d\n", nb_char);
-+            #endif
-+            continue;
-+        }
-+        wr_idx += (size_t)nb_char;
-+
-+        /*******************************************
-+         * Scan buffer for UBX/NMEA sync chars and *
-+         * attempt to decode frame if one is found *
-+         *******************************************/
-+        while (rd_idx < wr_idx) {
-+            size_t frame_size = 0;
-+
-+            /* Scan buffer for UBX sync char */
-+            if (serial_buff[rd_idx] == (char)LGW_GPS_UBX_SYNC_CHAR) {
-+
-+                /***********************
-+                 * Found UBX sync char *
-+                 ***********************/
-+                latest_msg = lgw_parse_ubx(&serial_buff[rd_idx], (wr_idx - rd_idx), &frame_size);
-+
-+                if (frame_size > 0) {
-+                    if (latest_msg == INCOMPLETE) {
-+                        /* UBX header found but frame appears to be missing bytes */
-+                        frame_size = 0;
-+                    } else if (latest_msg == INVALID) {
-+                        /* message header received but message appears to be corrupted */
-+                        printf("WARNING: [gps] could not get a valid message from GPS (no time)\n");
-+                        frame_size = 0;
-+                    } else if (latest_msg == UBX_NAV_TIMEGPS) {
-+                        printf("\n~~ UBX NAV-TIMEGPS sentence, triggering synchronization attempt ~~\n");
-+                        gps_process_sync();
-+                    }
-+                }
-+            } else if(serial_buff[rd_idx] == (char)LGW_GPS_NMEA_SYNC_CHAR) {
-+                /************************
-+                 * Found NMEA sync char *
-+                 ************************/
-+                /* scan for NMEA end marker (LF = 0x0a) */
-+                char* nmea_end_ptr = memchr(&serial_buff[rd_idx],(int)0x0a, (wr_idx - rd_idx));
-+
-+                if (nmea_end_ptr) {
-+                    /* found end marker */
-+                    frame_size = nmea_end_ptr - &serial_buff[rd_idx] + 1;
-+                    latest_msg = lgw_parse_nmea(&serial_buff[rd_idx], frame_size);
-+
-+                    if(latest_msg == INVALID || latest_msg == UNKNOWN) {
-+                        /* checksum failed */
-+                        frame_size = 0;
-+                    } else if (latest_msg == NMEA_RMC) { /* Get location from RMC frames */
-+                        gps_process_coords();
-+                    }
-+                }
-+            }
-+
-+            if (frame_size > 0) {
-+                /* At this point message is a checksum verified frame
-+                   we're processed or ignored. Remove frame from buffer */
-+                rd_idx += frame_size;
-+                frame_end_idx = rd_idx;
-+            } else {
-+                rd_idx++;
-+            }
-+        } /* ...for(rd_idx = 0... */
-+
-+        if (frame_end_idx) {
-+          /* Frames have been processed. Remove bytes to end of last processed frame */
-+          memcpy(serial_buff,&serial_buff[frame_end_idx],wr_idx - frame_end_idx);
-+          wr_idx -= frame_end_idx;
-+        } /* ...for(rd_idx = 0... */
-+
-+        /* Prevent buffer overflow */
-+        if ((sizeof(serial_buff) - wr_idx) < LGW_GPS_MIN_MSG_SIZE) {
-+            memcpy(serial_buff,&serial_buff[LGW_GPS_MIN_MSG_SIZE],wr_idx - LGW_GPS_MIN_MSG_SIZE);
-+            wr_idx -= LGW_GPS_MIN_MSG_SIZE;
-+        }
-+    }
-+
-+    /* clean up before leaving */
-+    if (exit_sig == 1) {
-+        lgw_gps_disable(gps_tty_dev);
-+        lgw_stop();
-+    }
-+
-+    if (com_type == LGW_COM_SPI) {
-+        /* Board reset */
-+        if (system("./reset_lgw.sh stop") != 0) {
-+            printf("ERROR: failed to reset SX1302, check your reset_lgw.sh script\n");
-+            exit(EXIT_FAILURE);
-+        }
-+    }
-+
-+    printf("\nEnd of test for loragw_gps.c\n");
-+    exit(EXIT_SUCCESS);
-+}
-+
-+/* --- EOF ------------------------------------------------------------------ */
-diff --git a/packet_forwarder/src/lora_pkt_fwd.c b/packet_forwarder/src/lora_pkt_fwd.c
-index 53661de..05ce9f0 100644
---- a/packet_forwarder/src/lora_pkt_fwd.c
-+++ b/packet_forwarder/src/lora_pkt_fwd.c
-@@ -72,6 +72,7 @@ License: Revised BSD License, see LICENSE.TXT file include in the project
- #endif
- 
- #define JSON_CONF_DEFAULT   "global_conf.json"
-+#define JSON_CONF_LOCAL     "local_conf.json"
- 
- #define DEFAULT_SERVER      127.0.0.1   /* hostname also supported */
- #define DEFAULT_PORT_UP     1780
-@@ -1431,6 +1432,8 @@ int main(int argc, char ** argv)
-     /* configuration file related */
-     const char defaut_conf_fname[] = JSON_CONF_DEFAULT;
-     const char * conf_fname = defaut_conf_fname; /* pointer to a string we won't touch */
-+    const char default_local_conf_fname[] = JSON_CONF_LOCAL;
-+    const char * local_conf_fname = default_local_conf_fname;
- 
-     /* threads */
-     pthread_t thrid_up;
-@@ -1545,6 +1548,17 @@ int main(int argc, char ** argv)
-         MSG("ERROR: [main] failed to find any configuration file named %s\n", conf_fname);
-         exit(EXIT_FAILURE);
-     }
-+    /* load local configuration files */
-+    if (access(local_conf_fname, R_OK) == 0) { /* if there is a local conf, parse it  */
-+        MSG("INFO: found configuration file %s, parsing it\n", local_conf_fname);
-+        x = parse_gateway_configuration(local_conf_fname);
-+        if (x != 0) {
-+            exit(EXIT_FAILURE);
-+        }
-+    } else {
-+        MSG("ERROR: [main] failed to find any configuration file named %s\n", local_conf_fname);
-+        exit(EXIT_FAILURE);
-+    }
- 
-     /* Start GPS a.s.a.p., to allow it to lock */
-     if (gps_tty_path[0] != '\0') { /* do not try to open GPS device if no path set */
-@@ -1874,11 +1888,6 @@ int main(int argc, char ** argv)
-         pthread_mutex_lock(&mx_concent);
-         i = lgw_get_temperature(&temperature);
-         pthread_mutex_unlock(&mx_concent);
--        if (i != LGW_HAL_SUCCESS) {
--            printf("### Concentrator temperature unknown ###\n");
--        } else {
--            printf("### Concentrator temperature: %.0f C ###\n", temperature);
--        }
-         printf("##### END #####\n");
- 
-         /* generate a JSON report (will be sent to server by upstream thread) */
-@@ -3334,6 +3343,51 @@ void thread_jit(void) {
-     MSG("\nINFO: End of JIT thread\n");
- }
- 
-+static void modify_os_time(const uint32_t ppm_tstamp)
-+{
-+    struct timespec y;
-+    struct timespec tv;
-+    static bool time_already_set = false;
-+    struct timeval stamp;
-+    gettimeofday(&stamp, NULL);
-+    int time_diff = 0;
-+    lgw_cnt2utc(time_reference_gps, ppm_tstamp, &y);
-+    if ((!gps_enabled) || time_already_set)
-+    {
-+        return;
-+    }
-+    if (y.tv_sec < 1583402711) // time less than '2020-03-05 18:00:00'
-+    {
-+        return;
-+    }
-+
-+    MSG("INFO: [modify_os_time] local_time=%ld, gps_time=%ld\n", stamp.tv_sec, y.tv_sec);
-+    time_diff = abs(y.tv_sec - stamp.tv_sec);
-+
-+    if (time_diff < 10)
-+    {
-+        time_already_set = true;
-+        MSG("INFO: [modify_os_time] The difference between the system time(%ld) and the GPS time(%ld) is less than 10 seconds. Use the system time.\n", stamp.tv_sec, y.tv_sec);
-+        return;
-+    }
-+
-+    tv.tv_sec = y.tv_sec;
-+    tv.tv_nsec = 0;
-+
-+    int ret = clock_settime(CLOCK_REALTIME, &tv);
-+    if (0 == ret)
-+    {
-+        time_already_set = true;
-+        time_t t;
-+        struct tm* local;
-+        char buf[128] = {0};
-+        t = time(NULL);
-+        local = localtime(&t);
-+        strftime(buf, 64, "%Y-%m-%d %H:%M:%S", local);  
-+        MSG("INFO: [modify_os_time] System time has been synchronized via GPS, %s\n", buf);
-+    }
-+}
-+
- /* -------------------------------------------------------------------------- */
- /* --- THREAD 4: PARSE GPS MESSAGE AND KEEP GATEWAY IN SYNC ----------------- */
- 
-@@ -3345,7 +3399,7 @@ static void gps_process_sync(void) {
- 
-     /* get GPS time for synchronization */
-     if (i != LGW_GPS_SUCCESS) {
--        MSG("WARNING: [gps] could not get GPS time from GPS\n");
-+        // MSG("WARNING: [gps] could not get GPS time from GPS\n");
-         return;
-     }
- 
-@@ -3361,6 +3415,7 @@ static void gps_process_sync(void) {
-     /* try to update time reference with the new GPS time & timestamp */
-     pthread_mutex_lock(&mx_timeref);
-     i = lgw_gps_sync(&time_reference_gps, trig_tstamp, utc, gps_time);
-+    modify_os_time(trig_tstamp);
-     pthread_mutex_unlock(&mx_timeref);
-     if (i != LGW_GPS_SUCCESS) {
-         MSG("WARNING: [gps] GPS out of sync, keeping previous time reference\n");
-@@ -3404,7 +3459,7 @@ void thread_gps(void) {
-         /* blocking non-canonical read on serial port */
-         ssize_t nb_char = read(gps_tty_fd, serial_buff + wr_idx, LGW_GPS_MIN_MSG_SIZE);
-         if (nb_char <= 0) {
--            MSG("WARNING: [gps] read() returned value %zd\n", nb_char);
-+            // MSG("WARNING: [gps] read() returned value %zd\n", nb_char);
-             continue;
-         }
-         wr_idx += (size_t)nb_char;

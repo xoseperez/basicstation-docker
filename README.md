@@ -5,6 +5,7 @@ This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward pro
 ## Table of Contents
 
 - [Introduction](#introduction)
+- [Tags and platforms](#tags-and-platforms)
 - [Requirements](#requirements)
     - [Hardware](#hardware)
         - [LoRa Concentrators](#lora-concentrators)
@@ -25,12 +26,16 @@ This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward pro
     - [Configure your gateway with AWS LNS](#configure-your-gateway-with-aws-lns)
     - [Advanced configuration](#advanced-configuration)
     - [Running with less privileges](#running-with-less-privileges)
+    - [Using secrets](#using-secrets)
+    - [Check the configuration without a radio](#check-the-configuration-without-a-radio)
     - [Auto-discover](#auto-discover)
     - [Find the concentrator](#find-the-concentrator)
     - [Raspberry Pi 5](#raspberry-pi-5)
+    - [Multiple GPIO chips](#multiple-gpio-chips)
     - [Whitelisting](#whitelisting)
 - [Troubleshoothing](#troubleshoothing)
     - [Connect to a concentrator remotely](#connect-to-a-concentrator-remotely)
+- [Releases](#releases)
 - [Parsers](#parsers)
 - [Attribution](#attribution)
 - [License](#license)
@@ -57,6 +62,25 @@ Based on Semtech's [Basics™ Station](https://github.com/lorabasics/basicstatio
 This project is available on Docker Hub (https://hub.docker.com/r/xoseperez/basicstation) and GitHub (https://github.com/xoseperez/basicstation-docker).
 
 This project has been tested with The Things Stack Community Edition (TTSCE or TTNv3).
+
+
+## Tags and platforms
+
+Each release is one multi-architecture image for `linux/amd64`, `linux/arm64` and `linux/arm/v7`. Docker pulls the right one for your machine.
+
+Releases are tagged with this repository's version:
+
+Tag | Points to
+------------ | -------------
+`v2.9.0` | That release. It never changes.
+`v2.9`, `v2`, `latest` | The newest release.
+
+These older tags stay on Docker Hub as they are, and are no longer updated:
+
+* the per-architecture tags `armv7hf-latest`, `aarch64-latest` and `amd64-latest`;
+* the commit tags (like `622a727`).
+
+If you use one of them, move to `latest`, `v2` or a version tag to keep getting fixes. The startup banner shows the image version and the Basics™ Station version it packages.
 
 
 ## Requirements
@@ -189,24 +213,30 @@ docker stop basicstation
 
 ### Build the image (not required)
 
-In case you can not pull the already built image from Docker Hub or if you want to customize the cose, you can easily build the image by using the [buildx extension](https://docs.docker.com/buildx/working-with-buildx/) of docker and push it to your local repository by doing:
+In case you can not pull the already built image from Docker Hub or if you want to customize the code, you can build it with the [buildx extension](https://docs.docker.com/buildx/working-with-buildx/) of docker. This builds it for one platform and loads it into your local docker:
 
 ```
-docker buildx bake --load aarch64
+docker buildx bake -f docker-bake.hcl --load --set '*.platform=linux/arm64'
 ```
 
-Once built (it will take some minutes) you can bring it up by using `xoseperez/basicstation:aarch64` as the image name in your `docker-compose.yml` file. If you are not in an ARMv8 64 bits machine (like a Raspberry Pi 4) you can change the `aarch64` with `armv7hf` (ARMv7) or `amd64` (AMD64).
+Use `linux/arm64` for an ARMv8 64-bit machine (like a Raspberry Pi 4 or 5), `linux/arm/v7` for ARMv7 or `linux/amd64` for a PC. Once built (it will take some minutes), the image is `xoseperez/basicstation:dev`: use that name in your `docker-compose.yml` file. Building for a platform other than your machine's needs QEMU emulation installed in docker.
 
-The default built is the `stdn` variant that supports multiple radios. In case you want to build the `std` variantyou can do it like this:
-
-```
-VARIANT=std docker buildx bake --load aarch64
-```
-
-The included build script in the root folder can be user to build all architectures and (optionally) push the to a repository. The default repository is `https://hub.docker.com/r/xoseperez/basicstation` which you don't have permissions to push to (obviously), but you can easily push the images to your own repo by doing:
+The default build is the `stdn` variant that supports multiple radios. In case you want to build the `std` variant you can do it like this:
 
 ```
-REGISTRY="registry.example.com/basicstation" ./build.sh --push
+VARIANT=std docker buildx bake -f docker-bake.hcl --load --set '*.platform=linux/arm64'
+```
+
+Without `--set '*.platform=...'` it builds all three platforms. To push them as one multi-architecture image to your own registry, set `REGISTRY` and use `--push` instead of `--load` (the default registry is `xoseperez/basicstation`, which you can't push to):
+
+```
+REGISTRY="registry.example.com/basicstation" docker buildx bake -f docker-bake.hcl --push
+```
+
+To check a built image without any radio hardware, run the smoke test from the repository folder. It needs `docker`, `jq` and `openssl`, and takes a couple of minutes on your machine's own platform:
+
+```
+./smoke-test.sh xoseperez/basicstation:dev linux/amd64
 ```
 
 ## Configure the Gateway
@@ -224,15 +254,15 @@ Variable Name | Value | Description | Default
 **`DEVICE`** | `STRING` or `AUTO` | Where the concentrator is connected to. Set to `AUTO` for auto-discover. | `/dev/spidev0.0` for SPI concentrators, `/dev/ttyUSB0` or `/dev/ttyACM0` for USB concentrators, the host IP port 3333 for `NET` connections
 **`SPI_SPEED`** | `INT` | Speed of the SPI interface | 2000000 (2MHz) for SX1301 concentrators, 8000000 (8Mhz) for the rest
 **`CLKSRC`** | `INT` | Radio index that provides clock to concentrator | 1 for SX1301 concentradors, 0 for the rest 
-**`USE_LIBGPIOD`** | `INT` | Use `sysfs` (0) or `libgpiod` (1) to manage the GPIOs | 1
-**`GPIO_CHIP`** | `STRING` | Default GPIO ID to use when using libgpiod (used for both reset and enable if the specific variables are not defined) | `gpiochip0` (`gpiochip4` for Raspberry Pi 5)
+**`USE_LIBGPIOD`** | `INT` | Use `sysfs` (0) or `libgpiod` (1) to manage the GPIOs | 1 (`gpioset` is in the image)
+**`GPIO_CHIP`** | `STRING` | Default GPIO ID to use when using libgpiod (used for both reset and enable if the specific variables are not defined) | The first gpiochip labelled `pinctrl` (the SoC's GPIO block on a Raspberry Pi). If there is none and none is set, the concentrator is not reset, and the reset script prints a warning saying so
 **`RESET_GPIO_CHIP`** | `STRING` | Override GPIO chip used for reset operations (e.g. separate gpiochip on boards with multiple pinctrl devices) | Falls back to `GPIO_CHIP`
 **`ENABLE_GPIO_CHIP`** | `STRING` | Override GPIO chip used for power enable operations (e.g. separate gpiochip on boards with multiple pinctrl devices) | Falls back to `GPIO_CHIP`
 **`RESET_GPIO`** | `INT` | GPIO number that resets (Broadcom pin number, if not defined it's calculated based on the `RESET_PIN`) | 17
 **`POWER_EN_GPIO`** | `INT` | GPIO number that enables power (by pulling HIGH) to the concentrator (Broadcom pin number). 0 means no required. | 0
 **`POWER_EN_LOGIC`** | `INT` | If `POWER_EN_GPIO` is not 0, the corresponding GPIO will be set to this value | 1
-**`GATEWAY_EUI`** | `STRING` | Gateway EUI to use | Autogenerated from `GATEWAY_EUI_NIC` if defined, otherwise in order from: `eth0`, `wlan0`, `usb0`
-**`GATEWAY_EUI_SOURCE`** | `STRING` | Source to use when generating the EUI when `GATEWAY_EUI` is not defined. Set to `chip` for SX1302/3 chips to get the EUI from the radio chip. | `eth0`
+**`GATEWAY_EUI`** | `STRING` | Gateway EUI to use. A `routerid` in your own `station.conf` takes precedence, because that is the EUI station uses | Autogenerated from `GATEWAY_EUI_SOURCE` if defined, otherwise in order from: `eth0`, `wlan0`, `usb0`, `eth1`, then the interface that received the most traffic (never loopback)
+**`GATEWAY_EUI_SOURCE`** | `STRING` | Network interface to generate the EUI from when `GATEWAY_EUI` is not defined, or `chip` for SX1302/3 chips to get the EUI from the radio chip. If the interface does not exist, a warning is shown and the default order is used | `eth0`, `wlan0`, `usb0`, `eth1`, then the busiest interface
 **`HAS_GPS`** | 0 or 1 | Set to 0 to disable onbard GPS | `0`, if `GPS_DEV` is defined and exists it will be set to `1` by default
 **`GPS_DEV`** | `STRING` | Where the GPS is connected to. Don't set it if you don't know what this means | `/dev/ttyAMA0` or `/dev/i2c-1` for known models
 **`TTS_REGION`** | `STRING` | Region of the TTNv3 server to use | ```eu1```
@@ -240,13 +270,13 @@ Variable Name | Value | Description | Default
 **`SERVER`** | `STRING` | Host machine that hosts the LNS | Automatically created based on `TTS_REGION` for TTN or `TTS_TENANT` and `TTS_REGION` for TTI
 **`TLS_SNI`**| `true` or `false` | Server name indication (SNI) check | `true`
 **`TC_URI`** | `STRING` | LoRaWAN Network Server to connect to | Automatically created based on `SERVER`
-**`TC_TRUST`** | `STRING` | CA certificate for the server | Precached certificate
-**`TC_CRT`** | `STRING` | Client certificate (only if required by the server) | 
+**`TC_TRUST`** | `STRING` | CA certificate(s) for the server. Every certificate in it is kept | The system CA bundle in the image
+**`TC_CRT`** | `STRING` | Client certificate, or its chain (only if required by the server) | 
 **`TC_KEY`** | `STRING` | Unique gateway key or client key used to connect to the LNS | 
 **`USE_CUPS`** | 0 or 1 | Set to 1 to force CUPS even without a CUPS_KEY variable or cups.key file | 0
 **`CUPS_URI`** | `STRING` | CUPS Server to connect to | Automatically created based on `SERVER`
-**`CUPS_TRUST`** | `STRING` | CA certificate for the CUPS server | Precached certificate
-**`CUPS_CRT`** | `STRING` | Client certificate (only if required by the server) | 
+**`CUPS_TRUST`** | `STRING` | CA certificate(s) for the CUPS server. Every certificate in it is kept | The system CA bundle in the image
+**`CUPS_CRT`** | `STRING` | Client certificate, or its chain (only if required by the server) | 
 **`CUPS_KEY`** | `STRING` | Unique gateway key or client key used to connect to the CUPS server |
 **`GATEWAY_PREFIX`** | `STRING` | Prefix to autogenerate GATEWAY_ID for TTS/TTI/TTN autoprovision | `eui`
 **`GATEWAY_ID`** | `STRING` | ID to use when autoprovisioning the gateway on TTS/TTI/TTN | `GATEWAY_PREFIX` + `-` + `GATEWAY_EUI`
@@ -257,11 +287,11 @@ Variable Name | Value | Description | Default
 **`TTS_USERNAME`** | `STRING` | Name of your user on the TTS instance you want to register the gateway | Paste your username
 **`TTS_PERSONAL_KEY`** | `STRING` | Unique key to create the gateway and its key | Paste personal API key from your TTS instance (check section about autoprovision below)
 **`TTS_FREQUENCY_PLAN_ID`** | `STRING` | The Things Stack frequency plan (https://www.thethingsindustries.com/docs/reference/frequency-plans/) | "EU_863_870_TTN"
+**`WHITELIST_NETIDS`** | `STRING` | List of up to 16 NetIDs to whitelist, filters uplinks (see `Whitelisting` below) | *empty*
+**`WHITELIST_OUIS`** | `STRING` | List of up to 16 OUIs to whitelist, filters join requests (see `Whitelisting` below) | *empty*
 **`GW_RESET_PIN`** | **Deprecated** | Use RESET_GPIO instead |
 **`RESET_PIN`** | **Deprecated** | Use RESET_GPIO instead |
 **`LORAGW_SPI`** | **Deprecated** | Use DEVICE instead |
-**`WHITELIST_NETIDS`** | `STRING` | List of NetIDs to whitelist, filters uplinks | *empty*
-**`WHITELIST_OUIS`** | `STRING` | List of OUIs to whitelist, filters join requests | *empty*
 **`TTN_REGION`** | **Deprecated** | Use TTS_REGION instead |
 **`GATEWAY_EUI_NIC`** | **Deprecated** | Use GATEWAY_EUI_SOURCE instead |
 **`GW_RESET_GPIO`** | **Deprecated** | Use RESET_GPIO instead |
@@ -400,6 +430,10 @@ services:
 Remember that when using TTN the `GATEWAY_NAME` and `GATEWAY_ID` must be unique over time (including deleted gateways). 
 
 The autoprovision process is going to create the gateway and a single use `TC_KEY`. The `TC_KEY` will be stored on the mounted `config` volume. If you don't have a mounted volume, the `TC_KEY` will be regenerated every time you reboot the service and the previous key will be deleted.
+
+The gateway is registered with the EUI station is going to use. That EUI is resolved first, as described in `Get the EUI of the Gateway`, so `GATEWAY_EUI` doesn't need to be set. If you mount your own `station.conf`, station uses its `routerid`, so that is the EUI registered. In that case the `routerid` must be there: without it, station would pick an EUI of its own, so the service stops with an error instead of registering a gateway that would never connect.
+
+If autoprovisioning fails (the server can't be reached, it returns an error, or it returns no key), the service says so and stops, rather than starting without a key.
 
 You might want to change the `TTS_REGION` if not using the european server, set `TTS_TENANT` if using a The Things Clound instance or `SERVER` if using a on-premise instance of The Things Stack.
 
@@ -648,7 +682,7 @@ secrets:
 
 ```
 
-The service accepts the following secrets **named exactly** as the basicstation configuration files:
+The service accepts the following secrets **named exactly** as the basicstation configuration files. Certificate files can hold a whole chain: every certificate is kept.
 
 * tc.uri
 * tc.trust
@@ -659,6 +693,18 @@ The service accepts the following secrets **named exactly** as the basicstation 
 * cups.crt
 * cups.key
 
+
+### Check the configuration without a radio
+
+`start --render` resolves your settings exactly like a normal start, and writes every file a normal start would write under `/app/config` (`station.conf`, `slave-0.conf`, `tc.*` or `cups.*`, `reset.sh`). It then prints the summary and exits, without launching Basics™ Station. A missing radio device is only a warning:
+
+```
+docker run --rm -e MODEL=RAK5146 -e TC_KEY="..." xoseperez/basicstation start --render
+```
+
+Mount a folder on `/app/config` to keep the files. Invalid settings make it exit with an error, the same one a normal start prints. It only probes hardware when the settings ask for it: `MODEL` or `DEVICE` unset or `AUTO` (auto-discover), or `GATEWAY_EUI_SOURCE` set to `chip`. With `MODEL` unset and no concentrator attached, it stops with an error. With `INTERFACE` set to `NET`, it opens the network link like a normal start.
+
+With `TTS_USERNAME` and `TTS_PERSONAL_KEY` set, it does not autoprovision the gateway unless you add `--autoprovision` (`start --render --autoprovision`). Autoprovisioning revokes the gateway's previous key, so rendering next to a running gateway would disconnect it. Without the flag, the render says it skipped autoprovisioning and writes no `tc.key`: that output is for checking your settings, not ready to run.
 
 ### Auto-discover
 
@@ -796,7 +842,9 @@ Run `gpiodetect` on your host to find the available gpiochip names, and `gpioinf
 
 From version 2.8.1, the service supports message filtering via white lists. There are two whitelists: by NetID and by OUI.
 
-To filter only devices belonging to your network you can add the NetID of your LNS to the `WHITELIST_NETIDS` setting. More than one NetID can be added (comman or space separated). They can also be added in decimal (TTN is 19) or hexadecimal with leading `0x` (TTN is 0x000013). If `WHITELIST_NETIDS` is nt set or empty, no filtering happens. 
+To filter only devices belonging to your network you can add the NetID of your LNS to the `WHITELIST_NETIDS` setting. More than one NetID can be added (comma or space separated), up to 16. They can be added in decimal (TTN is 19) or hexadecimal with leading `0x` (TTN is 0x000013), up to 3 bytes (0xFFFFFF). If `WHITELIST_NETIDS` is not set or empty, no filtering happens.
+
+A list with more than 16 entries, or an entry that isn't a valid 3-byte number, stops the service with an error naming it. A decimal entry can't start with a zero: `000013` is rejected, with a hint to write it as `0x000013` if you meant hex. (Older versions read such entries as octal, so `000013` silently became 0x00000B.) If you provide your own `station.conf`, its `whitelist_netids` and `whitelist_ouis` are used instead, and station ignores any entry after the 16th, with a warning in its log.
 
 The example below filters out all messages from devices not belonging to TTN/TTI:
 
@@ -834,7 +882,7 @@ services:
     environment:
       MODEL: "RAK5146"
       GATEWAY_EUI: "E45F01FFFE517BA8"
-      WHITELIST_OUIS: "0xA81758","0xA91555"
+      WHITELIST_OUIS: "0xA81758,0xA91555"
       TC_KEY: "..."
 ```
 
@@ -923,6 +971,16 @@ services:
       (...)
 ```
 
+## Releases
+
+Images are built, tested and published by the `Docker release` GitHub Actions workflow (`.github/workflows/docker-release.yml`), not from a developer machine. It needs the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets.
+
+* To release, add the version to `CHANGELOG.md`, tag the commit `v<major>.<minor>.<patch>` (for example `v2.9.1`) and publish a GitHub release for it. The workflow checks the tag, builds the three platforms, runs `smoke-test.sh` on each, and only then pushes the image and its tags.
+* To package a new Basics™ Station release, change `BASICSTATION_VERSION` in `docker-bake.hcl` and release that as a new version.
+* The floating tags (`v2.9`, `v2`, `latest`) move only for the newest release, so rebuilding an older one never moves them back.
+* The workflow refuses to overwrite a published version. To rebuild one, run it by hand (Actions, `Docker release`, `Run workflow`) with its tag and `replace` ticked.
+* Before tagging, run it by hand on the branch with `dry_run` ticked. It builds and smoke-tests the three platforms and shows how long each took, without checking tags, logging in to Docker Hub or pushing anything.
+
 ## Parsers
 
 Parsers that used to be available under the `tools` folder have been moved to their own repo: https://github.com/xoseperez/packet-forwarder-loggers
@@ -938,7 +996,7 @@ Parsers that used to be available under the `tools` folder have been moved to th
 
 The contents of this repository (not of those repositories linked or used by this one) are under BSD 3-Clause License.
 
-Copyright (c) 2021-2025 Xose Pérez <xose.perez@gmail.com>
+Copyright (c) 2021-2026 Xose Pérez <xose.perez@gmail.com>
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

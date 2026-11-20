@@ -1,3 +1,10 @@
+Subject: Choose the toolchain from the target architecture
+
+Upstream maps each platform to one fixed toolchain (corecell and rpi assume
+32-bit ARM) and uses the local gcc only when it matches. The image is built on
+each target architecture, so the build passes arch=armv7hf|aarch64|amd64 and
+setup.gmk maps it to the matching gcc triplet.
+
 diff --git a/setup.gmk b/setup.gmk
 index d7c4363..55d74c1 100644
 --- a/setup.gmk
