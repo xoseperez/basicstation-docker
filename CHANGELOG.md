@@ -5,6 +5,7 @@
 * Images are built by a GitHub Actions workflow for `linux/amd64`, `linux/arm64` and `linux/arm/v7`
 * `find_concentrator` and `gateway_eui` reset SPI concentrators again
 * Autoprovisioning improves (registers the EUI station uses, properly reports a failure, keeps `TTS_PERSONAL_KEY` out of the process list)
+* `TTS_USERNAME` and `TTS_PERSONAL_KEY` can also be given as the `tts.username` and `tts.personal_key` secrets
 * `GATEWAY_EUI_SOURCE=<interface>` picks that interface again
 * `USE_LIBGPIOD=0` selects sysfs again
 * Certificate chains in `TC_TRUST`, `TC_CRT`, `CUPS_TRUST`, `CUPS_CRT` and their secret files keep every certificate

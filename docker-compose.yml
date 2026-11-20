@@ -34,6 +34,8 @@ services:
     #  - cups.trust
     #  - cups.crt
     #  - cups.key
+    #  - tts.username
+    #  - tts.personal_key
        
     #environment:
 
@@ -217,4 +219,8 @@ services:
 #    file: cups.crt
 #  cups.key:
 #    file: cups.key
+#  tts.username:
+#    file: tts.username
+#  tts.personal_key:
+#    file: tts.personal_key
   

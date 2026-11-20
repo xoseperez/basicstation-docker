@@ -284,8 +284,8 @@ Variable Name | Value | Description | Default
 **`DISABLE_CLEAR_CHANNEL_ANALYSIS`** | 0 or 1 | Set to 1 to disable clear-channel analysis (LBT) | 0
 **`DISABLE_DUTY_CYCLE_CHECK`** | 0 or 1 | Set to 1 to disable duty cycle check | 0
 **`DISABLE_DWELL_TIME_LIMITS`** | 0 or 1 | Set to 1 to disable dwell-time limitations | 0
-**`TTS_USERNAME`** | `STRING` | Name of your user on the TTS instance you want to register the gateway | Paste your username
-**`TTS_PERSONAL_KEY`** | `STRING` | Unique key to create the gateway and its key | Paste personal API key from your TTS instance (check section about autoprovision below)
+**`TTS_USERNAME`** | `STRING` | Name of your user on the TTS instance you want to register the gateway. Can also be given as the `tts.username` secret | Paste your username
+**`TTS_PERSONAL_KEY`** | `STRING` | Unique key to create the gateway and its key. Can also be given as the `tts.personal_key` secret | Paste personal API key from your TTS instance (check section about autoprovision below)
 **`TTS_FREQUENCY_PLAN_ID`** | `STRING` | The Things Stack frequency plan (https://www.thethingsindustries.com/docs/reference/frequency-plans/) | "EU_863_870_TTN"
 **`WHITELIST_NETIDS`** | `STRING` | List of up to 16 NetIDs to whitelist, filters uplinks (see `Whitelisting` below) | *empty*
 **`WHITELIST_OUIS`** | `STRING` | List of up to 16 OUIs to whitelist, filters join requests (see `Whitelisting` below) | *empty*
@@ -419,6 +419,30 @@ services:
       MODEL: "SX1303"
       TTS_USERNAME: "xoseperez" # use here your TTN user name
       TTS_PERSONAL_KEY: "NNSXS.E2CK53N....." # use here a personal key with the required permissions
+```
+
+To keep the personal key out of the compose file and `docker inspect`, provide both as secrets instead:
+
+```
+services:
+
+  basicstation:
+    image: xoseperez/basicstation:latest
+    container_name: basicstation
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    secrets:
+      - tts.username
+      - tts.personal_key
+    environment:
+      MODEL: "SX1303"
+
+secrets:
+  tts.username:
+    file: ./tts.username
+  tts.personal_key:
+    file: ./tts.personal_key
 ```
 
 `TTS_PERSONAL_KEY` should be a key with, at least, the following permissions:
@@ -692,6 +716,10 @@ The service accepts the following secrets **named exactly** as the basicstation 
 * cups.trust
 * cups.crt
 * cups.key
+* tts.username
+* tts.personal_key
+
+The last two hold `TTS_USERNAME` and `TTS_PERSONAL_KEY` for autoprovisioning (see `Autoprovision your gateway on TTN or TTI`). A secret takes precedence over the variable of the same name. A trailing newline or CRLF in any of these files is fine.
 
 
 ### Check the configuration without a radio

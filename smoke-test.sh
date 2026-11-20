@@ -568,6 +568,21 @@ run_in /app/config "${WORK}/ap-static-env" "${STATIC_ROUTERID}" "${TTS[@]}" -e G
 check_provisioned "${WORK}/ap-static-env" "AABBCCDDEEFF0011"
 expect "${OUTPUT}" "STATIC summary" "Gateway EUI:   AABBCCDDEEFF0011" "EUI Source:    file"
 
+# The credentials as secret files, saved with CRLF: the username secret wins
+# over the variable, and the line endings don't reach the URL or the header
+TTS_SECRETS=${WORK}/tts-secrets
+mkdir -p "${TTS_SECRETS}/run/secrets"
+cp -r "${CA_OVERLAY}/." "${TTS_SECRETS}/"
+printf 'smoke-user\r\n' > "${TTS_SECRETS}/run/secrets/tts.username"
+printf 'smoke-personal-key\r\n' > "${TTS_SECRETS}/run/secrets/tts.personal_key"
+mock ok
+run_in /app/config "${WORK}/ap-secrets" "${TTS_SECRETS}" -e TTS_USERNAME=not-this-user -e SERVER=tts-mock \
+    -e CURL_CA_BUNDLE=/tmp/smoke-ca.pem -e MODEL=RAK5146 --mac-address "${MAC_A}" -- start --render --autoprovision
+[[ ${STATUS} -eq 0 ]] || fail_output "autoprovisioning (tts.* secrets) exited ${STATUS}"
+check_provisioned "${WORK}/ap-secrets" "${EUI_A}"
+same "$( requests | jq -r 'select(.method == "POST" and (.path | endswith("/gateways"))) | .path' )" \
+    "/api/v3/users/smoke-user/gateways" "registration path with the tts.username secret"
+
 section "autoprovisioning only on request, and its errors"
 mock ok
 run_in /app/config "${WORK}/ap-skipped" "${CA_OVERLAY}" "${TTS[@]}" -- start --render
