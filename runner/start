@@ -64,10 +64,13 @@ function create_reset_file {
 
     local RESET_FILE=/app/config/reset.sh
 
-    resolve_use_libgpiod
+    resolve_use_libgpiod || idle
 
     if [[ "${INTERFACE}" == "USB" ]]; then
-        echo "" > ${RESET_FILE}
+        # USB concentrators have no reset line, but station still runs the
+        # script, with execvp. It needs a #! line: glibc falls back to /bin/sh
+        # for a file without one, musl refuses it and the radio never starts.
+        printf '#!/bin/sh\n# USB concentrators have no reset line\nexit 0\n' > "${RESET_FILE}"
         chmod +x "${RESET_FILE}"
     else
         render_reset_file "${RESET_FILE}" "${RESET_GPIO:-17}" "${POWER_EN_GPIO:-0}" "${POWER_EN_LOGIC:-1}" || idle
@@ -254,24 +257,54 @@ function tts_autoprovision() {
 # chains stay whole. Content without a PEM block is printed unchanged.
 function clean_certs_keys() {
 
+    # Re-wraps every PEM block in CONTENT: each "-----BEGIN <label>-----" up to
+    # the first "-----END <label>-----" with the same label is printed with its
+    # body stripped of whitespace and wrapped at 64 columns, so a chain pasted
+    # into one line of an environment variable still parses. Text outside the
+    # blocks is dropped. Without any complete block, CONTENT is printed as it
+    # is, because some of these values are bearer tokens, not PEM.
+    #
+    # gawk rather than bash string operations: those copy or rescan the rest
+    # of the input at every step, which takes seconds on a CA bundle. RS="^$"
+    # reads the whole input as one record, and the C locale keeps every
+    # length in bytes.
     local CONTENT=$1
 
-    if [[ "$CONTENT" == *-----BEGIN* ]]; then
-        printf '%s' "$CONTENT" | perl -0777 -ne '
-            my $original = $_;
-            my $count = 0;
-            while ( /-----BEGIN ([A-Z0-9 ]+)-----(.*?)-----END \1-----/sg ) {
-                my ( $label, $body ) = ( $1, $2 );
-                $body =~ s/\s+//g;
-                $body =~ s/(.{1,64})/$1\n/g;
-                print "-----BEGIN $label-----\n$body-----END $label-----\n";
-                $count++;
-            }
-            print "$original\n" if $count == 0;
-        '
-    else
+    if [[ "$CONTENT" != *-----BEGIN* ]]; then
         echo "$CONTENT"
+        return
     fi
+
+    printf '%s' "$CONTENT" | LC_ALL=C gawk -v RS='^$' '
+        {
+            rest = $0
+            found = 0
+            while ((i = index(rest, "-----BEGIN ")) > 0) {
+                rest = substr(rest, i + 11)
+                # The label runs up to the next dashes and is only capitals,
+                # digits and spaces; a marker without one, or without its END,
+                # is skipped
+                j = index(rest, "-----")
+                if (j < 2) continue
+                label = substr(rest, 1, j - 1)
+                if (label ~ /[^A-Z0-9 ]/) continue
+                after = substr(rest, j + 5)
+                end_marker = "-----END " label "-----"
+                k = index(after, end_marker)
+                if (k == 0) continue
+                body = substr(after, 1, k - 1)
+                rest = substr(after, k + length(end_marker))
+                gsub(/[ \t\n\r\v\f]/, "", body)
+                printf "%s\n", "-----BEGIN " label "-----"
+                while (body != "") {
+                    printf "%s\n", substr(body, 1, 64)
+                    body = substr(body, 65)
+                }
+                printf "%s\n", end_marker
+                found = 1
+            }
+            if (!found) printf "%s\n", $0
+        }'
 
 }
 
@@ -780,6 +813,8 @@ function build_info {
 echo -e "${COLOR_WARNING}------------------------------------------------------------------${COLOR_END}"
 echo -e "${COLOR_WARNING}BasicStation (TM) Packet Forwarder Container ${IMAGE_VERSION:-unknown}${COLOR_END}"
 echo -e "${COLOR_WARNING}(c) Xose Pérez 2021-2025${COLOR_END}"
+# A subshell, so the os-release variables don't leak into this script
+echo -e "${COLOR_WARNING}Base image: $( . /etc/os-release 2>/dev/null && echo "${PRETTY_NAME}" ) (${BASE_IMAGE:-unknown})${COLOR_END}"
 echo -e ""
 echo -e "${COLOR_WARNING}Station built with:${COLOR_END}"
 echo -e "${COLOR_WARNING} * basicstation v$( build_info basicstation )${COLOR_END}"
@@ -845,8 +880,11 @@ fi
 if [[ "$INTERFACE" == "SPI" ]]; then
 echo -e "${COLOR_INFO}SPI Speed:     ${LORAGW_SPI_SPEED}${COLOR_END}"
 if [[ $USE_LIBGPIOD -eq 1 ]]; then
+    echo -e "${COLOR_INFO}GPIO access:   libgpiod${COLOR_END}"
     echo -e "${COLOR_INFO}Reset GPIO chip:   ${RESET_GPIO_CHIP}${COLOR_END}"
     echo -e "${COLOR_INFO}Enable GPIO chip:  ${ENABLE_GPIO_CHIP}${COLOR_END}"
+else
+    echo -e "${COLOR_INFO}GPIO access:   sysfs${GPIO_ACCESS_NOTE:+ (${GPIO_ACCESS_NOTE})}${COLOR_END}"
 fi
 echo -e "${COLOR_INFO}Reset GPIO:    ${RESET_GPIO}${COLOR_END}"
 echo -e "${COLOR_INFO}Enable GPIO:   ${POWER_EN_GPIO}${COLOR_END}"
@@ -922,7 +960,9 @@ if [[ "${PROTOCOL}" == "CUPS" ]]; then
     fi
     if [[ ! -f ./cups.key ]]; then
         if [[ ! -f ./cups.crt ]]; then
-	        echo "Authorization: Bearer ${CUPS_KEY}" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > cups.key
+            # One header line ending in CRLF. A line break inside the key would
+            # end the header early, so any CR or LF in it is dropped.
+            printf 'Authorization: Bearer %s\r\n' "${CUPS_KEY//[$'\r\n']/}" > cups.key
         else
             clean_certs_keys "$CUPS_KEY" > cups.key
         fi
@@ -948,7 +988,9 @@ if [[ "$PROTOCOL" == "LNS" ]]; then
     fi
     if [[ ! -f ./tc.key ]] && [[ ${SKIP_TC_KEY} -eq 0 ]]; then
         if [[ ! -f ./tc.crt ]]; then
-        	echo "Authorization: Bearer $TC_KEY" | perl -p -e 's/\r\n|\n|\r/\r\n/g'  > tc.key
+            # One header line ending in CRLF. A line break inside the key would
+            # end the header early, so any CR or LF in it is dropped.
+            printf 'Authorization: Bearer %s\r\n' "${TC_KEY//[$'\r\n']/}" > tc.key
         else
             clean_certs_keys "$TC_KEY" > tc.key
         fi

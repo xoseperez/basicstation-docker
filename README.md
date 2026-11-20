@@ -6,6 +6,7 @@ This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward pro
 
 - [Introduction](#introduction)
 - [Tags and platforms](#tags-and-platforms)
+    - [Base image](#base-image)
 - [Requirements](#requirements)
     - [Hardware](#hardware)
         - [LoRa Concentrators](#lora-concentrators)
@@ -80,7 +81,13 @@ These older tags stay on Docker Hub as they are, and are no longer updated:
 * the per-architecture tags `armv7hf-latest`, `aarch64-latest` and `amd64-latest`;
 * the commit tags (like `622a727`).
 
-If you use one of them, move to `latest`, `v2` or a version tag to keep getting fixes. The startup banner shows the image version and the Basics™ Station version it packages.
+If you use one of them, move to `latest`, `v2` or a version tag to keep getting fixes. The startup banner shows the image version, the Basics™ Station version it packages and the base image.
+
+### Base image
+
+From `v2.9.0` the image is built on **Alpine Linux 3.24** (musl libc). Earlier images used Debian 12 (bookworm). Alpine 3.24's main repository has security support until **2028-06-01**. `libgpiod` comes from its community repository, which gets fixes only until the next Alpine release, so the base is bumped when that release ships.
+
+> **Breaking change for images built on top of this one.** If your Dockerfile starts `FROM xoseperez/basicstation` and installs packages, use `apk add` instead of `apt-get install`. Binaries built against glibc don't run on it. `v2` and `latest` moved to the Alpine image with `v2.9.0`; `v2.8.6` is the last Debian-based release.
 
 
 ## Requirements
@@ -92,6 +99,8 @@ As long as the host can run docker containers, the Basics™ Station for Docker 
 * AMD64: most PCs out there
 * ARMv8: Raspberry Pi 3/4/5, 400, Compute Module 3/4, Zero 2 W,...
 * ARMv7: Raspberry Pi 2,...
+
+Resetting SPI concentrators through `libgpiod` (the default) needs Linux 5.10 or newer on the host, which added the GPIO interface libgpiod 2 uses. Containers share the host's kernel. On older kernels the service uses sysfs instead and says so in its summary (see `USE_LIBGPIOD`). Raspberry Pi OS has shipped newer kernels since 2021.
 
 > **NOTE**: you will need an OS in the host machine, for some SBC like a Raspberry Pi that means and SD card with an OS (like Rasperry Pi OS) flashed on it.
 
@@ -254,7 +263,7 @@ Variable Name | Value | Description | Default
 **`DEVICE`** | `STRING` or `AUTO` | Where the concentrator is connected to. Set to `AUTO` for auto-discover. | `/dev/spidev0.0` for SPI concentrators, `/dev/ttyUSB0` or `/dev/ttyACM0` for USB concentrators, the host IP port 3333 for `NET` connections
 **`SPI_SPEED`** | `INT` | Speed of the SPI interface | 2000000 (2MHz) for SX1301 concentrators, 8000000 (8Mhz) for the rest
 **`CLKSRC`** | `INT` | Radio index that provides clock to concentrator | 1 for SX1301 concentradors, 0 for the rest 
-**`USE_LIBGPIOD`** | `INT` | Use `sysfs` (0) or `libgpiod` (1) to manage the GPIOs | 1 (`gpioset` is in the image)
+**`USE_LIBGPIOD`** | `INT` | Use `sysfs` (0) or `libgpiod` (1) to manage the GPIOs. libgpiod needs Linux 5.10 or newer on the host: setting 1 on an older kernel stops the service with an error | 1 on Linux 5.10 or newer, otherwise 0
 **`GPIO_CHIP`** | `STRING` | Default GPIO ID to use when using libgpiod (used for both reset and enable if the specific variables are not defined) | The first gpiochip labelled `pinctrl` (the SoC's GPIO block on a Raspberry Pi). If there is none and none is set, the concentrator is not reset, and the reset script prints a warning saying so
 **`RESET_GPIO_CHIP`** | `STRING` | Override GPIO chip used for reset operations (e.g. separate gpiochip on boards with multiple pinctrl devices) | Falls back to `GPIO_CHIP`
 **`ENABLE_GPIO_CHIP`** | `STRING` | Override GPIO chip used for power enable operations (e.g. separate gpiochip on boards with multiple pinctrl devices) | Falls back to `GPIO_CHIP`
@@ -977,6 +986,7 @@ Images are built, tested and published by the `Docker release` GitHub Actions wo
 
 * To release, add the version to `CHANGELOG.md`, tag the commit `v<major>.<minor>.<patch>` (for example `v2.9.1`) and publish a GitHub release for it. The workflow checks the tag, builds the three platforms, runs `smoke-test.sh` on each, and only then pushes the image and its tags.
 * To package a new Basics™ Station release, change `BASICSTATION_VERSION` in `docker-bake.hcl` and release that as a new version.
+* To bump the base image, change `ARG BASE_IMAGE` at the top of the `Dockerfile` (for example to `alpine:3.25`). Then run `smoke-test.sh`, `smoke/gpio-sim-check.sh` (it needs root and the `gpio-sim` kernel module) and the hardware checks, and update the end-of-support date under "Base image".
 * The floating tags (`v2.9`, `v2`, `latest`) move only for the newest release, so rebuilding an older one never moves them back.
 * The workflow refuses to overwrite a published version. To rebuild one, run it by hand (Actions, `Docker release`, `Run workflow`) with its tag and `replace` ticked.
 * Before tagging, run it by hand on the branch with `dry_run` ticked. It builds and smoke-tests the three platforms and shows how long each took, without checking tags, logging in to Docker Hub or pushing anything.

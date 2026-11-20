@@ -2,6 +2,10 @@
 # every platform. For this machine only:
 #   docker buildx bake -f docker-bake.hcl --load --set '*.platform=linux/amd64'
 
+# Both stages are built on this base. To bump it, change it here, then run the
+# smoke test, the GPIO timing check and the hardware checks, and update the
+# end-of-support date in the README.
+ARG BASE_IMAGE=alpine:3.24
 ARG BASICSTATION_VERSION=2.0.6
 ARG SX1302_HAL_VERSION=2.1.0
 ARG PICOGW_HAL_VERSION=0.2.3
@@ -9,20 +13,26 @@ ARG VARIANT=stdn
 ARG VERSION=dev
 
 # Builder image
-FROM debian:bookworm-slim AS builder
+FROM ${BASE_IMAGE} AS builder
 ARG TARGETPLATFORM
 ARG BASICSTATION_VERSION
 ARG SX1302_HAL_VERSION
 ARG PICOGW_HAL_VERSION
 ARG VARIANT
 
-# Install required development packages
-COPY builder/install_packages /usr/sbin/
-RUN chmod 0755 /usr/sbin/install_packages
-RUN install_packages \
+# Development packages. linux-headers provides the spidev and i2c headers the
+# HALs include; the GNU tools keep the build scripts on the behaviour they were
+# written for.
+RUN apk add --no-cache \
+    build-base \
+    linux-headers \
     git \
+    bash \
     ca-certificates \
-    build-essential
+    coreutils \
+    findutils \
+    sed \
+    grep
 
 # Switch to working directory for our app
 WORKDIR /app
@@ -47,28 +57,34 @@ RUN case "${TARGETPLATFORM}" in \
     ./build
 
 # Runner image
-FROM debian:bookworm-slim AS runner
+FROM ${BASE_IMAGE} AS runner
+# A global ARG only reaches the FROM lines; the label and ENV below need it
+# declared again in this stage, or they come out empty.
+ARG BASE_IMAGE
 ARG VARIANT
 ARG VERSION
 
-# Install utility
-COPY builder/install_packages /usr/sbin/
-RUN chmod 0755 /usr/sbin/install_packages
-
 # Runtime packages: the commands the runner scripts call, and the system CA
-# bundle used as the default trust
-RUN install_packages \
+# bundle used as the default trust. The GNU tools replace BusyBox's, whose sed,
+# grep, awk and timeout lack options the scripts use.
+RUN apk add --no-cache \
     bash \
     jq \
     socat \
     curl \
-    gpiod \
+    libgpiod \
     iproute2 \
-    ca-certificates
+    ca-certificates \
+    sed \
+    grep \
+    gawk \
+    coreutils \
+    findutils
 
 # Image metadata (OCI labels come from docker-bake.hcl)
 LABEL maintainer="Xose Pérez <xose.perez@gmail.com>"
 LABEL authors="Jose Marcelino, Marc Pous, Xose Pérez and Semtech"
+LABEL org.opencontainers.image.base.name="docker.io/library/${BASE_IMAGE}"
 
 # Switch to working directory for our app
 WORKDIR /app
@@ -85,6 +101,7 @@ RUN chmod +x start gateway_eui find_concentrator
 # Add application folder to path
 ENV PATH="${PATH}:/app"
 ENV IMAGE_VERSION=${VERSION}
+ENV BASE_IMAGE=${BASE_IMAGE}
 
 # Launch our binary on container startup.
 CMD ["start"]

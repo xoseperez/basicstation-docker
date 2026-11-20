@@ -1,0 +1,36 @@
+Subject: Build with musl libc
+
+Two things glibc provides implicitly are missing under musl, and gcc 14 and
+later turn the resulting implicit declarations into errors:
+- aio.c uses select() and fd_set without including <sys/select.h>, which
+  glibc reaches through other headers;
+- musl has no <argp.h>. Station carries its own argp (src/argp.c), selected
+  by CFG_argp, so setup.gmk enables it when the compiler's triplet is musl.
+
+diff --git a/setup.gmk b/setup.gmk
+index 148d53b..8f7a564 100644
+--- a/setup.gmk
++++ b/setup.gmk
+@@ -90,6 +90,10 @@ BD=build-${platform}-${variant}
+ # -- Architecture specific
+ CFG.arm-linux-gnueabihf = linux
+ # CFG.x86_64-linux-gnu    = linux
++# musl has no argp; station carries its own (src/argp.c), enabled by CFG_argp
++ifneq (,$(findstring musl,${ARCH}))
++CFG.${ARCH} += argp
++endif
+ 
+ # -- Variant specific
+ #  testsim runs libloragw inside master process
+diff --git a/src/aio.c b/src/aio.c
+index f6ddad7..e0f7cf5 100644
+--- a/src/aio.c
++++ b/src/aio.c
+@@ -30,6 +30,7 @@
+ #include <time.h>
+ #include <errno.h>
+ #include <fcntl.h>
++#include <sys/select.h>   // select() and fd_set: glibc pulls this in through other headers, musl does not
+ #include "rt.h"
+ 
+ 

@@ -24,16 +24,48 @@ COLOR_END="\e[0m"
 # GPIO reset script
 # -----------------------------------------------------------------------------
 
-# USE_LIBGPIOD set by the user wins. Unset, it is 1 when gpioset is available.
+# Succeeds when the running kernel is Linux 5.10 or newer, the release that
+# added the GPIO character device uAPI v2 that libgpiod 2 needs. The kernel is
+# the host's, since containers share it. This goes by version only: an older
+# vendor kernel with the uAPI backported still gets sysfs, which works there.
+function gpio_uapi_v2 {
+
+    local RELEASE
+    RELEASE=$( uname -r )
+    [[ "${RELEASE}" =~ ^([0-9]+)\.([0-9]+) ]] || return 1
+    (( 10#${BASH_REMATCH[1]} > 5 || ( 10#${BASH_REMATCH[1]} == 5 && 10#${BASH_REMATCH[2]} >= 10 ) ))
+
+}
+
+# Chooses libgpiod or sysfs once; later calls keep the first answer.
+# Unset, USE_LIBGPIOD is 1 when gpioset exists and the kernel has GPIO uAPI v2,
+# and GPIO_ACCESS_NOTE says why when it isn't. Set by the user, it wins, except
+# that USE_LIBGPIOD=1 on a kernel without uAPI v2 is an error: every gpioset
+# call would fail and the concentrator would start without a reset.
 function resolve_use_libgpiod {
 
+    [[ -n "${GPIO_ACCESS_RESOLVED}" ]] && return 0
+
+    GPIO_ACCESS_NOTE=""
     if [[ -z "${USE_LIBGPIOD}" ]]; then
-        if command -v gpioset >/dev/null 2>&1; then
-            USE_LIBGPIOD=1
-        else
+        if ! command -v gpioset >/dev/null 2>&1; then
             USE_LIBGPIOD=0
+            GPIO_ACCESS_NOTE="gpioset not found"
+        elif ! gpio_uapi_v2; then
+            USE_LIBGPIOD=0
+            GPIO_ACCESS_NOTE="Linux $( uname -r ) has no GPIO uAPI v2"
+        else
+            USE_LIBGPIOD=1
         fi
+    elif [[ "${USE_LIBGPIOD}" -eq 1 ]]; then
+        if ! gpio_uapi_v2; then
+            echo -e "${COLOR_ERROR}ERROR: USE_LIBGPIOD=1 needs Linux 5.10 or newer, and this host runs $( uname -r ). Unset USE_LIBGPIOD to use sysfs.${COLOR_END}"
+            return 1
+        fi
+    else
+        GPIO_ACCESS_NOTE="USE_LIBGPIOD=${USE_LIBGPIOD}"
     fi
+    GPIO_ACCESS_RESOLVED=1
 
 }
 
@@ -47,7 +79,7 @@ function render_reset_file {
     local TARGET=$1
     local TEMPLATE CONTENT
 
-    resolve_use_libgpiod
+    resolve_use_libgpiod || return 1
 
     # The first pinctrl chip is the SoC's GPIO block on a Raspberry Pi
     if [[ "${USE_LIBGPIOD}" -eq 1 ]]; then

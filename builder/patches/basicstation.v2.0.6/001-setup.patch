@@ -1,15 +1,16 @@
-Subject: Choose the toolchain from the target architecture
+Subject: Use the local compiler when building on the target
 
-Upstream maps each platform to one fixed toolchain (corecell and rpi assume
-32-bit ARM) and uses the local gcc only when it matches. The image is built on
-each target architecture, so the build passes arch=armv7hf|aarch64|amd64 and
-setup.gmk maps it to the matching gcc triplet.
+Upstream maps each platform to one fixed toolchain triplet (corecell and rpi
+assume 32-bit ARM with glibc) and uses the local gcc only when it reports that
+exact triplet. The image is built on each target platform, so the build passes
+arch=<name> and setup.gmk then takes the local gcc's own triplet. That also
+covers musl, whose gcc reports *-alpine-linux-musl*.
 
 diff --git a/setup.gmk b/setup.gmk
-index d7c4363..55d74c1 100644
+index d7c4363..148d53b 100644
 --- a/setup.gmk
 +++ b/setup.gmk
-@@ -35,18 +35,31 @@ NQ = $(if ${V},>/dev/null,)
+@@ -35,6 +35,7 @@ NQ = $(if ${V},>/dev/null,)
  
  platform ?= linux
  variant  ?= std
@@ -17,34 +18,16 @@ index d7c4363..55d74c1 100644
  
  -include ${TD}/setup-${platform}.gmk
  
- LOCAL_ARCH := $(shell gcc -dumpmachine)
- 
--ARCH.linux   = x86_64-linux-gnu
--ARCH.linuxV2 = x86_64-linux-gnu
--ARCH.linuxpico = x86_64-linux-gnu
--ARCH.corecell  = arm-linux-gnueabihf
--ARCH.rpi     = arm-linux-gnueabihf
--ARCH.kerlink = arm-klk-linux-gnueabi
--ARCH=${ARCH.${platform}}
-+ARCH.linux.default   = x86_64-linux-gnu
-+ARCH.linuxV2.default = x86_64-linux-gnu
-+ARCH.linuxpico.default = x86_64-linux-gnu
-+ARCH.linuxpico.armv6l = arm-linux-gnueabi
-+ARCH.linuxpico.armv7hf = arm-linux-gnueabihf
-+ARCH.linuxpico.aarch64 = aarch64-linux-gnu
-+ARCH.linuxpico.amd64 = x86_64-linux-gnu
-+ARCH.corecell.default  = arm-linux-gnueabihf
-+ARCH.corecell.armv6l  = arm-linux-gnueabi
-+ARCH.corecell.armv7hf  = arm-linux-gnueabihf
-+ARCH.corecell.aarch64  = aarch64-linux-gnu
-+ARCH.corecell.amd64  = x86_64-linux-gnu
-+ARCH.rpi.default  = arm-linux-gnueabihf
-+ARCH.rpi.armv6l  = arm-linux-gnueabi
-+ARCH.rpi.armv7hf  = arm-linux-gnueabihf
-+ARCH.rpi.aarch64  = aarch64-linux-gnu
-+ARCH.rpi.amd64  = x86_64-linux-gnu
-+ARCH.kerlink.default = arm-klk-linux-gnueabi
-+ARCH=${ARCH.${platform}.${arch}}
+@@ -47,6 +48,12 @@ ARCH.corecell  = arm-linux-gnueabihf
+ ARCH.rpi     = arm-linux-gnueabihf
+ ARCH.kerlink = arm-klk-linux-gnueabi
+ ARCH=${ARCH.${platform}}
++# Building on the target itself, natively or under emulation: the local gcc is
++# the right compiler, whatever triplet its libc gives it (glibc reports
++# *-linux-gnu*, musl *-alpine-linux-musl*), so no cross toolchain is looked for.
++ifneq (default,${arch})
++ARCH := ${LOCAL_ARCH}
++endif
  
  export TDfull := $(shell cd ${TD} && pwd)
  TOOLCHAIN=${HOME}/toolchain-${platform}

@@ -8,6 +8,8 @@
 #   what a normal start writes; an existing static folder is left alone;
 # - the reset script has every placeholder filled, for all three entry points,
 #   honours USE_LIBGPIOD, and warns instead of failing silently without a chip;
+#   it calls gpioset in the right order with the libgpiod 2 command line, and
+#   libgpiod or sysfs is chosen by the kernel version (faked) and USE_LIBGPIOD;
 # - the gateway EUI comes from the requested NIC, then the usual names in their
 #   order, then the busiest NIC (never loopback);
 # - autoprovisioning, against a mock of The Things Stack API, registers the EUI
@@ -15,7 +17,8 @@
 # - certificate chains survive, the default trust is the system CA bundle, and
 #   station reads it;
 # - static configurations, whitelists, deprecated aliases, the runtime commands,
-#   the version banner and the NET mode link.
+#   the version banner and base image, every built binary loading, and the
+#   NET mode link.
 #
 #   ./smoke-test.sh IMAGE PLATFORM
 #
@@ -401,7 +404,78 @@ expect "${NO_CHIP}" "reset output without a chip" \
     "WARNING: no GPIO chip given or detected, the concentrator is not reset (set GPIO_CHIP)" "calls: "
 reject "${NO_CHIP}" "reset output without a chip" "calls: -"
 expect "$( sed -n '/=== chipG/,$p' <<< "${OUTPUT}" )" "reset output with GPIO_CHIP=chipG" \
-    "calls: -m time -u 100000 chipG 17=0"
+    "calls: -c chipG -p 100ms -t0 17=0"
+
+section "reset script for a USB concentrator"
+# Station runs the reset script with execvp, which on musl refuses a file
+# without a #! line. env runs it the same way, so this fails where station would.
+# shellcheck disable=SC2016
+run_in "" "" "" -e MODEL=RAK7271 -e TC_KEY=x -- bash -c '
+    start --render > /dev/null 2>&1 || exit 1
+    env /app/config/reset.sh; echo "reset.sh exit=$?"
+    env /app/config/reset_lgw.sh; echo "reset_lgw.sh exit=$?"'
+expect "${OUTPUT}" "USB reset script" "reset.sh exit=0" "reset_lgw.sh exit=0"
+
+section "reset sequence"
+# The stub records the arguments only; the 100 ms hold happens inside the real
+# gpioset, which smoke/gpio-sim-check.sh measures on a simulated chip
+# shellcheck disable=SC2016
+run_in "" "" "" -e MODEL=RAK5146 -e TC_KEY=x -e GPIO_CHIP=chipG -e RESET_GPIO=6,17 \
+    -e POWER_EN_GPIO=20 -e POWER_EN_LOGIC=0 -- bash -c '
+    mkdir -p /tmp/stub
+    printf "#!/bin/sh\necho \"\$*\" >> /tmp/stub/log\n" > /tmp/stub/gpioset
+    chmod +x /tmp/stub/gpioset
+    start --render > /dev/null 2>&1 || exit 1
+    PATH=/tmp/stub:$PATH bash /app/config/reset.sh > /dev/null
+    cat /tmp/stub/log'
+[[ ${STATUS} -eq 0 ]] || fail_output "the reset sequence check exited ${STATUS}"
+same "${OUTPUT}" "$( printf -- '-c chipG -p 100ms -t0 %s\n' 20=0 6=0 6=1 6=0 17=0 17=1 17=0 )" \
+    "gpioset calls of the reset script"
+
+section "GPIO access selection"
+# A stub uname reports an old or a current kernel. libgpiod 2 needs Linux 5.10
+# or newer; below it the scripts use sysfs, or stop when USE_LIBGPIOD=1 forces
+# libgpiod.
+K_OLD=5.4.0-150-smoke
+K_NEW=6.6.31-smoke
+GPIO_SEL=${WORK}/gpio-sel
+mkdir -p "${GPIO_SEL}/tmp/stub"
+# shellcheck disable=SC2016
+printf '#!/bin/sh\nif [ "$1" = "-r" ]; then echo "${FAKE_KERNEL}"; else exec /bin/uname "$@"; fi\n' \
+    > "${GPIO_SEL}/tmp/stub/uname"
+chmod +x "${GPIO_SEL}/tmp/stub/uname"
+GPIO_CASES=( "unset|" "zero|USE_LIBGPIOD=0" "one|USE_LIBGPIOD=1" )
+for CALLER in start find_concentrator gateway_eui; do
+    case "${CALLER}" in
+        start) COMMAND='PATH=/tmp/stub:$PATH start --render; echo "exit=$?"; cat /app/config/reset.sh' ;;
+        *) COMMAND='PATH=/tmp/stub:$PATH '"${CALLER}"'; echo "exit=$?"; cat /app/reset_lgw.sh' ;;
+    esac
+    for KERNEL in "${K_OLD}" "${K_NEW}"; do
+        for CASE in "${GPIO_CASES[@]}"; do
+            echo "${CASE%%|*}-${KERNEL%%.*}|${COMMAND}|MODEL=RAK5146 TC_KEY=x FAKE_KERNEL=${KERNEL} ${CASE#*|}"
+        done
+    done > "${GPIO_SEL}/tmp/cases.txt"
+    batch "${WORK}/gpio-sel-${CALLER}-out" "${GPIO_SEL}" --mac-address "${MAC_A}"
+    R=${WORK}/gpio-sel-${CALLER}-out
+    LABEL_OLD="${CALLER}, Linux ${K_OLD}"
+    LABEL_NEW="${CALLER}, Linux ${K_NEW}"
+    expect "$( case_output "${R}" unset-5 )" "${LABEL_OLD}, USE_LIBGPIOD unset" "using sysfs"
+    expect "$( case_output "${R}" unset-6 )" "${LABEL_NEW}, USE_LIBGPIOD unset" "using libgpiod"
+    expect "$( case_output "${R}" zero-5 )" "${LABEL_OLD}, USE_LIBGPIOD=0" "using sysfs"
+    expect "$( case_output "${R}" zero-6 )" "${LABEL_NEW}, USE_LIBGPIOD=0" "using sysfs"
+    expect "$( case_output "${R}" one-6 )" "${LABEL_NEW}, USE_LIBGPIOD=1" "using libgpiod"
+    expect "$( case_output "${R}" one-5 )" "${LABEL_OLD}, USE_LIBGPIOD=1" \
+        "ERROR: USE_LIBGPIOD=1 needs Linux 5.10 or newer, and this host runs ${K_OLD}"
+    reject "$( case_output "${R}" one-5 )" "${LABEL_OLD}, USE_LIBGPIOD=1" "exit=0" "using sysfs" "using libgpiod"
+    reject "$( case_output "${R}" unset-5 )" "${LABEL_OLD}, USE_LIBGPIOD unset" "using libgpiod"
+    reject "$( case_output "${R}" unset-6 )" "${LABEL_NEW}, USE_LIBGPIOD unset" "using sysfs"
+    if [[ "${CALLER}" == "start" ]]; then
+        expect "$( case_output "${R}" unset-5 )" "start summary, Linux ${K_OLD}" \
+            "GPIO access:   sysfs (Linux ${K_OLD} has no GPIO uAPI v2)"
+        expect "$( case_output "${R}" unset-6 )" "start summary, Linux ${K_NEW}" "GPIO access:   libgpiod"
+        expect "$( case_output "${R}" zero-6 )" "start summary, USE_LIBGPIOD=0" "GPIO access:   sysfs (USE_LIBGPIOD=0)"
+    fi
+done
 
 # -----------------------------------------------------------------------------
 # Gateway EUI from a NIC
@@ -782,10 +856,31 @@ same "$( < "${A}/region_old/config/tc.uri" )" "wss://au1.cloud.thethings.network
 
 section "runtime commands"
 # Every external command the runner scripts and reset scripts call
-RUNTIME_COMMANDS="bash jq socat curl gpioset gpiodetect ip perl timeout awk sed grep head tr ls cp chmod ln mkdir sleep readlink dirname stty"
-run_in "" "" "" -- bash -c "for c in ${RUNTIME_COMMANDS}; do command -v \$c > /dev/null || echo \"missing: \$c\"; done; echo checked"
+RUNTIME_COMMANDS="bash jq socat curl gpioset gpiodetect ip timeout awk gawk sed grep head tr ls cp chmod ln mkdir sleep readlink dirname stty uname"
+run_in "" "" "" -- bash -c "for c in ${RUNTIME_COMMANDS}; do command -v \$c > /dev/null || echo \"missing: \$c\"; done; command -v perl > /dev/null && echo 'perl is installed'; echo checked"
 expect "${OUTPUT}" "runtime command check" "checked"
-reject "${OUTPUT}" "runtime command check" "missing:"
+reject "${OUTPUT}" "runtime command check" "missing:" "perl is installed"
+
+section "binaries load"
+# Each built binary runs far enough to print its version or usage, so the
+# dynamic loader found everything it needs. The chip_id tools exit non-zero
+# after their usage text, so the text is what is checked.
+# shellcheck disable=SC2016
+run_in "" "" "" -- bash -c '
+    cd /app/artifacts
+    for B in v2:rpi corecell:corecell picocell:linuxpico; do
+        V=$( "./${B%%:*}/station" --version 2>&1 | head -1 )
+        [[ "${V}" =~ ^Station:\ [0-9.]+\(${B#*:}/ ]] && R=ok || R=FAILED
+        echo "${R} ${B%%:*}/station: ${V}"
+    done
+    for B in corecell picocell; do
+        V=$( "./${B}/chip_id" -h 2>&1 | grep -m1 "Available options" )
+        [[ -n "${V}" ]] && R=ok || R=FAILED
+        echo "${R} ${B}/chip_id: ${V:-no usage text}"
+    done'
+printf '%s\n' "${OUTPUT}" | sed 's/^/   /'
+reject "${OUTPUT}" "binary load check" "FAILED"
+same "$( grep -c '^ok ' <<< "${OUTPUT}" )" "5" "binaries that load"
 
 section "version banner, build record and labels"
 label() { docker image inspect "${IMAGE}" --format "{{ index .Config.Labels \"$1\" }}"; }
@@ -803,6 +898,9 @@ same "$( label com.xoseperez.basicstation.chip-id.sx1302-hal-version )" "$( info
 same "$( label com.xoseperez.basicstation.chip-id.picogw-hal-version )" "$( info chip_id.picoGW_hal )" "chip_id picoGW_hal label"
 same "$( label org.opencontainers.image.version )" "$( info IMAGE_VERSION )" "image version label"
 expect "${OUTPUT}" "banner" "Packet Forwarder Container $( info IMAGE_VERSION )"
+BASE_LABEL=$( label org.opencontainers.image.base.name )
+[[ -n "${BASE_LABEL}" ]] || fail "the image has no org.opencontainers.image.base.name label"
+expect "${OUTPUT}" "banner" "Base image: " "(${BASE_LABEL#docker.io/library/})"
 echo "build record: $( grep -E '^[a-z_.]+=' <<< "${OUTPUT}" | grep -v IMAGE_VERSION | tr '\n' ' ' )"
 
 # -----------------------------------------------------------------------------

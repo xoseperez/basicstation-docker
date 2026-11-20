@@ -91,6 +91,20 @@ jobs:
           done
           echo "All platforms: $(( (SECONDS - TOTAL) / 60 )) min"
       -
+        # The reset script's timing with the image's real gpioset, on a
+        # simulated GPIO chip. Only on amd64: qemu-user does not translate the
+        # GPIO ioctls. Runners whose kernel lacks gpio-sim skip it with a
+        # notice; the hardware checks before a release still cover it.
+        name: GPIO timing (amd64)
+        run: |
+          if sudo modprobe gpio-sim; then
+            docker buildx bake -f docker-bake.hcl --load --set "*.platform=linux/amd64" \
+              --set "basicstation.tags=smoke:gpio-sim"
+            ./smoke/gpio-sim-check.sh smoke:gpio-sim
+          else
+            echo "::notice::GPIO timing check skipped: this runner cannot load the gpio-sim kernel module"
+          fi
+      -
         name: Build and push
         if: inputs.dry_run != true
         run: docker buildx bake -f docker-bake.hcl --push --progress=plain

@@ -23,9 +23,12 @@ if [[ -z "${RESET_GPIO_CHIP}" ]]; then
     exit 0
 fi
 
-# Build gpioset commands using the correct chip for each operation
-RESET_GPIOSET="gpioset -m time -u 100000 ${RESET_GPIO_CHIP}"
-ENABLE_GPIOSET="gpioset -m time -u 100000 ${ENABLE_GPIO_CHIP}"
+# Build gpioset commands using the correct chip for each operation. Each call
+# sets the line, holds it for 100 ms (-p) and exits (-t0); without -t0,
+# libgpiod 2's gpioset keeps running to hold the line. The line is released
+# on exit, as it always was, so its later level is up to the kernel's driver.
+RESET_GPIOSET="gpioset -c ${RESET_GPIO_CHIP} -p 100ms -t0"
+ENABLE_GPIOSET="gpioset -c ${ENABLE_GPIO_CHIP} -p 100ms -t0"
 
 # Enable gateway
 if [[ ${POWER_EN_GPIO} -ne 0 ]]; then
