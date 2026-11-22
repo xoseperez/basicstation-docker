@@ -14,7 +14,9 @@
 * A `station.conf` without `routerid` or `device` no longer shows `NULL`
 * Without a GPIO chip, the reset script warns instead of silently not resetting the concentrator
 * Probing a tty concentrator no longer changes how SPI concentrators are probed afterwards
-* `INTERFACE=NET`: the link to ser2net survives the concentrator probes and reconnects if the connection drops
+* `INTERFACE=NET`: the link to ser2net survives the concentrator probes and container restarts
+* `INTERFACE=NET`: the service stops when the link to ser2net drops
+* `INTERFACE=NET`: downlinks fixed
 * `docker-compose.yml`: `POWER_EN_LOGIC` example, GPIO chip comments, `RESET_GPIO_CHIP`/`ENABLE_GPIO_CHIP`, `VARIANT: stdn`, option numbering
 * Smaller image: `sudo`, `gnupg`, `dirmngr`, `udev`, `vim`, `procps`, `inetutils-ping` and `netbase` are no longer installed, and the build stage installs only what the build needs
 * The upstream patches are split into one change per patch, each with a note on why it is needed; the built code is unchanged

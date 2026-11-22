@@ -973,5 +973,14 @@ fi
 # In NET mode the link is recreated if its TCP connection dropped
 [[ -n "${NETLINK}" ]] && wait_for_device "${DEVICE}" 10
 
+# With -f, station kills the process its PID file names, to take over from an
+# earlier copy of itself. A restarted container still has the file from its
+# last run, where station was PID 1. Killing PID 1's process group means
+# kill(-1): every process in the container but station, the NET mode link
+# included, so the radio then can't open its device. Only one station runs in
+# a container, so the file is always stale here. Station keeps it in
+# STATION_TEMPDIR, or else /var/tmp, or /tmp when /var/tmp isn't writable.
+rm -f "${STATION_TEMPDIR:-/var/tmp}/station.pid" /var/tmp/station.pid /tmp/station.pid
+
 export STATION_RADIOINIT=/app/config/reset.sh
 exec /app/artifacts/"${DESIGN}"/station -f

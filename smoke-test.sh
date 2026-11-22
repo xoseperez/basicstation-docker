@@ -861,5 +861,41 @@ printf '%s\n' "${OUTPUT}"
 expect "${OUTPUT}" "NET link check" "link alive" "echo: ping"
 [[ ${STATUS} -eq 0 ]] || fail_output "the NET link check exited ${STATUS}"
 
+section "NET link dropped under station"
+# Station keeps the pty it opened, so a new link can't reach it: when the
+# bridge goes away, station has to stop for the restart policy to start over
+create --network-alias net-drop -- socat TCP-LISTEN:3333,fork,reuseaddr EXEC:cat
+BRIDGE=${CONTAINER}
+docker start "${BRIDGE}" > /dev/null
+run_station "" "" "Starting TC engine" -e INTERFACE=NET -e DEVICE=net-drop:3333 -e MODEL=SX1302 \
+    -e TC_KEY=x -e TC_URI=wss://127.0.0.1:1 --mac-address "${MAC_A}" -- start
+docker rm -f "${BRIDGE}" > /dev/null
+EXIT=$( timeout 60 docker wait "${RUNNING}" ) || EXIT="still running after 60 s"
+OUTPUT=$( docker logs "${RUNNING}" 2>&1 | tr -d '\0' )
+same "${EXIT}" "143" "station's exit status after the link dropped"
+expect "${OUTPUT}" "link drop" "ERROR: the link to net-drop:3333 dropped"
+
+# The restart policy starts the same container again, with the files its last
+# run left behind. The new link has to survive station's start, and a second
+# drop must stop station again.
+create --network-alias net-drop -- socat TCP-LISTEN:3333,fork,reuseaddr EXEC:cat
+BRIDGE=${CONTAINER}
+docker start "${BRIDGE}" > /dev/null
+docker start "${RUNNING}" > /dev/null
+DEADLINE=$(( SECONDS + STATION_TIMEOUT ))
+until (( $( docker logs "${RUNNING}" 2>&1 | grep -acF "Starting TC engine" ) >= 2 )); do
+    (( SECONDS > DEADLINE )) && fail "the restarted container didn't start station within ${STATION_TIMEOUT}s"
+    sleep 1
+done
+sleep 3
+docker exec "${RUNNING}" sh -c '[ -c "$( readlink -f /dev/ttyV0 )" ]' \
+    || fail "the link was gone after the restarted container started station"
+docker rm -f "${BRIDGE}" > /dev/null
+EXIT=$( timeout 60 docker wait "${RUNNING}" ) || EXIT="still running after 60 s"
+OUTPUT=$( docker logs "${RUNNING}" 2>&1 | tr -d '\0' )
+same "${EXIT}" "143" "exit status after the link dropped in the restarted container"
+reject "${OUTPUT}" "restarted container" "Killing process"
+stop_station
+
 section "done"
 echo "   total: ${SECONDS}s"

@@ -174,6 +174,14 @@ function wait_for_device {
 # closes it after every probe, so the link was gone before station could open
 # it. A reader that never closes it keeps the link up across probes. If socat
 # still ends (the TCP connection drops), the loop starts it again.
+#
+# Once station runs, a new link doesn't help: station keeps the old pty, which
+# only returns I/O errors. It doesn't treat them as fatal, so it would stay
+# connected to the server with a deaf radio, logging errors over a thousand
+# times a second. So when the link drops under station, station is stopped
+# (exit code 143), and the container's restart policy starts everything again
+# with a new link. The shell that called this function execs station, so
+# station has its process ID.
 function create_network_link {
 
     NETLINK=${DEVICE:-$( ip route | awk '/default/ { print $3 ":3333" }' )}
@@ -189,6 +197,11 @@ function create_network_link {
             fi
             wait "${SOCAT_PID}"
             exec 9<&-
+            if [[ "$( cat "/proc/$$/comm" 2> /dev/null )" == "station" ]]; then
+                echo -e "${COLOR_ERROR}ERROR: the link to ${NETLINK} dropped, stopping Basics Station so that the container restarts with a new link${COLOR_END}"
+                kill -TERM "$$"
+                exit
+            fi
             sleep 1
         done
     ) &

@@ -981,6 +981,8 @@ services:
       (...)
 ```
 
+If the TCP connection drops while Basics™ Station is running (ser2net restarts, the network goes down), the service stops with exit code 143 so the container can start again with a new link. Keep a restart policy such as `restart: unless-stopped`, or the container stays stopped.
+
 When the service boots you will see the information about the network device being used in the summary. By default it will try to reach port 3333/tcp at the host. You can also specify a different connection in the `DEVICE` variable:
 
 ```
