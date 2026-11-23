@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.9.0 (unreleased)
+## 2.9.0 (2026-11-23)
 
 * Images are built by a GitHub Actions workflow for `linux/amd64`, `linux/arm64` and `linux/arm/v7`
 * `find_concentrator` and `gateway_eui` reset SPI concentrators again

@@ -34,6 +34,7 @@ This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward pro
     - [Multiple GPIO chips](#multiple-gpio-chips)
     - [Whitelisting](#whitelisting)
 - [Troubleshoothing](#troubleshoothing)
+    - [Known issues](#known-issues)
     - [Connect to a concentrator remotely](#connect-to-a-concentrator-remotely)
 - [Releases](#releases)
 - [Parsers](#parsers)
@@ -940,6 +941,10 @@ services:
 
 
 Feel free to introduce issues on this repo and contribute with solutions.
+
+### Known issues
+
+* **PicoCell downlinks are logged as failed.** With a PicoCell concentrator (SX1308 over USB, such as the MikroTik R11e-LR8), Basics™ Station logs every downlink as `radio is not emitting frame - abandoning TX`, sometimes after `Slave (0) did not send reply data`. The frame is sent anyway, and devices receive it: joins and confirmed downlinks work. The radio only answers station's transmit check once the frame is out, so station thinks it never started. Because of that, station doesn't tell the network server the downlink was sent. This is in Basics™ Station itself, and earlier releases of this image have it too.
 
 ### Connect to a concentrator remotely
 
