@@ -1,0 +1,37 @@
+Subject: Wait longer for the radio slave's synchronous replies
+
+The main process asks the radio slave for the TX status 5ms into every
+downlink, and gave up after 5 reads 500us apart, about 2ms. The slave only
+answers after reading the concentrator, and with the concentrator behind a TCP
+link (INTERFACE=NET, ser2net) one read takes 7-9ms. The answer always came too
+late, station took the missing reply for "not emitting", logged "radio is not
+emitting frame - abandoning TX" and aborted the frame: no downlink was ever
+sent over the link, while uplinks worked. The wait is now up to 100ms. A slave
+that answers in time, as over SPI or direct USB, ends the wait at once; the
+main process only blocks longer when the slave is slow anyway.
+
+diff --git a/src-linux/ral_master.c b/src-linux/ral_master.c
+index 3fa397b..2a8d791 100644
+--- a/src-linux/ral_master.c
++++ b/src-linux/ral_master.c
+@@ -52,6 +52,11 @@
+ #define WAIT_SLAVE_PID_INTV rt_millis(500)
+ #define RETRY_KILL_INTV     rt_millis(100)
+ #define RETRY_PIPE_IO       500
++// Synchronous replies (TX status, and TX results where CCA applies) can take
++// a radio round trip on the slave side. Over a TCP link that is several ms,
++// so wait up to 200 x RETRY_PIPE_IO = 100ms. A fast slave still answers on
++// the first read.
++#define RETRY_SYNC_REPLY    200
+ #define PPM                 1000000
+ 
+ typedef struct slave {
+@@ -100,7 +105,7 @@ static int read_slave_pipe (slave_t* slave, u1_t* buf, int bufsize, int expcmd,
+             if( errno == EAGAIN ) {
+                 if( expcmd == -1 )
+                     return expok; // not waiting for a synchronous answer
+-                if( ++retries < 5 ) {
++                if( ++retries < RETRY_SYNC_REPLY ) {
+                     rt_usleep(RETRY_PIPE_IO);
+                     continue;
+                 }

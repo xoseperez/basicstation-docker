@@ -35,6 +35,7 @@ This project deploys a LoRaWAN gateway with Basics™ Station Packet Forward pro
     - [Multiple GPIO chips](#multiple-gpio-chips)
     - [Whitelisting](#whitelisting)
 - [Troubleshoothing](#troubleshoothing)
+    - [Known issues](#known-issues)
     - [Connect to a concentrator remotely](#connect-to-a-concentrator-remotely)
 - [Releases](#releases)
 - [Parsers](#parsers)
@@ -73,21 +74,22 @@ Releases are tagged with this repository's version:
 
 Tag | Points to
 ------------ | -------------
-`v2.9.0` | That release. It never changes.
-`v2.9`, `v2`, `latest` | The newest release.
+`v3.0.0` | That release. It never changes.
+`v3.0`, `v3`, `latest` | The newest release.
+`v2` | `v2.9.0`, the last Debian-based release. It no longer moves.
 
 These older tags stay on Docker Hub as they are, and are no longer updated:
 
 * the per-architecture tags `armv7hf-latest`, `aarch64-latest` and `amd64-latest`;
 * the commit tags (like `622a727`).
 
-If you use one of them, move to `latest`, `v2` or a version tag to keep getting fixes. The startup banner shows the image version, the Basics™ Station version it packages and the base image.
+If you use one of them, move to `latest`, `v3` or a version tag to keep getting fixes. The startup banner shows the image version, the Basics™ Station version it packages and the base image.
 
 ### Base image
 
-From `v2.9.0` the image is built on **Alpine Linux 3.24** (musl libc). Earlier images used Debian 12 (bookworm). Alpine 3.24's main repository has security support until **2028-06-01**. `libgpiod` comes from its community repository, which gets fixes only until the next Alpine release, so the base is bumped when that release ships.
+From `v3.0.0` the image is built on **Alpine Linux 3.24** (musl libc). Earlier images, up to `v2.9.0`, used Debian 12 (bookworm). Alpine 3.24's main repository has security support until **2028-06-01**. `libgpiod` comes from its community repository, which gets fixes only until the next Alpine release, so the base is bumped when that release ships.
 
-> **Breaking change for images built on top of this one.** If your Dockerfile starts `FROM xoseperez/basicstation` and installs packages, use `apk add` instead of `apt-get install`. Binaries built against glibc don't run on it. `v2` and `latest` moved to the Alpine image with `v2.9.0`; `v2.8.6` is the last Debian-based release.
+> **Breaking change for images built on top of this one.** If your Dockerfile starts `FROM xoseperez/basicstation` and installs packages, use `apk add` instead of `apt-get install`. Binaries built against glibc don't run on it. `latest` moves to the Alpine image with `v3.0.0`. `v2` stays on `v2.9.0`, the last Debian-based release.
 
 
 ## Requirements
@@ -293,8 +295,8 @@ Variable Name | Value | Description | Default
 **`DISABLE_CLEAR_CHANNEL_ANALYSIS`** | 0 or 1 | Set to 1 to disable clear-channel analysis (LBT) | 0
 **`DISABLE_DUTY_CYCLE_CHECK`** | 0 or 1 | Set to 1 to disable duty cycle check | 0
 **`DISABLE_DWELL_TIME_LIMITS`** | 0 or 1 | Set to 1 to disable dwell-time limitations | 0
-**`TTS_USERNAME`** | `STRING` | Name of your user on the TTS instance you want to register the gateway | Paste your username
-**`TTS_PERSONAL_KEY`** | `STRING` | Unique key to create the gateway and its key | Paste personal API key from your TTS instance (check section about autoprovision below)
+**`TTS_USERNAME`** | `STRING` | Name of your user on the TTS instance you want to register the gateway. Can also be given as the `tts.username` secret | Paste your username
+**`TTS_PERSONAL_KEY`** | `STRING` | Unique key to create the gateway and its key. Can also be given as the `tts.personal_key` secret | Paste personal API key from your TTS instance (check section about autoprovision below)
 **`TTS_FREQUENCY_PLAN_ID`** | `STRING` | The Things Stack frequency plan (https://www.thethingsindustries.com/docs/reference/frequency-plans/) | "EU_863_870_TTN"
 **`WHITELIST_NETIDS`** | `STRING` | List of up to 16 NetIDs to whitelist, filters uplinks (see `Whitelisting` below) | *empty*
 **`WHITELIST_OUIS`** | `STRING` | List of up to 16 OUIs to whitelist, filters join requests (see `Whitelisting` below) | *empty*
@@ -428,6 +430,30 @@ services:
       MODEL: "SX1303"
       TTS_USERNAME: "xoseperez" # use here your TTN user name
       TTS_PERSONAL_KEY: "NNSXS.E2CK53N....." # use here a personal key with the required permissions
+```
+
+To keep the personal key out of the compose file and `docker inspect`, provide both as secrets instead:
+
+```
+services:
+
+  basicstation:
+    image: xoseperez/basicstation:latest
+    container_name: basicstation
+    restart: unless-stopped
+    privileged: true
+    network_mode: host
+    secrets:
+      - tts.username
+      - tts.personal_key
+    environment:
+      MODEL: "SX1303"
+
+secrets:
+  tts.username:
+    file: ./tts.username
+  tts.personal_key:
+    file: ./tts.personal_key
 ```
 
 `TTS_PERSONAL_KEY` should be a key with, at least, the following permissions:
@@ -701,6 +727,10 @@ The service accepts the following secrets **named exactly** as the basicstation 
 * cups.trust
 * cups.crt
 * cups.key
+* tts.username
+* tts.personal_key
+
+The last two hold `TTS_USERNAME` and `TTS_PERSONAL_KEY` for autoprovisioning (see `Autoprovision your gateway on TTN or TTI`). A secret takes precedence over the variable of the same name. A trailing newline or CRLF in any of these files is fine.
 
 
 ### Check the configuration without a radio
@@ -922,6 +952,10 @@ services:
 
 Feel free to introduce issues on this repo and contribute with solutions.
 
+### Known issues
+
+* **PicoCell downlinks are logged as failed.** With a PicoCell concentrator (SX1308 over USB, such as the MikroTik R11e-LR8), Basics™ Station logs every downlink as `radio is not emitting frame - abandoning TX`, sometimes after `Slave (0) did not send reply data`. The frame is sent anyway, and devices receive it: joins and confirmed downlinks work. The radio only answers station's transmit check once the frame is out, so station thinks it never started. Because of that, station doesn't tell the network server the downlink was sent. This is in Basics™ Station itself, and earlier releases of this image have it too.
+
 ### Connect to a concentrator remotely
 
 From version 2.8.0, you have the option to connect to a remote concentrator via a TCP link. This is useful to use the service with MacOS since Docker Desktop for MacOS does not let you passthrough USB devices. Therefore you can bypass the USB device as a TCP connection using `ser2net` and mount it back as a UART device inside the container.
@@ -962,6 +996,8 @@ services:
       (...)
 ```
 
+If the TCP connection drops while Basics™ Station is running (ser2net restarts, the network goes down), the service stops with exit code 143 so the container can start again with a new link. Keep a restart policy such as `restart: unless-stopped`, or the container stays stopped.
+
 When the service boots you will see the information about the network device being used in the summary. By default it will try to reach port 3333/tcp at the host. You can also specify a different connection in the `DEVICE` variable:
 
 ```
@@ -984,10 +1020,10 @@ services:
 
 Images are built, tested and published by the `Docker release` GitHub Actions workflow (`.github/workflows/docker-release.yml`), not from a developer machine. It needs the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets.
 
-* To release, add the version to `CHANGELOG.md`, tag the commit `v<major>.<minor>.<patch>` (for example `v2.9.1`) and publish a GitHub release for it. The workflow checks the tag, builds the three platforms, runs `smoke-test.sh` on each, and only then pushes the image and its tags.
+* To release, add the version to `CHANGELOG.md`, tag the commit `v<major>.<minor>.<patch>` (for example `v3.0.1`) and publish a GitHub release for it. The workflow checks the tag, builds the three platforms, runs `smoke-test.sh` on each, and only then pushes the image and its tags.
 * To package a new Basics™ Station release, change `BASICSTATION_VERSION` in `docker-bake.hcl` and release that as a new version.
 * To bump the base image, change `ARG BASE_IMAGE` at the top of the `Dockerfile` (for example to `alpine:3.25`). Then run `smoke-test.sh`, `smoke/gpio-sim-check.sh` (it needs root and the `gpio-sim` kernel module) and the hardware checks, and update the end-of-support date under "Base image".
-* The floating tags (`v2.9`, `v2`, `latest`) move only for the newest release, so rebuilding an older one never moves them back.
+* The floating tags (`v3.0`, `v3`, `latest`) move only for the newest release, so rebuilding an older one never moves them back.
 * The workflow refuses to overwrite a published version. To rebuild one, run it by hand (Actions, `Docker release`, `Run workflow`) with its tag and `replace` ticked.
 * Before tagging, run it by hand on the branch with `dry_run` ticked. It builds and smoke-tests the three platforms and shows how long each took, without checking tags, logging in to Docker Hub or pushing anything.
 

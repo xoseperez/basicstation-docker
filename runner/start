@@ -337,6 +337,14 @@ CONFIG_FILE=./station.conf
 [[ -f "/run/secrets/cups.crt"   ]] &&   CUPS_CRT=$( < /run/secrets/cups.crt   )
 [[ -f "/run/secrets/cups.key"   ]] &&   CUPS_KEY=$( < /run/secrets/cups.key   )
 
+# The autoprovisioning credentials. They end up in an API URL and an HTTP
+# header, so line endings are dropped: a file saved with CRLF would otherwise
+# leave a CR in both, and the API would reject the request.
+[[ -f "/run/secrets/tts.username"     ]] &&     TTS_USERNAME=$( < /run/secrets/tts.username     )
+[[ -f "/run/secrets/tts.personal_key" ]] && TTS_PERSONAL_KEY=$( < /run/secrets/tts.personal_key )
+TTS_USERNAME=${TTS_USERNAME//[$'\r\n']/}
+TTS_PERSONAL_KEY=${TTS_PERSONAL_KEY//[$'\r\n']/}
+
 # -----------------------------------------------------------------------------
 # Server configuration
 # -----------------------------------------------------------------------------
@@ -375,7 +383,7 @@ AUTOPROVISION=0
 # Configuration mode
 if [[ -f ${CONFIG_FILE} ]]; then
     MODE="STATIC"
-    MISSING_CONFIGURATION="ERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a valid cups.key or tc.key files or TTS_PERSONAL_KEY and TTS_USERNAME variable"
+    MISSING_CONFIGURATION="ERROR: Custom configuration folder found, but missing files: either force key-less CUPS with USE_CUPS=1 or provide a valid cups.key or tc.key files or TTS_PERSONAL_KEY and TTS_USERNAME (variables or tts.* secrets)"
     if [[ $USE_CUPS -eq 1 ]]; then
         PROTOCOL="CUPS"
     elif [[ -f ./cups.key ]] && [[ $USE_CUPS -ne 0 ]]; then
@@ -388,7 +396,7 @@ if [[ -f ${CONFIG_FILE} ]]; then
     fi
 else
     MODE="DYNAMIC"
-    MISSING_CONFIGURATION="ERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define valid TC_KEY, CUPS_KEY or TTS_PERSONAL_KEY and TTS_USERNAME"
+    MISSING_CONFIGURATION="ERROR: Missing configuration, either force key-less CUPS with USE_CUPS=1 or define valid TC_KEY, CUPS_KEY or TTS_PERSONAL_KEY and TTS_USERNAME (variables or tts.* secrets)"
     if [[ $USE_CUPS -eq 1 ]]; then
         PROTOCOL="CUPS"
     elif [[ -n "${CUPS_KEY}" ]] && [[ ${USE_CUPS} -ne 0 ]]; then
@@ -1006,6 +1014,15 @@ fi
 
 # In NET mode the link is recreated if its TCP connection dropped
 [[ -n "${NETLINK}" ]] && wait_for_device "${DEVICE}" 10
+
+# With -f, station kills the process its PID file names, to take over from an
+# earlier copy of itself. A restarted container still has the file from its
+# last run, where station was PID 1. Killing PID 1's process group means
+# kill(-1): every process in the container but station, the NET mode link
+# included, so the radio then can't open its device. Only one station runs in
+# a container, so the file is always stale here. Station keeps it in
+# STATION_TEMPDIR, or else /var/tmp, or /tmp when /var/tmp isn't writable.
+rm -f "${STATION_TEMPDIR:-/var/tmp}/station.pid" /var/tmp/station.pid /tmp/station.pid
 
 export STATION_RADIOINIT=/app/config/reset.sh
 exec /app/artifacts/"${DESIGN}"/station -f

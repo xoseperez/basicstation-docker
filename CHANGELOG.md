@@ -1,13 +1,18 @@
 # Changelog
 
-## 2.9.0 (unreleased)
+## 3.0.0 (unreleased)
 
 * **Breaking for images built on top of this one:** the base image is now Alpine Linux 3.24 (musl) instead of Debian 12, so use `apk` instead of `apt-get`, and glibc binaries don't run
 * libgpiod 2.x resets SPI concentrators on Linux 5.10 or newer; older kernels use sysfs, and `USE_LIBGPIOD=1` on them is an error
 * `perl` is no longer in the image
+* Much smaller image: the Alpine base, and only the packages the scripts use
+
+## 2.9.0 (2026-11-23)
+
 * Images are built by a GitHub Actions workflow for `linux/amd64`, `linux/arm64` and `linux/arm/v7`
 * `find_concentrator` and `gateway_eui` reset SPI concentrators again
 * Autoprovisioning improves (registers the EUI station uses, properly reports a failure, keeps `TTS_PERSONAL_KEY` out of the process list)
+* `TTS_USERNAME` and `TTS_PERSONAL_KEY` can also be given as the `tts.username` and `tts.personal_key` secrets
 * `GATEWAY_EUI_SOURCE=<interface>` picks that interface again
 * `USE_LIBGPIOD=0` selects sysfs again
 * Certificate chains in `TC_TRUST`, `TC_CRT`, `CUPS_TRUST`, `CUPS_CRT` and their secret files keep every certificate
@@ -16,9 +21,11 @@
 * A `station.conf` without `routerid` or `device` no longer shows `NULL`
 * Without a GPIO chip, the reset script warns instead of silently not resetting the concentrator
 * Probing a tty concentrator no longer changes how SPI concentrators are probed afterwards
-* `INTERFACE=NET`: the link to ser2net survives the concentrator probes and reconnects if the connection drops
+* `INTERFACE=NET`: the link to ser2net survives the concentrator probes and container restarts
+* `INTERFACE=NET`: the service stops when the link to ser2net drops
+* `INTERFACE=NET`: downlinks fixed
 * `docker-compose.yml`: `POWER_EN_LOGIC` example, GPIO chip comments, `RESET_GPIO_CHIP`/`ENABLE_GPIO_CHIP`, `VARIANT: stdn`, option numbering
-* Much smaller image: the Alpine base, and only the packages the scripts use
+* Smaller image: `sudo`, `gnupg`, `dirmngr`, `udev`, `vim`, `procps`, `inetutils-ping` and `netbase` are no longer installed, and the build stage installs only what the build needs
 * The upstream patches are split into one change per patch, each with a note on why it is needed; the built code is unchanged
 
 ## 2.8.6 (2025-10-28)
