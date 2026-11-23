@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.0.0 (unreleased)
+## 3.0.0 (2026-11-23)
 
 * **Breaking for images built on top of this one:** the base image is now Alpine Linux 3.24 (musl) instead of Debian 12, so use `apk` instead of `apt-get`, and glibc binaries don't run
 * libgpiod 2.x resets SPI concentrators on Linux 5.10 or newer; older kernels use sysfs, and `USE_LIBGPIOD=1` on them is an error
